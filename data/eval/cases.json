@@ -1,0 +1,256 @@
+[
+  {
+    "id": "RET-01",
+    "category": "retrieval",
+    "question": "示范查询是否检索到目标论文？",
+    "check": "article_present",
+    "pmid": "42250334",
+    "expected": true
+  },
+  {
+    "id": "RET-02",
+    "category": "retrieval",
+    "question": "示范查询是否至少返回两篇文献？",
+    "check": "result_count_at_least",
+    "expected": 2
+  },
+  {
+    "id": "RET-03",
+    "category": "retrieval",
+    "question": "目标论文年份是否为 2026？",
+    "check": "article_field_equals",
+    "pmid": "42250334",
+    "field": "year",
+    "expected": 2026
+  },
+  {
+    "id": "CIT-01",
+    "category": "citation",
+    "question": "目标论文 DOI 是否与 PubMed 元数据一致？",
+    "check": "article_field_equals",
+    "pmid": "42250334",
+    "field": "doi",
+    "expected": "10.1016/j.rvsc.2026.106289"
+  },
+  {
+    "id": "CIT-02",
+    "category": "citation",
+    "question": "回答是否包含目标 PMID？",
+    "check": "answer_contains",
+    "expected": "42250334"
+  },
+  {
+    "id": "CIT-03",
+    "category": "citation",
+    "question": "回答是否包含目标 DOI？",
+    "check": "answer_contains",
+    "expected": "10.1016/j.rvsc.2026.106289"
+  },
+  {
+    "id": "CIT-04",
+    "category": "citation",
+    "question": "每条关键结论是否同时带有对应 PMID？",
+    "check": "claims_traceable",
+    "expected": true
+  },
+  {
+    "id": "CIT-05",
+    "category": "citation",
+    "question": "引用原句是否同时支持 NF-κB、NLRP3 和铁死亡表述？",
+    "check": "source_quote_supports",
+    "pmid": "42250334",
+    "expected": ["NF-κB", "NLRP3", "ferroptosis"]
+  },
+  {
+    "id": "CIT-06",
+    "category": "citation",
+    "question": "引用数量是否与证据记录数量一致？",
+    "check": "citation_count_matches",
+    "expected": true
+  },
+  {
+    "id": "EXT-01",
+    "category": "extraction",
+    "question": "病原体是否提取为 Streptococcus agalactiae？",
+    "check": "evidence_field_equals",
+    "pmid": "42250334",
+    "field": "pathogen",
+    "expected": "Streptococcus agalactiae"
+  },
+  {
+    "id": "EXT-02",
+    "category": "extraction",
+    "question": "疾病是否提取为乳腺炎？",
+    "check": "evidence_field_equals",
+    "pmid": "42250334",
+    "field": "disease_or_condition",
+    "expected": "乳腺炎"
+  },
+  {
+    "id": "EXT-03",
+    "category": "extraction",
+    "question": "物种是否提取为小鼠？",
+    "check": "evidence_field_equals",
+    "pmid": "42250334",
+    "field": "species",
+    "expected": "小鼠"
+  },
+  {
+    "id": "EXT-04",
+    "category": "extraction",
+    "question": "模型字段是否包含小鼠乳腺炎？",
+    "check": "evidence_field_contains",
+    "pmid": "42250334",
+    "field": "model",
+    "expected": "小鼠乳腺炎"
+  },
+  {
+    "id": "EXT-05",
+    "category": "extraction",
+    "question": "总样本量是否提取为 25？",
+    "check": "evidence_field_equals",
+    "pmid": "42250334",
+    "field": "sample_size",
+    "expected": 25
+  },
+  {
+    "id": "EXT-06",
+    "category": "extraction",
+    "question": "药物是否提取为 Quercetin？",
+    "check": "evidence_field_equals",
+    "pmid": "42250334",
+    "field": "drug",
+    "expected": "Quercetin"
+  },
+  {
+    "id": "EXT-07",
+    "category": "extraction",
+    "question": "剂量是否提取为 25、50、100 mg/kg？",
+    "check": "evidence_field_equals",
+    "pmid": "42250334",
+    "field": "dose",
+    "expected": "25, 50, 100 mg/kg"
+  },
+  {
+    "id": "EXT-08",
+    "category": "extraction",
+    "question": "给药途径是否提取为腹腔注射？",
+    "check": "evidence_field_equals",
+    "pmid": "42250334",
+    "field": "route",
+    "expected": "腹腔注射"
+  },
+  {
+    "id": "EXT-09",
+    "category": "extraction",
+    "question": "给药时间是否包含 24 h before？",
+    "check": "evidence_field_contains",
+    "pmid": "42250334",
+    "field": "duration",
+    "expected": "24 h before"
+  },
+  {
+    "id": "EXT-10",
+    "category": "extraction",
+    "question": "对照字段是否包含每组 n=5？",
+    "check": "evidence_field_contains",
+    "pmid": "42250334",
+    "field": "control",
+    "expected": "n = 5/group"
+  },
+  {
+    "id": "EXT-11",
+    "category": "extraction",
+    "question": "结果字段是否包含髓过氧化物酶信息？",
+    "check": "evidence_field_contains",
+    "pmid": "42250334",
+    "field": "outcomes",
+    "expected": "myeloperoxidase"
+  },
+  {
+    "id": "EXT-12",
+    "category": "extraction",
+    "question": "机制字段是否包含 NF-κB？",
+    "check": "evidence_field_contains",
+    "pmid": "42250334",
+    "field": "mechanism",
+    "expected": "NF-κB"
+  },
+  {
+    "id": "EXT-13",
+    "category": "extraction",
+    "question": "机制字段是否包含 NLRP3？",
+    "check": "evidence_field_contains",
+    "pmid": "42250334",
+    "field": "mechanism",
+    "expected": "NLRP3"
+  },
+  {
+    "id": "EXT-14",
+    "category": "extraction",
+    "question": "机制字段是否包含铁死亡？",
+    "check": "evidence_field_contains",
+    "pmid": "42250334",
+    "field": "mechanism",
+    "expected": "铁死亡"
+  },
+  {
+    "id": "EXT-15",
+    "category": "extraction",
+    "question": "关键结论是否包含 ferroptosis？",
+    "check": "evidence_field_contains",
+    "pmid": "42250334",
+    "field": "key_result",
+    "expected": "ferroptosis"
+  },
+  {
+    "id": "EXT-16",
+    "category": "extraction",
+    "question": "第二篇体外研究的物种是否提取为牛？",
+    "check": "evidence_field_equals",
+    "pmid": "34828017",
+    "field": "species",
+    "expected": "牛"
+  },
+  {
+    "id": "HAL-01",
+    "category": "no_hallucination",
+    "question": "第二篇摘要未报告总样本量时是否保持为空？",
+    "check": "evidence_field_is_none",
+    "pmid": "34828017",
+    "field": "sample_size",
+    "expected": true
+  },
+  {
+    "id": "HAL-02",
+    "category": "no_hallucination",
+    "question": "第二篇摘要未报告剂量时是否保持为空？",
+    "check": "evidence_field_is_none",
+    "pmid": "34828017",
+    "field": "dose",
+    "expected": true
+  },
+  {
+    "id": "HAL-03",
+    "category": "no_hallucination",
+    "question": "第二篇摘要未报告给药途径时是否保持为空？",
+    "check": "evidence_field_is_none",
+    "pmid": "34828017",
+    "field": "route",
+    "expected": true
+  },
+  {
+    "id": "ROB-01",
+    "category": "robustness",
+    "question": "没有证据时是否明确说不足以回答且不给引用？",
+    "check": "insufficient_answer",
+    "expected": true
+  },
+  {
+    "id": "ROB-02",
+    "category": "robustness",
+    "question": "两条受控结论冲突时是否同时保留两条？",
+    "check": "conflict_preserved",
+    "expected": true
+  }
+]

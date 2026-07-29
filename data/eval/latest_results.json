@@ -1,0 +1,320 @@
+{
+  "query": "quercetin Streptococcus agalactiae mastitis",
+  "generated_at": "2026-07-29T08:23:17.757876Z",
+  "summary": {
+    "total": 30,
+    "passed": 30,
+    "failed": 0,
+    "pass_rate": 1.0,
+    "by_category": {
+      "citation": {
+        "total": 6,
+        "passed": 6,
+        "failed": 0,
+        "pass_rate": 1.0
+      },
+      "extraction": {
+        "total": 16,
+        "passed": 16,
+        "failed": 0,
+        "pass_rate": 1.0
+      },
+      "no_hallucination": {
+        "total": 3,
+        "passed": 3,
+        "failed": 0,
+        "pass_rate": 1.0
+      },
+      "retrieval": {
+        "total": 3,
+        "passed": 3,
+        "failed": 0,
+        "pass_rate": 1.0
+      },
+      "robustness": {
+        "total": 2,
+        "passed": 2,
+        "failed": 0,
+        "pass_rate": 1.0
+      }
+    }
+  },
+  "results": [
+    {
+      "id": "RET-01",
+      "category": "retrieval",
+      "question": "示范查询是否检索到目标论文？",
+      "passed": true,
+      "expected": true,
+      "actual": true,
+      "error_type": null
+    },
+    {
+      "id": "RET-02",
+      "category": "retrieval",
+      "question": "示范查询是否至少返回两篇文献？",
+      "passed": true,
+      "expected": 2,
+      "actual": 2,
+      "error_type": null
+    },
+    {
+      "id": "RET-03",
+      "category": "retrieval",
+      "question": "目标论文年份是否为 2026？",
+      "passed": true,
+      "expected": 2026,
+      "actual": 2026,
+      "error_type": null
+    },
+    {
+      "id": "CIT-01",
+      "category": "citation",
+      "question": "目标论文 DOI 是否与 PubMed 元数据一致？",
+      "passed": true,
+      "expected": "10.1016/j.rvsc.2026.106289",
+      "actual": "10.1016/j.rvsc.2026.106289",
+      "error_type": null
+    },
+    {
+      "id": "CIT-02",
+      "category": "citation",
+      "question": "回答是否包含目标 PMID？",
+      "passed": true,
+      "expected": "42250334",
+      "actual": true,
+      "error_type": null
+    },
+    {
+      "id": "CIT-03",
+      "category": "citation",
+      "question": "回答是否包含目标 DOI？",
+      "passed": true,
+      "expected": "10.1016/j.rvsc.2026.106289",
+      "actual": true,
+      "error_type": null
+    },
+    {
+      "id": "CIT-04",
+      "category": "citation",
+      "question": "每条关键结论是否同时带有对应 PMID？",
+      "passed": true,
+      "expected": true,
+      "actual": true,
+      "error_type": null
+    },
+    {
+      "id": "CIT-05",
+      "category": "citation",
+      "question": "引用原句是否同时支持 NF-κB、NLRP3 和铁死亡表述？",
+      "passed": true,
+      "expected": [
+        "NF-κB",
+        "NLRP3",
+        "ferroptosis"
+      ],
+      "actual": {
+        "missing_terms": []
+      },
+      "error_type": null
+    },
+    {
+      "id": "CIT-06",
+      "category": "citation",
+      "question": "引用数量是否与证据记录数量一致？",
+      "passed": true,
+      "expected": true,
+      "actual": 2,
+      "error_type": null
+    },
+    {
+      "id": "EXT-01",
+      "category": "extraction",
+      "question": "病原体是否提取为 Streptococcus agalactiae？",
+      "passed": true,
+      "expected": "Streptococcus agalactiae",
+      "actual": "Streptococcus agalactiae",
+      "error_type": null
+    },
+    {
+      "id": "EXT-02",
+      "category": "extraction",
+      "question": "疾病是否提取为乳腺炎？",
+      "passed": true,
+      "expected": "乳腺炎",
+      "actual": "乳腺炎",
+      "error_type": null
+    },
+    {
+      "id": "EXT-03",
+      "category": "extraction",
+      "question": "物种是否提取为小鼠？",
+      "passed": true,
+      "expected": "小鼠",
+      "actual": "小鼠",
+      "error_type": null
+    },
+    {
+      "id": "EXT-04",
+      "category": "extraction",
+      "question": "模型字段是否包含小鼠乳腺炎？",
+      "passed": true,
+      "expected": "小鼠乳腺炎",
+      "actual": true,
+      "error_type": null
+    },
+    {
+      "id": "EXT-05",
+      "category": "extraction",
+      "question": "总样本量是否提取为 25？",
+      "passed": true,
+      "expected": 25,
+      "actual": 25,
+      "error_type": null
+    },
+    {
+      "id": "EXT-06",
+      "category": "extraction",
+      "question": "药物是否提取为 Quercetin？",
+      "passed": true,
+      "expected": "Quercetin",
+      "actual": "Quercetin",
+      "error_type": null
+    },
+    {
+      "id": "EXT-07",
+      "category": "extraction",
+      "question": "剂量是否提取为 25、50、100 mg/kg？",
+      "passed": true,
+      "expected": "25, 50, 100 mg/kg",
+      "actual": "25, 50, 100 mg/kg",
+      "error_type": null
+    },
+    {
+      "id": "EXT-08",
+      "category": "extraction",
+      "question": "给药途径是否提取为腹腔注射？",
+      "passed": true,
+      "expected": "腹腔注射",
+      "actual": "腹腔注射",
+      "error_type": null
+    },
+    {
+      "id": "EXT-09",
+      "category": "extraction",
+      "question": "给药时间是否包含 24 h before？",
+      "passed": true,
+      "expected": "24 h before",
+      "actual": true,
+      "error_type": null
+    },
+    {
+      "id": "EXT-10",
+      "category": "extraction",
+      "question": "对照字段是否包含每组 n=5？",
+      "passed": true,
+      "expected": "n = 5/group",
+      "actual": true,
+      "error_type": null
+    },
+    {
+      "id": "EXT-11",
+      "category": "extraction",
+      "question": "结果字段是否包含髓过氧化物酶信息？",
+      "passed": true,
+      "expected": "myeloperoxidase",
+      "actual": true,
+      "error_type": null
+    },
+    {
+      "id": "EXT-12",
+      "category": "extraction",
+      "question": "机制字段是否包含 NF-κB？",
+      "passed": true,
+      "expected": "NF-κB",
+      "actual": true,
+      "error_type": null
+    },
+    {
+      "id": "EXT-13",
+      "category": "extraction",
+      "question": "机制字段是否包含 NLRP3？",
+      "passed": true,
+      "expected": "NLRP3",
+      "actual": true,
+      "error_type": null
+    },
+    {
+      "id": "EXT-14",
+      "category": "extraction",
+      "question": "机制字段是否包含铁死亡？",
+      "passed": true,
+      "expected": "铁死亡",
+      "actual": true,
+      "error_type": null
+    },
+    {
+      "id": "EXT-15",
+      "category": "extraction",
+      "question": "关键结论是否包含 ferroptosis？",
+      "passed": true,
+      "expected": "ferroptosis",
+      "actual": true,
+      "error_type": null
+    },
+    {
+      "id": "EXT-16",
+      "category": "extraction",
+      "question": "第二篇体外研究的物种是否提取为牛？",
+      "passed": true,
+      "expected": "牛",
+      "actual": "牛",
+      "error_type": null
+    },
+    {
+      "id": "HAL-01",
+      "category": "no_hallucination",
+      "question": "第二篇摘要未报告总样本量时是否保持为空？",
+      "passed": true,
+      "expected": true,
+      "actual": true,
+      "error_type": null
+    },
+    {
+      "id": "HAL-02",
+      "category": "no_hallucination",
+      "question": "第二篇摘要未报告剂量时是否保持为空？",
+      "passed": true,
+      "expected": true,
+      "actual": true,
+      "error_type": null
+    },
+    {
+      "id": "HAL-03",
+      "category": "no_hallucination",
+      "question": "第二篇摘要未报告给药途径时是否保持为空？",
+      "passed": true,
+      "expected": true,
+      "actual": true,
+      "error_type": null
+    },
+    {
+      "id": "ROB-01",
+      "category": "robustness",
+      "question": "没有证据时是否明确说不足以回答且不给引用？",
+      "passed": true,
+      "expected": true,
+      "actual": true,
+      "error_type": null
+    },
+    {
+      "id": "ROB-02",
+      "category": "robustness",
+      "question": "两条受控结论冲突时是否同时保留两条？",
+      "passed": true,
+      "expected": true,
+      "actual": true,
+      "error_type": null
+    }
+  ]
+}

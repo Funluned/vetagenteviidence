@@ -172,7 +172,7 @@ def test_legacy_snapshot_migrates_without_inventing_analysis_hash() -> None:
     assert "排除缺少原始输入哈希" in restored.task_events[0].message
 
 
-def test_legacy_snapshot_with_valid_prerequisites_only_adds_version() -> None:
+def test_legacy_snapshot_invalidates_derived_evidence_state() -> None:
     question = ResearchQuestion(id="rq-legacy", text="候选药物是否有效？")
     query_plan = generate_search_queries(question)
     event = build_task_event(
@@ -190,7 +190,58 @@ def test_legacy_snapshot_with_valid_prerequisites_only_adds_version() -> None:
     restored = WorkbenchRunSnapshot.model_validate(legacy_payload)
 
     assert restored.schema_version == CURRENT_SNAPSHOT_SCHEMA_VERSION
-    assert [item.event_id for item in restored.task_events] == [event.event_id]
+    assert restored.task_events[0].event_id == event.event_id
+    assert restored.task_events[-1].actor == "migration"
+    assert "直接证据准入规则" in restored.task_events[-1].message
+    assert restored.assessment is None
+    assert restored.report is None
+
+
+def test_schema_v3_snapshot_rebuilds_stale_direct_evidence_qualification() -> None:
+    question = ResearchQuestion(
+        id="rq-v3",
+        text="A 与 B 对 target 是否协同？",
+        population="target",
+        intervention="A",
+        comparator="B",
+    )
+    event = build_task_event("run-v3", TaskStatus.PENDING, "任务已创建")
+    legacy_payload = {
+        "schema_version": 3,
+        "run_id": "run-v3",
+        "question": question.model_dump(mode="json"),
+        "query_plan": generate_search_queries(question).model_dump(mode="json"),
+        "task_events": [event.model_dump(mode="json")],
+        "conditions": [
+            {
+                "source_id": "PMID stale",
+                "source_type": "pubmed",
+                "title": "Checkerboard methods for A and B against target",
+                "pmid": "stale",
+                "source_quote": "Checkerboard testing was performed.",
+                "qualification": {
+                    "grade": "direct_interaction",
+                    "matched_population": True,
+                    "matched_intervention": True,
+                    "matched_comparator": True,
+                    "interaction_marker": "checkerboard",
+                    "supporting_quote": "Checkerboard testing was performed.",
+                    "reasons": ["旧规则错误准入"],
+                },
+            }
+        ],
+        "assessment": {"stale": True},
+        "report": {"stale": True},
+    }
+
+    restored = WorkbenchRunSnapshot.model_validate(legacy_payload)
+
+    assert restored.schema_version == CURRENT_SNAPSHOT_SCHEMA_VERSION
+    assert restored.conditions == []
+    assert restored.assessment is None
+    assert restored.report is None
+    assert restored.task_events[-1].actor == "migration"
+    assert restored.task_events[-1].metadata["from_schema_version"] == 3
 
 
 def test_store_datetimes_must_be_timezone_aware() -> None:

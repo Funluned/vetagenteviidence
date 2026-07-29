@@ -33,11 +33,12 @@ from vetevidence.workbench_pipeline import (
     EvidenceAssessment,
     ExperimentCondition,
     QueryPlan,
+    build_experiment_conditions,
     generate_search_queries,
 )
 
 
-CURRENT_SNAPSHOT_SCHEMA_VERSION = 2
+CURRENT_SNAPSHOT_SCHEMA_VERSION = 4
 
 
 def _utc_now() -> datetime:
@@ -131,6 +132,33 @@ class WorkbenchRunSnapshot(StoreModel):
             payload["assessment"] = None
             payload["report"] = None
             migration_notes.append("排除缺少原始输入哈希的旧分析和派生报告")
+
+        if version < 4:
+            research_payload = payload.get("research")
+            import_payload = payload.get("literature_import")
+            research = (
+                ResearchResult.model_validate(research_payload)
+                if research_payload is not None
+                else None
+            )
+            imported = (
+                LiteratureImportResult.model_validate(import_payload)
+                if import_payload is not None
+                else None
+            )
+            payload["conditions"] = [
+                condition.model_dump(mode="python")
+                for condition in build_experiment_conditions(
+                    research,
+                    imported,
+                    question=question,
+                )
+            ]
+            payload["assessment"] = None
+            payload["report"] = None
+            migration_notes.append(
+                "按直接证据准入规则重建文献条件，并使旧评估和报告安全失效"
+            )
 
         events = list(payload.get("task_events") or [])
         if not events:

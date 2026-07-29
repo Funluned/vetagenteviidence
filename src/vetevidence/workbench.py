@@ -85,6 +85,77 @@ class EvidenceReference(WorkbenchModel):
         return self
 
 
+class LiteratureEvidenceGrade(StrEnum):
+    """Question-specific admission grade for one literature source."""
+
+    UNASSESSED = "unassessed"
+    OUT_OF_SCOPE = "out_of_scope"
+    CONTEXTUAL = "contextual"
+    DIRECT_INTERACTION = "direct_interaction"
+
+
+class EvidenceQualification(WorkbenchModel):
+    """Transparent rule output deciding whether literature can answer the question."""
+
+    grade: LiteratureEvidenceGrade = LiteratureEvidenceGrade.UNASSESSED
+    rule_id: str = "interaction-evidence-v1"
+    matched_population: bool = False
+    matched_intervention: bool = False
+    matched_comparator: bool = False
+    interaction_marker: str | None = None
+    interaction_result_signal: str | None = None
+    supporting_quote: str | None = None
+    reasons: list[str] = Field(default_factory=lambda: ["尚未按科研问题评估。"])
+
+    @model_validator(mode="after")
+    def direct_evidence_requires_all_explicit_matches(self) -> EvidenceQualification:
+        if self.grade is LiteratureEvidenceGrade.DIRECT_INTERACTION and not (
+            self.matched_population
+            and self.matched_intervention
+            and self.matched_comparator
+            and self.interaction_marker
+            and self.interaction_result_signal
+            and self.supporting_quote
+        ):
+            raise ValueError(
+                "直接交互证据必须同时命中研究对象、两种干预、明确交互结果"
+                "和可引用原句。"
+            )
+        return self
+
+
+class EvidenceAdmissionStatus(StrEnum):
+    ADMITTED = "admitted"
+    BLOCKED_NO_DIRECT_EVIDENCE = "blocked_no_direct_evidence"
+
+
+class EvidenceAdmission(WorkbenchModel):
+    """Report-level audit of which literature sources may support the answer."""
+
+    status: EvidenceAdmissionStatus = (
+        EvidenceAdmissionStatus.BLOCKED_NO_DIRECT_EVIDENCE
+    )
+    rule_id: str = "interaction-evidence-v1"
+    direct_source_ids: list[str] = Field(default_factory=list)
+    contextual_source_ids: list[str] = Field(default_factory=list)
+    excluded_source_ids: list[str] = Field(default_factory=list)
+    reason: str = "尚无经过直接文献证据规则准入的来源。"
+
+    @model_validator(mode="after")
+    def admitted_reports_require_direct_sources(self) -> EvidenceAdmission:
+        if (
+            self.status is EvidenceAdmissionStatus.ADMITTED
+            and not self.direct_source_ids
+        ):
+            raise ValueError("准入状态为 admitted 时必须至少记录一个直接证据来源。")
+        if (
+            self.status is EvidenceAdmissionStatus.BLOCKED_NO_DIRECT_EVIDENCE
+            and self.direct_source_ids
+        ):
+            raise ValueError("证据不足状态不能同时包含直接证据来源。")
+        return self
+
+
 class ResearchQuestion(WorkbenchModel):
     """A scoped research question that can be decomposed into hypotheses."""
 
@@ -278,6 +349,7 @@ class ResearchDecisionReport(WorkbenchModel):
     hypotheses: list[TestableHypothesis] = Field(min_length=2, max_length=4)
     conclusions: list[TraceableConclusion] = Field(min_length=1)
     recommendation: TraceableConclusion
+    evidence_admission: EvidenceAdmission = Field(default_factory=EvidenceAdmission)
     conflicts: list[EvidenceConflict] = Field(default_factory=list)
     evidence_gaps: list[EvidenceGap] = Field(default_factory=list)
     task_status: TaskStatusSummary

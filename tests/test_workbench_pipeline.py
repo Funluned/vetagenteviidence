@@ -5,7 +5,9 @@ from vetevidence.journal_rankings import CsvJournalRankingProvider
 from vetevidence.literature_import import parse_literature_export
 from vetevidence.models import PubMedArticle
 from vetevidence.workbench import (
+    EvidenceAdmissionStatus,
     EvidenceGap,
+    LiteratureEvidenceGrade,
     ResearchQuestion,
     TaskStatus,
     build_task_event,
@@ -19,6 +21,7 @@ from vetevidence.workbench_pipeline import (
     build_experiment_conditions,
     decision_report_to_markdown,
     generate_search_queries,
+    qualify_literature_evidence,
     report_content_sha256,
     run_multi_query_research,
 )
@@ -30,6 +33,12 @@ ABSTRACT = (
     "or control for 24 h. Quercetin reduced bacterial growth and inhibited "
     "the NF-kB pathway. These findings indicated that quercetin mitigated "
     "infection."
+)
+DIRECT_ABSTRACT = (
+    "Seventy-nine swine Pasteurella multocida isolates were tested with "
+    "florfenicol and thiamphenicol. Florfenicol and thiamphenicol showed "
+    "synergistic activity against Pasteurella multocida with FICI <= 0.5 "
+    "in 24% of isolates and were confirmed by time-kill assays."
 )
 
 
@@ -43,6 +52,35 @@ def sample_article() -> PubMedArticle:
         doi="10.1000/pubmed.1",
         abstract=ABSTRACT,
         source_url="https://pubmed.ncbi.nlm.nih.gov/123/",
+    )
+
+
+def direct_article() -> PubMedArticle:
+    return PubMedArticle(
+        pmid="31749775",
+        title=(
+            "Synergistic activity of florfenicol and thiamphenicol against "
+            "Pasteurella multocida"
+        ),
+        journal="Frontiers in Microbiology",
+        year=2019,
+        doi="10.3389/fmicb.2019.02430",
+        abstract=DIRECT_ABSTRACT,
+        source_url="https://pubmed.ncbi.nlm.nih.gov/31749775/",
+    )
+
+
+def direct_question() -> ResearchQuestion:
+    return ResearchQuestion(
+        id="rq-direct-synergy",
+        text=(
+            "florfenicol 与 thiamphenicol 对 Pasteurella multocida "
+            "是否存在协同抗菌作用"
+        ),
+        population="Pasteurella multocida",
+        intervention="florfenicol",
+        comparator="thiamphenicol",
+        outcomes=["FICI", "time-kill"],
     )
 
 
@@ -103,6 +141,92 @@ def test_query_plan_is_structured_and_bounded() -> None:
     assert "synergy OR interaction" in plan.queries[2]
 
 
+def test_relevance_rule_admits_only_explicit_direct_interaction_evidence() -> None:
+    direct = qualify_literature_evidence(
+        direct_question(),
+        title=direct_article().title,
+        abstract=direct_article().abstract,
+    )
+    contextual = qualify_literature_evidence(
+        question(),
+        title=sample_article().title,
+        abstract=sample_article().abstract,
+    )
+    no_marker = qualify_literature_evidence(
+        direct_question(),
+        title="Florfenicol and thiamphenicol combination study",
+        abstract=(
+            "Pasteurella multocida isolates were exposed to florfenicol and "
+            "thiamphenicol in a combination treatment."
+        ),
+    )
+    method_only = qualify_literature_evidence(
+        direct_question(),
+        title="Checkerboard evaluation of an amphenicol combination",
+        abstract=(
+            "Checkerboard and time-kill assays were used to test florfenicol "
+            "and thiamphenicol against Pasteurella multocida."
+        ),
+    )
+    threshold_definition = qualify_literature_evidence(
+        direct_question(),
+        title="FICI interpretation methods",
+        abstract=(
+            "For florfenicol and thiamphenicol against Pasteurella multocida, "
+            "FICI <= 0.5 was defined as synergy."
+        ),
+    )
+    equivalent_threshold_definition = qualify_literature_evidence(
+        direct_question(),
+        title="Synergy interpretation methods",
+        abstract=(
+            "Synergistic activity of florfenicol and thiamphenicol against "
+            "Pasteurella multocida was defined as FICI <= 0.5."
+        ),
+    )
+    wrong_pathogen = qualify_literature_evidence(
+        direct_question(),
+        title="Synergy against Escherichia coli",
+        abstract=(
+            "Florfenicol and thiamphenicol showed synergistic activity with "
+            "FICI 0.5 against Escherichia coli."
+        ),
+    )
+    interaction_for_other_population = qualify_literature_evidence(
+        direct_question(),
+        title="Amphenicol activity survey",
+        abstract=(
+            "Florfenicol and thiamphenicol showed synergistic activity against "
+            "Staphylococcus aureus. Pasteurella multocida isolates were also surveyed."
+        ),
+    )
+
+    assert direct.grade is LiteratureEvidenceGrade.DIRECT_INTERACTION
+    assert direct.supporting_quote is not None
+    assert "synergistic" in direct.supporting_quote.casefold()
+    assert contextual.grade is LiteratureEvidenceGrade.CONTEXTUAL
+    assert no_marker.grade is LiteratureEvidenceGrade.CONTEXTUAL
+    assert method_only.grade is LiteratureEvidenceGrade.CONTEXTUAL
+    assert method_only.matched_population
+    assert method_only.matched_intervention
+    assert method_only.matched_comparator
+    assert method_only.interaction_marker == "checkerboard"
+    assert method_only.interaction_result_signal is None
+    assert "明确交互结果" in "；".join(method_only.reasons)
+    assert threshold_definition.grade is LiteratureEvidenceGrade.CONTEXTUAL
+    assert threshold_definition.interaction_result_signal is None
+    assert (
+        equivalent_threshold_definition.grade
+        is LiteratureEvidenceGrade.CONTEXTUAL
+    )
+    assert equivalent_threshold_definition.interaction_result_signal is None
+    assert wrong_pathogen.grade is LiteratureEvidenceGrade.OUT_OF_SCOPE
+    assert (
+        interaction_for_other_population.grade
+        is LiteratureEvidenceGrade.CONTEXTUAL
+    )
+
+
 def test_multi_query_research_deduplicates_pmids() -> None:
     client = StubClient()
     result = run_multi_query_research(
@@ -145,7 +269,7 @@ def test_multi_query_fusion_prevents_first_query_from_filling_the_limit() -> Non
         "24",
     ]
     assert client.request_count == 3
-    assert client.limits == [8, 8, 8]
+    assert client.limits == [24, 24, 24]
 
 
 def test_multi_query_duplicates_do_not_consume_a_querys_fair_turn() -> None:
@@ -173,7 +297,7 @@ def test_multi_query_duplicates_do_not_consume_a_querys_fair_turn() -> None:
         "201",
         "301",
     ]
-    assert client.limits == [3, 3, 3]
+    assert client.limits == [20, 20, 20]
 
 
 def test_multi_query_empty_or_exhausted_queries_are_backfilled() -> None:
@@ -205,6 +329,36 @@ def test_multi_query_empty_or_exhausted_queries_are_backfilled() -> None:
     assert len({article.pmid for article in result.research.articles}) == 4
 
 
+def test_direct_evidence_below_display_cutoff_is_still_retained() -> None:
+    client = RankedStubClient(
+        [
+            [
+                *[ranked_article(f"10{index}") for index in range(1, 9)],
+                direct_article(),
+            ],
+            [],
+            [],
+        ]
+    )
+
+    result = run_multi_query_research(
+        direct_question(),
+        max_results=4,
+        client=client,
+        ranking_provider=CsvJournalRankingProvider.default(),
+    )
+
+    assert client.limits == [20, 20, 20]
+    assert result.research.articles[0].pmid == "31749775"
+    assert len(result.research.articles) == 4
+    conditions = build_experiment_conditions(
+        result.research,
+        question=direct_question(),
+    )
+    assessment = assess_evidence(conditions, question=direct_question())
+    assert assessment.evidence_admission.status is EvidenceAdmissionStatus.ADMITTED
+
+
 def test_imported_literature_enters_condition_matrix_without_fake_pmid() -> None:
     research = run_multi_query_research(
         question(),
@@ -222,7 +376,11 @@ ER  -
 """
     )
 
-    conditions = build_experiment_conditions(research, imported)
+    conditions = build_experiment_conditions(
+        research,
+        imported,
+        question=question(),
+    )
     imported_condition = conditions[-1]
 
     assert imported_condition.source_type == "user_import"
@@ -267,11 +425,11 @@ def test_decision_report_links_literature_and_csv_sources() -> None:
         client=StubClient(),
         ranking_provider=CsvJournalRankingProvider.default(),
     ).research
-    conditions = build_experiment_conditions(research)
+    conditions = build_experiment_conditions(research, question=question())
     analysis = analyze_fici_csv(
         """\
-drug_a_mic_alone,drug_a_mic_combo,drug_b_mic_alone,drug_b_mic_combo
-8,2,4,1
+drug_a,drug_b,drug_a_mic_alone,drug_a_mic_combo,drug_b_mic_alone,drug_b_mic_combo
+quercetin,amoxicillin,8,2,4,1
 """
     )
     events = [
@@ -292,9 +450,24 @@ drug_a_mic_alone,drug_a_mic_combo,drug_b_mic_alone,drug_b_mic_combo
     assert report.task_status.current_status == TaskStatus.AWAITING_REVIEW
     assert report.human_review.decision == "pending"
     assert any(item.id == "analysis-fici" for item in report.conclusions)
+    assert (
+        report.evidence_admission.status
+        is EvidenceAdmissionStatus.BLOCKED_NO_DIRECT_EVIDENCE
+    )
+    assert "直接文献证据" in report.evidence_admission.reason
+    assert "仅凭本次文献检索" in report.evidence_admission.reason
+    assert {
+        item.id for item in report.conclusions
+    } >= {"literature-direct-evidence-insufficient", "analysis-fici"}
+    direct_literature_gap = next(
+        gap for gap in report.evidence_gaps if gap.id == "gap-direct-interaction"
+    )
+    assert "独立证据链" in direct_literature_gap.impact
+    assert "不能判断或宣称存在协同作用" not in report.recommendation.statement
     analysis_conclusion = next(
         item for item in report.conclusions if item.id == "analysis-fici"
     )
+    assert "synergy" in analysis_conclusion.statement
     csv_reference = analysis_conclusion.evidence[0]
     assert csv_reference.source_type == "experiment_csv"
     assert csv_reference.source_quote is None
@@ -306,9 +479,118 @@ drug_a_mic_alone,drug_a_mic_combo,drug_b_mic_alone,drug_b_mic_combo
     assert "FICI=0.5" in markdown
     assert "SHA-256" in markdown
     assert "科研内容 SHA-256" in markdown
+    assert "直接文献证据准入" in markdown
     assert "### 建议依据" in markdown
     assert "空白相关证据" in markdown
     assert "科研决策报告" in markdown
+
+
+def test_report_states_insufficient_evidence_when_only_contextual_articles_exist() -> None:
+    research = run_multi_query_research(
+        question(),
+        client=StubClient(),
+        ranking_provider=CsvJournalRankingProvider.default(),
+    ).research
+    conditions = build_experiment_conditions(research, question=question())
+    report = build_decision_report(
+        question(),
+        conditions=conditions,
+        task_events=[
+            build_task_event(
+                "run-insufficient",
+                TaskStatus.AWAITING_REVIEW,
+                "等待复核",
+            )
+        ],
+    )
+    markdown = decision_report_to_markdown(report)
+
+    assert (
+        report.evidence_admission.status
+        is EvidenceAdmissionStatus.BLOCKED_NO_DIRECT_EVIDENCE
+    )
+    assert report.evidence_admission.direct_source_ids == []
+    assert report.evidence_admission.contextual_source_ids == ["PMID 123"]
+    assert [item.id for item in report.conclusions] == [
+        "literature-direct-evidence-insufficient"
+    ]
+    assert "不能判断或宣称存在协同作用" in report.recommendation.statement
+    assert "不等于证明协同作用不存在" in report.conclusions[0].limitations[0]
+    assert "gap-direct-interaction" in {
+        gap.id for gap in report.evidence_gaps
+    }
+    assert "blocked_no_direct_evidence" in markdown
+
+
+def test_direct_pubmed_evidence_is_admitted_with_verifiable_quote() -> None:
+    client = RankedStubClient([[direct_article()], [], []])
+    research = run_multi_query_research(
+        direct_question(),
+        client=client,
+        ranking_provider=CsvJournalRankingProvider.default(),
+    ).research
+    conditions = build_experiment_conditions(
+        research,
+        question=direct_question(),
+    )
+    report = build_decision_report(
+        direct_question(),
+        conditions=conditions,
+        task_events=[
+            build_task_event(
+                "run-direct",
+                TaskStatus.AWAITING_REVIEW,
+                "等待复核",
+            )
+        ],
+    )
+
+    assert (
+        report.evidence_admission.status
+        is EvidenceAdmissionStatus.ADMITTED
+    )
+    assert report.evidence_admission.direct_source_ids == ["PMID 31749775"]
+    assert "literature-direct-evidence-insufficient" not in {
+        item.id for item in report.conclusions
+    }
+    literature_claim = report.conclusions[0]
+    assert "synergistic" in literature_claim.statement.casefold()
+    assert literature_claim.evidence[0].pmid == "31749775"
+    assert literature_claim.evidence[0].doi == "10.3389/fmicb.2019.02430"
+    assert literature_claim.evidence[0].source_quote == literature_claim.statement
+
+
+def test_fici_for_a_different_drug_pair_cannot_support_the_report() -> None:
+    research = run_multi_query_research(
+        question(),
+        client=StubClient(),
+        ranking_provider=CsvJournalRankingProvider.default(),
+    ).research
+    conditions = build_experiment_conditions(research, question=question())
+    mismatched = analyze_fici_csv(
+        """\
+drug_a,drug_b,drug_a_mic_alone,drug_a_mic_combo,drug_b_mic_alone,drug_b_mic_combo
+vancomycin,rifampicin,8,2,4,1
+"""
+    )
+    report = build_decision_report(
+        question(),
+        conditions=conditions,
+        analysis=mismatched,
+        task_events=[
+            build_task_event(
+                "run-wrong-pair",
+                TaskStatus.AWAITING_REVIEW,
+                "等待复核",
+            )
+        ],
+    )
+
+    assert not any(item.id == "analysis-fici" for item in report.conclusions)
+    assert "gap-fici-intervention-identity" in {
+        gap.id for gap in report.evidence_gaps
+    }
+    assert "不能判断或宣称存在协同作用" in report.recommendation.statement
 
 
 def test_synthetic_demo_is_explicitly_excluded_or_labeled() -> None:
@@ -321,11 +603,15 @@ AB  - This synthetic export record must not be treated as scientific evidence.
 ER  -
 """
     )
-    conditions = build_experiment_conditions(None, demo_import)
+    conditions = build_experiment_conditions(
+        None,
+        demo_import,
+        question=question(),
+    )
     analysis = analyze_fici_csv(
         """\
-drug_a_mic_alone,drug_a_mic_combo,drug_b_mic_alone,drug_b_mic_combo,data_status
-8,2,4,1,synthetic_demo
+drug_a,drug_b,drug_a_mic_alone,drug_a_mic_combo,drug_b_mic_alone,drug_b_mic_combo,data_status
+quercetin,amoxicillin,8,2,4,1,synthetic_demo
 """
     )
     events = [
@@ -339,10 +625,11 @@ drug_a_mic_alone,drug_a_mic_combo,drug_b_mic_alone,drug_b_mic_combo,data_status
         task_events=events,
     )
 
-    assert len(report.conclusions) == 1
-    assert report.conclusions[0].id == "analysis-fici"
-    assert "合成演示数据" in report.conclusions[0].statement
-    assert "不可作为科研证据" in report.conclusions[0].statement
+    analysis_conclusion = next(
+        item for item in report.conclusions if item.id == "analysis-fici"
+    )
+    assert "合成演示数据" in analysis_conclusion.statement
+    assert "不可作为科研证据" in analysis_conclusion.statement
     assert "不得据此形成科研建议" in report.recommendation.statement
 
 
@@ -377,7 +664,8 @@ def test_invalid_analysis_is_recomputed_disclosed_and_cannot_poison_report() -> 
             question(),
             client=StubClient(),
             ranking_provider=CsvJournalRankingProvider.default(),
-        ).research
+        ).research,
+        question=question(),
     )
     invalid_analysis = analyze_fici_csv(
         """\
@@ -422,7 +710,8 @@ def test_report_revision_is_unique_but_scientific_content_hash_is_stable() -> No
             question(),
             client=StubClient(),
             ranking_provider=CsvJournalRankingProvider.default(),
-        ).research
+        ).research,
+        question=question(),
     )
     events = [
         build_task_event("run-revision", TaskStatus.AWAITING_REVIEW, "等待复核")

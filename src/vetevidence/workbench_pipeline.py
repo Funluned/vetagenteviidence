@@ -37,10 +37,14 @@ from vetevidence.pubmed import PubMedClient
 from vetevidence.workbench import (
     ConclusionConfidence,
     ConflictResolutionStatus,
+    EvidenceAdmission,
+    EvidenceAdmissionStatus,
     EvidenceConflict,
     EvidenceGap,
+    EvidenceQualification,
     EvidenceReference,
     HumanReview,
+    LiteratureEvidenceGrade,
     ResearchDecisionReport,
     ResearchQuestion,
     TaskEvent,
@@ -122,6 +126,7 @@ class ExperimentCondition(PipelineModel):
     source_id: str
     source_type: Literal["pubmed", "user_import"]
     title: str
+    abstract: str | None = None
     pathogen: str | None = None
     condition: str | None = None
     species: str | None = None
@@ -140,6 +145,9 @@ class ExperimentCondition(PipelineModel):
     source_url: str | None = None
     source_quote: str | None = None
     missing_fields: list[str] = Field(default_factory=list)
+    qualification: EvidenceQualification = Field(
+        default_factory=EvidenceQualification
+    )
 
     def reference(self) -> EvidenceReference | None:
         if not any((self.pmid, self.doi, self.source_quote)):
@@ -156,6 +164,7 @@ class EvidenceAssessment(PipelineModel):
     consistencies: list[str] = Field(default_factory=list)
     conflicts: list[EvidenceConflict] = Field(default_factory=list)
     gaps: list[EvidenceGap] = Field(default_factory=list)
+    evidence_admission: EvidenceAdmission = Field(default_factory=EvidenceAdmission)
 
 
 _MISSING_FIELD_LABELS = {
@@ -178,6 +187,357 @@ def _question(value: ResearchQuestion | str) -> ResearchQuestion:
         raise ValueError("科研问题不能为空。")
     digest = sha256(text.encode("utf-8")).hexdigest()[:12]
     return ResearchQuestion(id=f"rq-{digest}", text=text)
+
+
+_KNOWN_TERM_ALIASES = {
+    "streptococcus agalactiae": (
+        "s. agalactiae",
+        "group b streptococcus",
+        "group b streptococci",
+        "group b strep",
+        "gbs",
+    ),
+    "pasteurella multocida": ("p. multocida",),
+}
+_INTERACTION_MARKERS = (
+    ("fractional inhibitory concentration index", "FICI"),
+    ("fractional inhibitory concentration", "FIC"),
+    ("checkerboard", "checkerboard"),
+    ("time kill", "time-kill"),
+    ("time-kill", "time-kill"),
+    ("synerg", "synergy"),
+    ("antagonis", "antagonism"),
+    ("additive effect", "additive effect"),
+    ("indifferent interaction", "indifferent interaction"),
+    ("协同", "协同"),
+    ("拮抗", "拮抗"),
+    ("棋盘", "棋盘法"),
+)
+_INTERACTION_RESULT_PATTERNS = (
+    (
+        r"\bsynerg(?:y|ism|istic)\s+"
+        r"(?:activity|effects?|interaction|combination|action)\b",
+        "明确协同结果",
+    ),
+    (
+        r"\bantagon(?:ism|istic)\s+(?:activity|effects?|interaction|action)\b",
+        "明确拮抗结果",
+    ),
+    (r"\badditive\s+(?:activity|effects?|interaction)\b", "明确相加结果"),
+    (r"\bindifferent\s+(?:activity|effects?|interaction)\b", "明确无关结果"),
+    (
+        r"\b(?:show(?:ed|s)?|demonstrat(?:ed|es)?|exhibit(?:ed|s)?|"
+        r"indicat(?:ed|es)?|confirm(?:ed|s)?|observ(?:ed|es)?|found)\b"
+        r".{0,80}\b(?:synerg(?:y|ism|istic)|antagon(?:ism|istic)|"
+        r"additive|indifferent|interaction)\b",
+        "报告交互结果",
+    ),
+    (
+        r"\b(?:synerg(?:y|ism|istic)|antagon(?:ism|istic)|additive|"
+        r"indifferent|interaction)\b.{0,80}\b"
+        r"(?:was|were|is|are)\s+(?:observed|found|confirmed|demonstrated)\b",
+        "报告交互结果",
+    ),
+    (
+        r"\b(?:fici|fic\s+index|fractional inhibitory concentration"
+        r"(?:\s+index)?)\b\s*(?:was|were|of|=|:|≤|>=|<=|<|>)?\s*"
+        r"(?:≤|>=|<=|<|>)?\s*\d+(?:\.\d+)?",
+        "量化 FICI 结果",
+    ),
+    (r"(?:显示|表明|观察到|证实).{0,40}(?:协同|拮抗|相加|无关)", "报告交互结果"),
+    (r"(?:协同|拮抗|相加|无关).{0,20}(?:作用|效应|结果)", "明确交互结果"),
+)
+_METHOD_DEFINITION_PATTERN = (
+    r"\b(?:defined|considered|classified|interpreted|threshold|cutoff|"
+    r"criterion|criteria|calculated|formula)\b"
+)
+_SYNTHETIC_SOURCE_MARKERS = (
+    "synthetic_demo",
+    "synthetic export",
+    "must not be treated as scientific evidence",
+    "合成演示",
+)
+_EVIDENCE_GRADE_LABELS = {
+    LiteratureEvidenceGrade.UNASSESSED: "未评估",
+    LiteratureEvidenceGrade.OUT_OF_SCOPE: "无关",
+    LiteratureEvidenceGrade.CONTEXTUAL: "间接背景",
+    LiteratureEvidenceGrade.DIRECT_INTERACTION: "直接证据",
+}
+
+
+def _normalized_match_text(value: str | None) -> str:
+    return re.sub(r"[^\w]+", " ", (value or "").casefold()).strip()
+
+
+def _term_aliases(value: str | None) -> list[str]:
+    normalized = _normalized_match_text(value)
+    if not normalized:
+        return []
+    aliases = [normalized]
+    words = normalized.split()
+    if len(words) >= 2 and words[0]:
+        aliases.append(f"{words[0][0]} {words[1]}")
+    aliases.extend(
+        _normalized_match_text(alias)
+        for alias in _KNOWN_TERM_ALIASES.get(normalized, ())
+    )
+    return list(dict.fromkeys(alias for alias in aliases if alias))
+
+
+def _matches_term(normalized_text: str, value: str | None) -> bool:
+    padded = f" {normalized_text} "
+    return any(f" {alias} " in padded for alias in _term_aliases(value))
+
+
+def _source_sentences(title: str, abstract: str | None) -> list[str]:
+    combined = "\n".join(part for part in (title, abstract or "") if part)
+    return [
+        sentence.strip()
+        for sentence in re.split(r"(?<=[.!?。！？])\s+|\n+", combined)
+        if sentence.strip()
+    ]
+
+
+def _interaction_marker(sentence: str) -> tuple[str, str] | None:
+    normalized = _normalized_match_text(sentence)
+    raw = sentence.casefold()
+    for needle, label in _INTERACTION_MARKERS:
+        normalized_needle = _normalized_match_text(needle)
+        if normalized_needle in normalized or needle in raw:
+            return label, sentence
+    return None
+
+
+def _interaction_result_signal(sentence: str) -> str | None:
+    normalized = sentence.casefold()
+    has_method_definition = bool(
+        re.search(_METHOD_DEFINITION_PATTERN, normalized)
+    )
+    for pattern, label in _INTERACTION_RESULT_PATTERNS:
+        if re.search(pattern, normalized):
+            if (
+                has_method_definition
+                and label != "报告交互结果"
+            ):
+                continue
+            return label
+    return None
+
+
+def _best_interaction_quote(
+    title: str,
+    abstract: str | None,
+    *,
+    population: str | None,
+    intervention: str | None,
+    comparator: str | None,
+) -> tuple[str | None, str | None, str | None]:
+    candidates: list[tuple[int, int, str, str | None, str]] = []
+    for index, sentence in enumerate(_source_sentences(title, abstract)):
+        normalized_sentence = _normalized_match_text(sentence)
+        if not (
+            _matches_term(normalized_sentence, population)
+            and _matches_term(normalized_sentence, intervention)
+            and _matches_term(normalized_sentence, comparator)
+        ):
+            continue
+        hit = _interaction_marker(sentence)
+        if hit is None:
+            continue
+        marker, quote = hit
+        result_signal = _interaction_result_signal(quote)
+        normalized = _normalized_match_text(quote)
+        score = 1
+        if result_signal:
+            score += 8
+        if any(term in normalized for term in ("synerg", "antagon", "additive")):
+            score += 4
+        if any(term in normalized for term in ("fici", "fractional inhibitory")):
+            score += 2
+        if re.search(r"\d|%|≤|<|>", quote):
+            score += 1
+        if quote != title:
+            score += 1
+        candidates.append((score, -index, marker, result_signal, quote))
+    if not candidates:
+        return None, None, None
+    _, _, marker, result_signal, quote = max(candidates)
+    return marker, result_signal, quote
+
+
+def qualify_literature_evidence(
+    question: ResearchQuestion | str,
+    *,
+    title: str,
+    abstract: str | None,
+) -> EvidenceQualification:
+    """Conservatively grade whether one title/abstract can answer an interaction question."""
+
+    scoped = _question(question)
+    source_text = "\n".join(part for part in (title, abstract or "") if part)
+    normalized = _normalized_match_text(source_text)
+    synthetic = any(
+        marker in source_text.casefold() for marker in _SYNTHETIC_SOURCE_MARKERS
+    )
+    matched_population = _matches_term(normalized, scoped.population)
+    matched_intervention = _matches_term(normalized, scoped.intervention)
+    matched_comparator = _matches_term(normalized, scoped.comparator)
+    marker, result_signal, quote = _best_interaction_quote(
+        title,
+        abstract,
+        population=scoped.population,
+        intervention=scoped.intervention,
+        comparator=scoped.comparator,
+    )
+
+    missing_question_fields = [
+        label
+        for label, value in (
+            ("研究对象", scoped.population),
+            ("候选干预", scoped.intervention),
+            ("联合药物", scoped.comparator),
+        )
+        if not value
+    ]
+    if synthetic:
+        return EvidenceQualification(
+            grade=LiteratureEvidenceGrade.OUT_OF_SCOPE,
+            matched_population=matched_population,
+            matched_intervention=matched_intervention,
+            matched_comparator=matched_comparator,
+            interaction_marker=marker,
+            interaction_result_signal=result_signal,
+            supporting_quote=quote,
+            reasons=["来源明确标记为合成演示数据，不能进入科研结论。"],
+        )
+    if missing_question_fields:
+        return EvidenceQualification(
+            grade=LiteratureEvidenceGrade.OUT_OF_SCOPE,
+            matched_population=matched_population,
+            matched_intervention=matched_intervention,
+            matched_comparator=matched_comparator,
+            interaction_marker=marker,
+            interaction_result_signal=result_signal,
+            supporting_quote=quote,
+            reasons=[
+                "科研问题缺少" + "、".join(missing_question_fields) + "，无法判定直接证据。"
+            ],
+        )
+    if (
+        matched_population
+        and matched_intervention
+        and matched_comparator
+        and marker
+        and result_signal
+        and quote
+    ):
+        return EvidenceQualification(
+            grade=LiteratureEvidenceGrade.DIRECT_INTERACTION,
+            matched_population=True,
+            matched_intervention=True,
+            matched_comparator=True,
+            interaction_marker=marker,
+            interaction_result_signal=result_signal,
+            supporting_quote=quote,
+            reasons=[
+                f"同时命中研究对象、两种干预、交互指标“{marker}”和"
+                f"{result_signal}。"
+            ],
+        )
+
+    reasons = []
+    if matched_population:
+        reasons.append("命中研究对象")
+    if matched_intervention:
+        reasons.append("命中候选干预")
+    if matched_comparator:
+        reasons.append("命中联合药物")
+    if marker:
+        reasons.append(f"命中交互指标“{marker}”")
+    if result_signal:
+        reasons.append(f"命中{result_signal}")
+    if matched_population and (matched_intervention or matched_comparator):
+        missing = []
+        if not matched_intervention:
+            missing.append("候选干预")
+        if not matched_comparator:
+            missing.append("联合药物")
+        if not marker:
+            missing.append("明确交互指标")
+        elif not result_signal:
+            missing.append("明确交互结果")
+        reasons.append("仍缺少" + "、".join(missing) + "，只能作为间接背景。")
+        grade = LiteratureEvidenceGrade.CONTEXTUAL
+    else:
+        reasons.append("未同时覆盖研究对象和至少一种目标干预，不能回答当前问题。")
+        grade = LiteratureEvidenceGrade.OUT_OF_SCOPE
+    return EvidenceQualification(
+        grade=grade,
+        matched_population=matched_population,
+        matched_intervention=matched_intervention,
+        matched_comparator=matched_comparator,
+        interaction_marker=marker,
+        interaction_result_signal=result_signal,
+        supporting_quote=quote,
+        reasons=reasons,
+    )
+
+
+def _qualified_condition(
+    question: ResearchQuestion,
+    condition: ExperimentCondition,
+) -> ExperimentCondition:
+    qualification = qualify_literature_evidence(
+        question,
+        title=condition.title,
+        abstract=condition.abstract or condition.source_quote or condition.key_result,
+    )
+    return condition.model_copy(update={"qualification": qualification})
+
+
+def _evidence_admission(
+    conditions: list[ExperimentCondition],
+) -> EvidenceAdmission:
+    direct = [
+        condition.source_id
+        for condition in conditions
+        if condition.qualification.grade
+        is LiteratureEvidenceGrade.DIRECT_INTERACTION
+    ]
+    contextual = [
+        condition.source_id
+        for condition in conditions
+        if condition.qualification.grade is LiteratureEvidenceGrade.CONTEXTUAL
+    ]
+    excluded = [
+        condition.source_id
+        for condition in conditions
+        if condition.qualification.grade
+        in {
+            LiteratureEvidenceGrade.OUT_OF_SCOPE,
+            LiteratureEvidenceGrade.UNASSESSED,
+        }
+    ]
+    if direct:
+        return EvidenceAdmission(
+            status=EvidenceAdmissionStatus.ADMITTED,
+            direct_source_ids=direct,
+            contextual_source_ids=contextual,
+            excluded_source_ids=excluded,
+            reason=(
+                f"{len(direct)} 个文献来源同时覆盖研究对象、两种干预、"
+                "明确交互指标和结果，可进入当前问题的直接文献证据结论。"
+            ),
+        )
+    return EvidenceAdmission(
+        status=EvidenceAdmissionStatus.BLOCKED_NO_DIRECT_EVIDENCE,
+        contextual_source_ids=contextual,
+        excluded_source_ids=excluded,
+        reason=(
+            "当前检索未发现同时覆盖研究对象、两种干预、明确交互指标和结果的"
+            "直接文献证据；仅凭本次文献检索不能判断或宣称存在协同作用。"
+        ),
+    )
 
 
 def generate_search_queries(
@@ -246,6 +606,38 @@ def _fuse_ranked_articles(
     return list(selected.values())
 
 
+def _prioritize_question_evidence(
+    question: ResearchQuestion,
+    articles: list[PubMedArticle],
+    *,
+    max_results: int,
+) -> list[PubMedArticle]:
+    """Keep fair retrieval order within each question-specific evidence grade."""
+
+    priority = {
+        LiteratureEvidenceGrade.DIRECT_INTERACTION: 0,
+        LiteratureEvidenceGrade.CONTEXTUAL: 1,
+        LiteratureEvidenceGrade.OUT_OF_SCOPE: 2,
+        LiteratureEvidenceGrade.UNASSESSED: 3,
+    }
+    qualified = [
+        (
+            priority[
+                qualify_literature_evidence(
+                    question,
+                    title=article.title,
+                    abstract=article.abstract,
+                ).grade
+            ],
+            index,
+            article,
+        )
+        for index, article in enumerate(articles)
+    ]
+    qualified.sort(key=lambda item: (item[0], item[1]))
+    return [article for _, _, article in qualified[:max_results]]
+
+
 def run_multi_query_research(
     question: ResearchQuestion | str,
     *,
@@ -255,7 +647,7 @@ def run_multi_query_research(
     provider: EvidenceProvider | None = None,
     ranking_provider: JournalRankingProvider | None = None,
 ) -> MultiQueryResearchResult:
-    """Fairly interleave ranked query results, de-duplicate PMIDs, then extract."""
+    """Retrieve broadly, fairly de-duplicate, then retain question-relevant evidence."""
 
     if max_results < 1:
         raise ValueError("max_results 必须大于 0。")
@@ -267,12 +659,18 @@ def run_multi_query_research(
     owns_ranking = ranking_provider is None
 
     try:
+        candidate_limit = min(max(max_results * 3, 20), 100)
         ranked_results = [
-            active_client.search(query, max_results=max_results)
+            active_client.search(query, max_results=candidate_limit)
             for query in plan.queries
         ]
-        raw_articles = _fuse_ranked_articles(
+        fused_candidates = _fuse_ranked_articles(
             ranked_results,
+            max_results=sum(len(batch) for batch in ranked_results),
+        )
+        raw_articles = _prioritize_question_evidence(
+            plan.question,
+            fused_candidates,
             max_results=max_results,
         )
         rankings = active_ranking.lookup_many(raw_articles)
@@ -322,9 +720,12 @@ def _missing_fields(condition: ExperimentCondition) -> list[str]:
 def build_experiment_conditions(
     research: ResearchResult | None,
     imported: LiteratureImportResult | None = None,
+    *,
+    question: ResearchQuestion | str | None = None,
 ) -> list[ExperimentCondition]:
     """Build one comparison row per source without inventing missing fields."""
 
+    scoped_question = _question(question) if question is not None else None
     articles = {
         article.pmid: article for article in (research.articles if research else [])
     }
@@ -335,6 +736,7 @@ def build_experiment_conditions(
             source_id=f"PMID {evidence.pmid}",
             source_type="pubmed",
             title=article.title,
+            abstract=article.abstract,
             pathogen=evidence.pathogen,
             condition=evidence.disease_or_condition,
             species=evidence.species,
@@ -352,6 +754,15 @@ def build_experiment_conditions(
             doi=evidence.doi,
             source_url=evidence.source_url,
             source_quote=evidence.source_quote,
+            qualification=(
+                qualify_literature_evidence(
+                    scoped_question,
+                    title=article.title,
+                    abstract=article.abstract,
+                )
+                if scoped_question is not None
+                else EvidenceQualification()
+            ),
         )
         conditions.append(
             condition.model_copy(update={"missing_fields": _missing_fields(condition)})
@@ -366,6 +777,7 @@ def build_experiment_conditions(
             source_id=record.source_id,
             source_type="user_import",
             title=record.title,
+            abstract=record.abstract,
             pathogen=fields.pathogen,
             condition=fields.disease_or_condition,
             species=fields.species,
@@ -382,6 +794,15 @@ def build_experiment_conditions(
             doi=record.doi,
             source_url=record.source_url,
             source_quote=fields.source_quote,
+            qualification=(
+                qualify_literature_evidence(
+                    scoped_question,
+                    title=record.title,
+                    abstract=record.abstract,
+                )
+                if scoped_question is not None
+                else EvidenceQualification()
+            ),
         )
         conditions.append(
             condition.model_copy(update={"missing_fields": _missing_fields(condition)})
@@ -396,6 +817,9 @@ def experiment_condition_rows(
         {
             "来源": condition.source_id,
             "来源类型": "PubMed" if condition.source_type == "pubmed" else "用户导入",
+            "证据等级": _EVIDENCE_GRADE_LABELS[condition.qualification.grade],
+            "准入理由": "；".join(condition.qualification.reasons),
+            "直接证据原句": condition.qualification.supporting_quote or "",
             "物种": condition.species or "",
             "模型": condition.model or "",
             "样本量": condition.sample_size,
@@ -454,20 +878,33 @@ def _claim_from_condition(
     confidence: ConclusionConfidence = ConclusionConfidence.LOW,
 ) -> TraceableConclusion | None:
     reference = condition.reference()
-    if reference is None or not condition.key_result:
+    statement = (
+        condition.qualification.supporting_quote
+        if condition.qualification.grade
+        is LiteratureEvidenceGrade.DIRECT_INTERACTION
+        else condition.key_result
+    )
+    if reference is None or not statement:
         return None
     if (
+        condition.qualification.grade
+        is LiteratureEvidenceGrade.DIRECT_INTERACTION
+        and condition.qualification.supporting_quote
+    ):
+        reference = reference.model_copy(
+            update={"source_quote": condition.qualification.supporting_quote}
+        )
+    if (
         condition.source_type == "user_import"
-        and "must not be treated as scientific evidence"
-        in condition.key_result.casefold()
+        and "must not be treated as scientific evidence" in statement.casefold()
     ):
         return None
     digest = sha256(
-        f"{condition.source_id}|{condition.key_result}".encode("utf-8")
+        f"{condition.source_id}|{statement}".encode("utf-8")
     ).hexdigest()[:12]
     return TraceableConclusion(
         id=f"claim-{digest}",
-        statement=condition.key_result,
+        statement=statement,
         confidence=confidence,
         evidence=[reference],
         limitations=["仅依据当前可见摘要或导出片段，尚未完成全文人工核查。"],
@@ -477,12 +914,82 @@ def _claim_from_condition(
 def assess_evidence(
     conditions: list[ExperimentCondition],
     analysis: ExperimentAnalysisResult | None = None,
+    *,
+    question: ResearchQuestion | str | None = None,
 ) -> EvidenceAssessment:
-    """Detect only explicit direction conflicts and report missing condition fields."""
+    """Apply question admission, detect explicit conflicts and report evidence gaps."""
 
     consistencies: list[str] = []
     conflicts: list[EvidenceConflict] = []
     gaps: list[EvidenceGap] = []
+    scoped_question: ResearchQuestion | None = None
+    if question is not None:
+        scoped_question = _question(question)
+        qualified_conditions = [
+            _qualified_condition(scoped_question, condition)
+            for condition in conditions
+        ]
+        admission = _evidence_admission(qualified_conditions)
+        working_conditions = [
+            condition
+            for condition in qualified_conditions
+            if condition.qualification.grade
+            in {
+                LiteratureEvidenceGrade.DIRECT_INTERACTION,
+                LiteratureEvidenceGrade.CONTEXTUAL,
+            }
+        ]
+        if (
+            admission.status
+            is EvidenceAdmissionStatus.BLOCKED_NO_DIRECT_EVIDENCE
+        ):
+            references = [
+                reference
+                for condition in qualified_conditions
+                if (reference := condition.reference()) is not None
+            ]
+            gaps.append(
+                EvidenceGap(
+                    id="gap-direct-interaction",
+                    topic="直接文献协同证据",
+                    missing_evidence=admission.reason,
+                    impact=(
+                        "单药、背景或无关文献不能支持两种干预存在协同作用的"
+                        "文献结论；匹配的实验数据如有，将使用独立证据链呈现。"
+                    ),
+                    recommended_action=(
+                        "优化联合检索，并用 checkerboard/FICI 与 time-kill "
+                        "等正交实验验证。"
+                    ),
+                    related_evidence=references,
+                )
+            )
+    else:
+        admission = EvidenceAdmission()
+        working_conditions = conditions
+
+    if (
+        scoped_question is not None
+        and isinstance(analysis, FICIAnalysisResult)
+        and analysis.valid
+        and not _fici_analysis_matches_question(scoped_question, analysis)
+    ):
+        gaps.append(
+            EvidenceGap(
+                id="gap-fici-intervention-identity",
+                topic="FICI 药物身份",
+                missing_evidence=(
+                    "FICI CSV 的 drug_a/drug_b 未在每个有效数据行中明确匹配"
+                    "当前科研问题的两种干预，分析未纳入结论。"
+                ),
+                impact="无法确认该 FICI 结果回答的是当前药物组合。",
+                recommended_action=(
+                    "在 CSV 的 drug_a、drug_b 列填写当前两种干预名称后重新分析。"
+                ),
+            )
+        )
+        analysis = None
+
     if analysis is not None and not analysis.valid:
         error_summary = "；".join(analysis.errors) or "实验 CSV 未通过完整性校验"
         gaps.append(
@@ -497,7 +1004,7 @@ def assess_evidence(
         analysis = None
 
     grouped: dict[str, list[ExperimentCondition]] = {}
-    for condition in conditions:
+    for condition in working_conditions:
         topics = condition.mechanisms or (
             [condition.pathogen] if condition.pathogen else ["主要效应"]
         )
@@ -543,7 +1050,7 @@ def assess_evidence(
     for field_name, label in _MISSING_FIELD_LABELS.items():
         missing = [
             condition
-            for condition in conditions
+            for condition in working_conditions
             if (
                 (value := getattr(condition, field_name)) is None
                 or value == ""
@@ -562,7 +1069,7 @@ def assess_evidence(
                 id=f"gap-{field_name}",
                 topic=label,
                 missing_evidence=(
-                    f"{len(missing)}/{len(conditions)} 个来源未报告{label}。"
+                    f"{len(missing)}/{len(working_conditions)} 个相关来源未报告{label}。"
                 ),
                 impact=f"无法充分比较不同研究的{label}条件。",
                 recommended_action=f"人工核对全文或原始记录并补录{label}。",
@@ -626,6 +1133,7 @@ def assess_evidence(
         consistencies=consistencies,
         conflicts=conflicts,
         gaps=gaps,
+        evidence_admission=admission,
     )
 
 
@@ -634,6 +1142,29 @@ def _is_synthetic_analysis(analysis: ExperimentAnalysisResult) -> bool:
         (row.raw_row.get("data_status") or "").casefold() == "synthetic_demo"
         for row in analysis.rows
     )
+
+
+def _fici_analysis_matches_question(
+    question: ResearchQuestion,
+    analysis: FICIAnalysisResult,
+) -> bool:
+    expected = {
+        _normalized_match_text(question.intervention),
+        _normalized_match_text(question.comparator),
+    }
+    if "" in expected or len(expected) != 2:
+        return False
+    valid_rows = [row for row in analysis.rows if row.valid]
+    if not valid_rows:
+        return False
+    for row in valid_rows:
+        actual = {
+            _normalized_match_text(row.raw_row.get("drug_a")),
+            _normalized_match_text(row.raw_row.get("drug_b")),
+        }
+        if actual != expected:
+            return False
+    return True
 
 
 def _analysis_conclusion(
@@ -755,19 +1286,56 @@ def build_decision_report(
 
     scoped = _question(question)
     active_hypotheses = hypotheses or decompose_research_question(scoped)
+    qualified_conditions = [
+        _qualified_condition(scoped, condition) for condition in conditions
+    ]
     usable_analysis = (
         analysis if analysis is not None and analysis.valid else None
     )
+    if (
+        isinstance(usable_analysis, FICIAnalysisResult)
+        and not _fici_analysis_matches_question(scoped, usable_analysis)
+    ):
+        usable_analysis = None
     # Assessment is always recomputed from the same validated inputs as the
     # report.  A stale or caller-supplied assessment must not smuggle invalid
     # CSV results into conflicts, gaps, or recommendations.
     _ = assessment
-    active_assessment = assess_evidence(conditions, analysis)
+    active_assessment = assess_evidence(
+        qualified_conditions,
+        analysis,
+        question=scoped,
+    )
+    admission = active_assessment.evidence_admission
     conclusions = [
         claim
-        for condition in conditions
+        for condition in qualified_conditions
+        if condition.qualification.grade
+        is LiteratureEvidenceGrade.DIRECT_INTERACTION
         if (claim := _claim_from_condition(condition)) is not None
     ][:5]
+    if (
+        admission.status
+        is EvidenceAdmissionStatus.BLOCKED_NO_DIRECT_EVIDENCE
+    ):
+        candidate_references = [
+            reference
+            for condition in qualified_conditions
+            if (reference := condition.reference()) is not None
+        ]
+        if candidate_references:
+            conclusions.append(
+                TraceableConclusion(
+                    id="literature-direct-evidence-insufficient",
+                    statement=admission.reason,
+                    confidence=ConclusionConfidence.LOW,
+                    evidence=candidate_references,
+                    limitations=[
+                        "该判断仅描述本次可见检索结果，不等于证明协同作用不存在。",
+                        "相关性规则基于题名和摘要，仍需人工核查全文及术语同义词。",
+                    ],
+                )
+            )
     if usable_analysis is not None:
         analysis_conclusion = _analysis_conclusion(usable_analysis)
         if analysis_conclusion:
@@ -806,6 +1374,16 @@ def build_decision_report(
             "当前生长曲线仅支持描述性比较；下一步应确认各时间点生物学"
             "重复数，并预先登记效应指标后再做统计推断。"
         )
+    elif (
+        admission.status
+        is EvidenceAdmissionStatus.BLOCKED_NO_DIRECT_EVIDENCE
+    ):
+        recommendation_text = (
+            "当前检索未发现同时覆盖研究对象、两种干预、明确交互指标和结果的"
+            "直接文献证据，仅凭本次文献检索不能判断或宣称存在协同作用。"
+            "下一步应优化联合检索，并通过 checkerboard/FICI 与 time-kill "
+            "等正交实验验证。"
+        )
     else:
         recommendation_text = (
             "当前证据可用于设计验证性实验，但在全文核查、补齐实验条件并"
@@ -832,6 +1410,7 @@ def build_decision_report(
                 "建议仅用于确定下一步科研验证，不构成诊疗、处方或临床决策。"
             ],
         ),
+        evidence_admission=admission,
         conflicts=active_assessment.conflicts,
         evidence_gaps=active_assessment.gaps,
         task_status=summarize_task_status(task_events),
@@ -889,6 +1468,24 @@ def decision_report_to_markdown(report: ResearchDecisionReport) -> str:
         f"- 任务状态：{report.task_status.current_status}",
         f"- 人工复核：{report.human_review.decision}",
         f"- 生成时间：{report.generated_at.isoformat()}",
+        "",
+        "## 直接文献证据准入",
+        "",
+        f"- 状态：{report.evidence_admission.status}",
+        f"- 规则：{report.evidence_admission.rule_id}",
+        f"- 结论：{report.evidence_admission.reason}",
+        (
+            "- 直接证据来源："
+            + ("、".join(report.evidence_admission.direct_source_ids) or "无")
+        ),
+        (
+            "- 间接背景来源："
+            + ("、".join(report.evidence_admission.contextual_source_ids) or "无")
+        ),
+        (
+            "- 排除来源："
+            + ("、".join(report.evidence_admission.excluded_source_ids) or "无")
+        ),
         "",
         "## 可检验假设",
         "",

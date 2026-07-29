@@ -27,7 +27,9 @@ from vetevidence.run_store import (
     build_tool_call,
 )
 from vetevidence.workbench import (
+    EvidenceAdmissionStatus,
     HumanReview,
+    LiteratureEvidenceGrade,
     ResearchQuestion,
     ReviewDecision,
     TaskStatus,
@@ -52,6 +54,34 @@ from vetevidence.workbench_pipeline import (
 PROJECT_ROOT = Path(__file__).parent
 RUN_STATE_KEY = "vetresearch_run_snapshot"
 RUN_STORE = RunStore()
+EVIDENCE_GRADE_LABELS = {
+    LiteratureEvidenceGrade.UNASSESSED: "未评估",
+    LiteratureEvidenceGrade.OUT_OF_SCOPE: "无关",
+    LiteratureEvidenceGrade.CONTEXTUAL: "间接背景",
+    LiteratureEvidenceGrade.DIRECT_INTERACTION: "直接文献证据",
+}
+QUESTION_PRESETS = {
+    "证据不足负例：槲皮素 + 阿莫西林 / 无乳链球菌": {
+        "question": (
+            "quercetin 与 amoxicillin 对 Streptococcus agalactiae "
+            "是否具有值得进一步验证的协同作用？"
+        ),
+        "population": "Streptococcus agalactiae",
+        "intervention": "quercetin",
+        "comparator": "amoxicillin",
+        "outcomes": "FICI, 生长曲线, 抑菌效应",
+    },
+    "公开直接文献证据正例：氟苯尼考 + 甲砜霉素 / 多杀性巴氏杆菌": {
+        "question": (
+            "florfenicol 与 thiamphenicol 对 Pasteurella multocida "
+            "是否存在值得进一步验证的协同抗菌作用？"
+        ),
+        "population": "Pasteurella multocida",
+        "intervention": "florfenicol",
+        "comparator": "thiamphenicol",
+        "outcomes": "FICI, time-kill, 抑菌效应",
+    },
+}
 
 
 def load_latest_evaluation() -> EvaluationReport | None:
@@ -136,10 +166,28 @@ def append_tool_call(
     )
 
 
-def render_articles(articles: list[PubMedArticle]) -> None:
-    st.dataframe(
-        [
+def render_articles(
+    articles: list[PubMedArticle],
+    conditions: list[ExperimentCondition] | None = None,
+) -> None:
+    qualification_by_pmid = {
+        condition.pmid: condition.qualification
+        for condition in (conditions or [])
+        if condition.pmid
+    }
+    rows = []
+    for article in articles:
+        qualification = qualification_by_pmid.get(article.pmid)
+        rows.append(
             {
+                "证据等级": (
+                    EVIDENCE_GRADE_LABELS[qualification.grade]
+                    if qualification
+                    else "未评估"
+                ),
+                "准入理由": (
+                    "；".join(qualification.reasons) if qualification else ""
+                ),
                 "年份": article.year,
                 "标题": article.title,
                 "期刊": article.journal or "",
@@ -156,12 +204,14 @@ def render_articles(articles: list[PubMedArticle]) -> None:
                 "PMID": article.pmid,
                 "DOI": article.doi or "",
             }
-            for article in articles
-        ],
+        )
+    st.dataframe(
+        rows,
         width="stretch",
         hide_index=True,
     )
     for article in articles:
+        qualification = qualification_by_pmid.get(article.pmid)
         with st.expander(article.title):
             st.caption(
                 " · ".join(
@@ -175,6 +225,20 @@ def render_articles(articles: list[PubMedArticle]) -> None:
             )
             if article.authors:
                 st.write("作者：" + ", ".join(article.authors))
+            if qualification:
+                grade_label = EVIDENCE_GRADE_LABELS[qualification.grade]
+                message = f"{grade_label}：{'；'.join(qualification.reasons)}"
+                if (
+                    qualification.grade
+                    is LiteratureEvidenceGrade.DIRECT_INTERACTION
+                ):
+                    st.success(message)
+                elif qualification.grade is LiteratureEvidenceGrade.CONTEXTUAL:
+                    st.warning(message)
+                else:
+                    st.info(message)
+                if qualification.supporting_quote:
+                    st.caption("证据判定匹配原句：" + qualification.supporting_quote)
             ranking = article.journal_ranking
             if ranking:
                 columns = st.columns(2)
@@ -204,6 +268,11 @@ def render_articles(articles: list[PubMedArticle]) -> None:
 
 
 def render_assessment(assessment: EvidenceAssessment) -> None:
+    admission = assessment.evidence_admission
+    if admission.status is EvidenceAdmissionStatus.ADMITTED:
+        st.success(admission.reason)
+    else:
+        st.warning(admission.reason)
     st.subheader("一致性、冲突与证据空白")
     if assessment.consistencies:
         for item in assessment.consistencies:
@@ -342,30 +411,36 @@ with st.sidebar:
 
 with question_tab:
     st.header("定义科研问题")
+    preset_name = st.selectbox(
+        "公开验收案例",
+        list(QUESTION_PRESETS),
+        help=(
+            "负例用于验证系统会明确报告证据不足；正例对应 PubMed "
+            "PMID 31749775，用于验证直接文献证据准入。所有字段仍可人工修改。"
+        ),
+    )
+    preset = QUESTION_PRESETS[preset_name]
     with st.form("research_question_form"):
         question_text = st.text_area(
             "科研问题",
-            value=(
-                "quercetin 与 amoxicillin 对 Streptococcus agalactiae "
-                "是否具有值得进一步验证的协同作用？"
-            ),
+            value=preset["question"],
         )
         question_columns = st.columns(3)
         population = question_columns[0].text_input(
             "病原体/研究对象",
-            value="Streptococcus agalactiae",
+            value=preset["population"],
         )
         intervention = question_columns[1].text_input(
             "候选干预",
-            value="quercetin",
+            value=preset["intervention"],
         )
         comparator = question_columns[2].text_input(
             "对照/联合药物",
-            value="amoxicillin",
+            value=preset["comparator"],
         )
         outcomes_text = st.text_input(
             "预设结局指标（逗号分隔）",
-            value="FICI, 生长曲线, 抑菌效应",
+            value=preset["outcomes"],
         )
         create_task = st.form_submit_button(
             "创建或重置研究任务",
@@ -486,8 +561,8 @@ with literature_tab:
     else:
         st.header("多轮 PubMed 检索")
         st.caption(
-            "系统保留各轮检索的相关性顺序，按轮公平合并并以 PMID 去重，"
-            "再提取证据和查询分区。"
+            "系统扩大各轮候选池，保留相关性顺序并按轮公平去重，再按"
+            "直接、间接、无关稳定分桶后限制页面数量。"
         )
         if st.button(
             f"执行 {len(snapshot.query_plan.queries)} 轮 PubMed 检索",
@@ -529,8 +604,13 @@ with literature_tab:
                 conditions = build_experiment_conditions(
                     multi_result.research,
                     snapshot.literature_import,
+                    question=snapshot.question,
                 )
-                assessment = assess_evidence(conditions, snapshot.analysis)
+                assessment = assess_evidence(
+                    conditions,
+                    snapshot.analysis,
+                    question=snapshot.question,
+                )
                 snapshot = snapshot.model_copy(
                     update={
                         "query_plan": multi_result.query_plan,
@@ -565,15 +645,36 @@ with literature_tab:
 
         snapshot = current_snapshot()
         if snapshot.research:
-            metric_columns = st.columns(3)
-            metric_columns[0].metric("唯一文献", len(snapshot.research.articles))
-            metric_columns[1].metric(
-                "结构化证据", len(snapshot.research.evidence)
+            direct_count = sum(
+                condition.qualification.grade
+                is LiteratureEvidenceGrade.DIRECT_INTERACTION
+                for condition in snapshot.conditions
+                if condition.source_type == "pubmed"
             )
-            metric_columns[2].metric(
+            contextual_count = sum(
+                condition.qualification.grade
+                is LiteratureEvidenceGrade.CONTEXTUAL
+                for condition in snapshot.conditions
+                if condition.source_type == "pubmed"
+            )
+            excluded_count = sum(
+                condition.qualification.grade
+                in {
+                    LiteratureEvidenceGrade.OUT_OF_SCOPE,
+                    LiteratureEvidenceGrade.UNASSESSED,
+                }
+                for condition in snapshot.conditions
+                if condition.source_type == "pubmed"
+            )
+            metric_columns = st.columns(5)
+            metric_columns[0].metric("唯一文献", len(snapshot.research.articles))
+            metric_columns[1].metric("直接文献", direct_count)
+            metric_columns[2].metric("间接背景", contextual_count)
+            metric_columns[3].metric("无关/未评估", excluded_count)
+            metric_columns[4].metric(
                 "NCBI 请求", snapshot.research.retrieval_request_count
             )
-            render_articles(snapshot.research.articles)
+            render_articles(snapshot.research.articles, snapshot.conditions)
         else:
             st.info("尚未执行 PubMed 检索。")
 
@@ -637,8 +738,13 @@ with literature_tab:
                 conditions = build_experiment_conditions(
                     snapshot.research,
                     imported,
+                    question=snapshot.question,
                 )
-                assessment = assess_evidence(conditions, snapshot.analysis)
+                assessment = assess_evidence(
+                    conditions,
+                    snapshot.analysis,
+                    question=snapshot.question,
+                )
                 snapshot = snapshot.model_copy(
                     update={
                         "literature_import": imported,
@@ -772,7 +878,11 @@ with experiment_tab:
                 ),
             )
             if analysis.valid:
-                assessment = assess_evidence(snapshot.conditions, analysis)
+                assessment = assess_evidence(
+                    snapshot.conditions,
+                    analysis,
+                    question=snapshot.question,
+                )
                 snapshot = snapshot.model_copy(
                     update={
                         "analysis": analysis,
@@ -801,7 +911,11 @@ with experiment_tab:
                 else:
                     st.success("分析完成。")
             else:
-                assessment = assess_evidence(snapshot.conditions, analysis)
+                assessment = assess_evidence(
+                    snapshot.conditions,
+                    analysis,
+                    question=snapshot.question,
+                )
                 snapshot = snapshot.model_copy(
                     update={
                         "analysis": analysis,
@@ -886,11 +1000,21 @@ with report_tab:
                     status="succeeded",
                     output_summary=(
                         f"{len(report.conclusions)} 条可追溯结论，"
-                        f"{len(report.evidence_gaps)} 类证据空白"
+                        f"{len(report.evidence_gaps)} 类证据空白，"
+                        f"准入状态 {report.evidence_admission.status}"
                     ),
                 )
                 save_snapshot(snapshot)
-                st.success("报告已生成，必须经过人工复核。")
+                if (
+                    report.evidence_admission.status
+                    is EvidenceAdmissionStatus.BLOCKED_NO_DIRECT_EVIDENCE
+                ):
+                    st.warning(
+                        "文献层面证据不足：当前没有直接文献协同证据。"
+                        "匹配的实验数据如有，将按独立证据链呈现。"
+                    )
+                else:
+                    st.success("报告已生成，必须经过人工复核。")
 
         snapshot = current_snapshot()
         if snapshot.report:

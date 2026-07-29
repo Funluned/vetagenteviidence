@@ -57,6 +57,29 @@ class StubClient:
         return [sample_article()]
 
 
+class RankedStubClient:
+    def __init__(self, batches: list[list[PubMedArticle]]) -> None:
+        self.batches = batches
+        self.request_count = 0
+        self.limits: list[int] = []
+
+    def search(self, query: str, max_results: int = 5) -> list[PubMedArticle]:
+        batch = self.batches[self.request_count]
+        self.request_count += 1
+        self.limits.append(max_results)
+        return batch[:max_results]
+
+
+def ranked_article(pmid: str) -> PubMedArticle:
+    return sample_article().model_copy(
+        update={
+            "pmid": pmid,
+            "title": f"Ranked article {pmid}",
+            "source_url": f"https://pubmed.ncbi.nlm.nih.gov/{pmid}/",
+        }
+    )
+
+
 def question() -> ResearchQuestion:
     return ResearchQuestion(
         id="rq-synergy",
@@ -93,6 +116,93 @@ def test_multi_query_research_deduplicates_pmids() -> None:
     assert result.research.articles[0].pmid == "123"
     assert result.research.retrieval_request_count == 3
     assert result.research.estimated_llm_cost_usd == 0
+
+
+def test_multi_query_fusion_prevents_first_query_from_filling_the_limit() -> None:
+    client = RankedStubClient(
+        [
+            [ranked_article(f"1{index}") for index in range(1, 8)],
+            [ranked_article(f"2{index}") for index in range(1, 9)],
+            [],
+        ]
+    )
+
+    result = run_multi_query_research(
+        question(),
+        max_results=8,
+        client=client,
+        ranking_provider=CsvJournalRankingProvider.default(),
+    )
+
+    assert [article.pmid for article in result.research.articles] == [
+        "11",
+        "21",
+        "12",
+        "22",
+        "13",
+        "23",
+        "14",
+        "24",
+    ]
+    assert client.request_count == 3
+    assert client.limits == [8, 8, 8]
+
+
+def test_multi_query_duplicates_do_not_consume_a_querys_fair_turn() -> None:
+    client = RankedStubClient(
+        [
+            [
+                ranked_article("101"),
+                ranked_article("102"),
+                ranked_article("103"),
+            ],
+            [ranked_article("101"), ranked_article("201")],
+            [ranked_article("101"), ranked_article("301")],
+        ]
+    )
+
+    result = run_multi_query_research(
+        question(),
+        max_results=3,
+        client=client,
+        ranking_provider=CsvJournalRankingProvider.default(),
+    )
+
+    assert [article.pmid for article in result.research.articles] == [
+        "101",
+        "201",
+        "301",
+    ]
+    assert client.limits == [3, 3, 3]
+
+
+def test_multi_query_empty_or_exhausted_queries_are_backfilled() -> None:
+    client = RankedStubClient(
+        [
+            [ranked_article("101")],
+            [ranked_article("101")],
+            [
+                ranked_article("301"),
+                ranked_article("302"),
+                ranked_article("303"),
+            ],
+        ]
+    )
+
+    result = run_multi_query_research(
+        question(),
+        max_results=4,
+        client=client,
+        ranking_provider=CsvJournalRankingProvider.default(),
+    )
+
+    assert [article.pmid for article in result.research.articles] == [
+        "101",
+        "301",
+        "302",
+        "303",
+    ]
+    assert len({article.pmid for article in result.research.articles}) == 4
 
 
 def test_imported_literature_enters_condition_matrix_without_fake_pmid() -> None:

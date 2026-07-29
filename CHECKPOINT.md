@@ -56,7 +56,7 @@ VetResearch Workbench v0.2 增量阶段：首个协同研究垂直闭环已完�
 - [x] 用本地标签 `v0.1.0` 冻结 VetEvidence AI 基线，并在 `codex/vetresearch-workbench` 开发
 - [x] 把科研问题拆成 2—4 条带生成规则、验证方法和成功标准的可检验假设
 - [x] 自动生成并执行候选干预、对照干预、联合/协同三类 PubMed 检索式
-- [x] 以 PMID 去重多轮检索结果，并继承 LetPub 中科院/JCR 双分区核查
+- [x] 保留各轮 PubMed 相关性顺序，以轮询方式公平合并并按 PMID 去重，继承 LetPub 中科院/JCR 双分区核查
 - [x] 支持 RIS、EndNote、RefWorks 题录导入及 DOI/标题年份去重
 - [x] 非 PubMed 来源使用通用来源 ID，不伪造 PMID
 - [x] 形成物种、模型、样本量、干预、剂量、时间、对照和指标的实验条件矩阵
@@ -70,12 +70,13 @@ VetResearch Workbench v0.2 增量阶段：首个协同研究垂直闭环已完�
 
 ### 新阶段验证证据
 
-- 全量自动测试：`69 passed`；其中 v0.1 原有 21 项保持通过。
+- 全量自动测试：`72 passed`；其中 v0.1 原有 21 项保持通过。
 - 真实三轮 NCBI 检索：
   - `quercetin Streptococcus agalactiae`
   - `amoxicillin Streptococcus agalactiae`
   - `quercetin amoxicillin Streptococcus agalactiae (synergy OR interaction OR combination)`
-- 三轮检索去重后返回 5 个唯一 PMID：`42250334`、`34828017`、`38540051`、`37663139`、`40505823`。
+- 三轮分别返回 7、8、0 条；公平合并并去重后保留 8 个唯一 PMID：`42250334`、`30922308`、`34828017`、`35755456`、`38540051`、`9307346`、`37663139`、`34285597`，前两轮各贡献 4 条。
+- 回归测试覆盖首轮占满名额、跨查询重复不消耗贡献机会、空查询与耗尽查询回填，以及全局数量上限。
 - 浏览器实际验收五步页面：问题与假设、文献证据、实验数据、决策报告、运行记录。
 - 浏览器实际运行合成 RIS 导入、FICI、生长曲线、报告、人工复核和历史恢复。
 - FICI 演示数据保留 3 个有效行；生长曲线演示计算 `combination AUC=0.93`、`control AUC=2.92`。

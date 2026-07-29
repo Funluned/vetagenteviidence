@@ -221,6 +221,31 @@ def generate_search_queries(
     return QueryPlan(question=scoped, queries=unique[:max_queries])
 
 
+def _fuse_ranked_articles(
+    ranked_results: list[list[PubMedArticle]],
+    *,
+    max_results: int,
+) -> list[PubMedArticle]:
+    """Fairly interleave per-query rankings while de-duplicating PMIDs."""
+
+    iterators = [iter(articles) for articles in ranked_results]
+    selected: dict[str, PubMedArticle] = {}
+    while len(selected) < max_results:
+        progressed = False
+        for iterator in iterators:
+            for article in iterator:
+                if article.pmid in selected:
+                    continue
+                selected[article.pmid] = article
+                progressed = True
+                break
+            if len(selected) == max_results:
+                break
+        if not progressed:
+            break
+    return list(selected.values())
+
+
 def run_multi_query_research(
     question: ResearchQuestion | str,
     *,
@@ -230,7 +255,7 @@ def run_multi_query_research(
     provider: EvidenceProvider | None = None,
     ranking_provider: JournalRankingProvider | None = None,
 ) -> MultiQueryResearchResult:
-    """Search multiple query variants, de-duplicate PMIDs, then run v0.1 extraction."""
+    """Fairly interleave ranked query results, de-duplicate PMIDs, then extract."""
 
     if max_results < 1:
         raise ValueError("max_results 必须大于 0。")
@@ -242,11 +267,14 @@ def run_multi_query_research(
     owns_ranking = ranking_provider is None
 
     try:
-        articles_by_pmid: dict[str, PubMedArticle] = {}
-        for query in plan.queries:
-            for article in active_client.search(query, max_results=max_results):
-                articles_by_pmid.setdefault(article.pmid, article)
-        raw_articles = list(articles_by_pmid.values())[:max_results]
+        ranked_results = [
+            active_client.search(query, max_results=max_results)
+            for query in plan.queries
+        ]
+        raw_articles = _fuse_ranked_articles(
+            ranked_results,
+            max_results=max_results,
+        )
         rankings = active_ranking.lookup_many(raw_articles)
         articles = [
             article.model_copy(update={"journal_ranking": ranking})

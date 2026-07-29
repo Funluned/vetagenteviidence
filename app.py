@@ -485,7 +485,10 @@ with literature_tab:
         st.info("请先在“问题与假设”创建任务。")
     else:
         st.header("多轮 PubMed 检索")
-        st.caption("系统依次执行可见检索式，以 PMID 去重后再提取证据和查询分区。")
+        st.caption(
+            "系统保留各轮检索的相关性顺序，按轮公平合并并以 PMID 去重，"
+            "再提取证据和查询分区。"
+        )
         if st.button(
             f"执行 {len(snapshot.query_plan.queries)} 轮 PubMed 检索",
             type="primary",
@@ -543,7 +546,8 @@ with literature_tab:
                     f"{len(multi_result.query_plan.queries)} 个检索式",
                     status="succeeded",
                     output_summary=(
-                        f"获得 {len(multi_result.research.articles)} 个唯一 PMID"
+                        "公平合并后获得 "
+                        f"{len(multi_result.research.articles)} 个唯一 PMID"
                     ),
                 )
                 snapshot = append_event(

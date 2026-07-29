@@ -18,6 +18,17 @@ def test_required_delivery_artifacts_exist() -> None:
         "docs/RESUME_EVIDENCE.md",
         "docs/INTERVIEW_GUIDE.md",
         "docs/RETROSPECTIVE.md",
+        "src/vetevidence/experiment_analysis.py",
+        "src/vetevidence/imported_extraction.py",
+        "src/vetevidence/literature_import.py",
+        "src/vetevidence/run_store.py",
+        "src/vetevidence/workbench.py",
+        "src/vetevidence/workbench_pipeline.py",
+        "data/templates/fici_template.csv",
+        "data/templates/growth_curve_template.csv",
+        "data/demo/fici_demo.csv",
+        "data/demo/growth_curve_demo.csv",
+        "data/demo/cnki_export_demo.ris",
     ]
 
     missing = [
@@ -44,3 +55,14 @@ def test_readme_document_links_exist() -> None:
 
     assert links
     assert all((PROJECT_ROOT / link).is_file() for link in links)
+
+
+def test_workbench_release_metadata_and_readme_contract() -> None:
+    pyproject = (PROJECT_ROOT / "pyproject.toml").read_text(encoding="utf-8")
+    readme = (PROJECT_ROOT / "README.md").read_text(encoding="utf-8")
+
+    assert 'version = "0.2.0"' in pyproject
+    assert "VetResearch Workbench" in readme
+    assert "FICI" in readme
+    assert "生长曲线" in readme
+    assert "RIS" in readme

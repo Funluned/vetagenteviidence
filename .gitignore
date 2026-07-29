@@ -6,6 +6,7 @@ __pycache__/
 .coverage
 htmlcov/
 .run/
+.workbench/
 data/cache/
 .env
 .streamlit/secrets.toml

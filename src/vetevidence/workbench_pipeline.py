@@ -1,0 +1,927 @@
+"""Sequential, auditable workflow for the VetResearch Workbench vertical slice."""
+
+from __future__ import annotations
+
+import json
+import re
+from datetime import datetime, timezone
+from hashlib import sha256
+from typing import Literal
+from uuid import uuid4
+
+from pydantic import BaseModel, ConfigDict, Field
+
+from vetevidence.experiment_analysis import (
+    ExperimentAnalysisResult,
+    FICIAnalysisResult,
+    GrowthCurveAnalysisResult,
+)
+from vetevidence.imported_extraction import (
+    extract_imported_experimental_fields,
+)
+from vetevidence.journal_rankings import (
+    JournalRankingProvider,
+    LetPubJournalRankingProvider,
+)
+from vetevidence.literature_import import (
+    ImportedLiterature,
+    LiteratureImportResult,
+)
+from vetevidence.models import (
+    EvidenceRecord,
+    PubMedArticle,
+    ResearchResult,
+)
+from vetevidence.providers import EvidenceProvider, RuleBasedEvidenceProvider
+from vetevidence.pubmed import PubMedClient
+from vetevidence.workbench import (
+    ConclusionConfidence,
+    ConflictResolutionStatus,
+    EvidenceConflict,
+    EvidenceGap,
+    EvidenceReference,
+    HumanReview,
+    ResearchDecisionReport,
+    ResearchQuestion,
+    TaskEvent,
+    TestableHypothesis,
+    TraceableConclusion,
+    decompose_research_question,
+    summarize_task_status,
+)
+
+
+class PipelineModel(BaseModel):
+    model_config = ConfigDict(str_strip_whitespace=True)
+
+
+class QueryPlan(PipelineModel):
+    question: ResearchQuestion
+    queries: list[str] = Field(min_length=1, max_length=3)
+    rule_id: str = "synergy-search-v1"
+
+
+class MultiQueryResearchResult(PipelineModel):
+    query_plan: QueryPlan
+    research: ResearchResult
+
+
+class LiteratureItem(PipelineModel):
+    """Common literature view without requiring every source to have a PMID."""
+
+    source_id: str
+    source_type: Literal["pubmed", "user_import"]
+    title: str
+    authors: list[str] = Field(default_factory=list)
+    year: int | None = None
+    journal: str | None = None
+    pmid: str | None = None
+    doi: str | None = None
+    abstract: str | None = None
+    source_url: str | None = None
+    warnings: list[str] = Field(default_factory=list)
+
+    @classmethod
+    def from_pubmed(cls, article: PubMedArticle) -> LiteratureItem:
+        warnings = []
+        if not article.abstract:
+            warnings.append("PubMed 未提供摘要，不能自动提取实验细节。")
+        return cls(
+            source_id=f"PMID {article.pmid}",
+            source_type="pubmed",
+            title=article.title,
+            authors=article.authors,
+            year=article.year,
+            journal=article.journal,
+            pmid=article.pmid,
+            doi=article.doi,
+            abstract=article.abstract,
+            source_url=article.source_url,
+            warnings=warnings,
+        )
+
+    @classmethod
+    def from_import(cls, record: ImportedLiterature) -> LiteratureItem:
+        return cls(
+            source_id=record.source_id,
+            source_type="user_import",
+            title=record.title,
+            authors=record.authors,
+            year=record.year,
+            journal=record.journal,
+            doi=record.doi,
+            abstract=record.abstract,
+            source_url=record.source_url,
+            warnings=record.warnings,
+        )
+
+
+class ExperimentCondition(PipelineModel):
+    """Comparable experimental fields while preserving the source identity."""
+
+    source_id: str
+    source_type: Literal["pubmed", "user_import"]
+    title: str
+    pathogen: str | None = None
+    condition: str | None = None
+    species: str | None = None
+    model: str | None = None
+    sample_size: int | None = None
+    intervention: str | None = None
+    dose: str | None = None
+    route: str | None = None
+    duration: str | None = None
+    control: str | None = None
+    metrics: list[str] = Field(default_factory=list)
+    mechanisms: list[str] = Field(default_factory=list)
+    key_result: str | None = None
+    pmid: str | None = None
+    doi: str | None = None
+    source_url: str | None = None
+    source_quote: str | None = None
+    missing_fields: list[str] = Field(default_factory=list)
+
+    def reference(self) -> EvidenceReference | None:
+        if not any((self.pmid, self.doi, self.source_quote)):
+            return None
+        return EvidenceReference(
+            pmid=self.pmid,
+            doi=self.doi,
+            source_quote=self.source_quote,
+            source_url=self.source_url,
+        )
+
+
+class EvidenceAssessment(PipelineModel):
+    consistencies: list[str] = Field(default_factory=list)
+    conflicts: list[EvidenceConflict] = Field(default_factory=list)
+    gaps: list[EvidenceGap] = Field(default_factory=list)
+
+
+_MISSING_FIELD_LABELS = {
+    "species": "物种",
+    "model": "模型",
+    "sample_size": "样本量",
+    "intervention": "干预",
+    "dose": "剂量",
+    "duration": "时间/时长",
+    "control": "对照",
+    "metrics": "结局指标",
+}
+
+
+def _question(value: ResearchQuestion | str) -> ResearchQuestion:
+    if isinstance(value, ResearchQuestion):
+        return value
+    text = value.strip()
+    if not text:
+        raise ValueError("科研问题不能为空。")
+    digest = sha256(text.encode("utf-8")).hexdigest()[:12]
+    return ResearchQuestion(id=f"rq-{digest}", text=text)
+
+
+def generate_search_queries(
+    question: ResearchQuestion | str,
+    *,
+    max_queries: int = 3,
+) -> QueryPlan:
+    """Create inspectable PubMed query variants for the synergy vertical slice."""
+
+    if not 1 <= max_queries <= 3:
+        raise ValueError("max_queries 必须在 1 到 3 之间。")
+    scoped = _question(question)
+    if scoped.intervention and scoped.population:
+        intervention_query = f"{scoped.intervention} {scoped.population}"
+        comparator_query = (
+            f"{scoped.comparator} {scoped.population}"
+            if scoped.comparator
+            else f"{intervention_query} (dose OR mechanism)"
+        )
+        interaction_terms = " ".join(
+            term
+            for term in (
+                scoped.intervention,
+                scoped.comparator,
+                scoped.population,
+            )
+            if term
+        )
+        candidates = [
+            intervention_query,
+            comparator_query,
+            f"{interaction_terms} (synergy OR interaction OR combination)",
+        ]
+    else:
+        candidates = [
+            scoped.text,
+            f"{scoped.text} (synergy OR interaction OR combination)",
+            f"{scoped.text} (checkerboard OR FICI OR \"growth curve\")",
+        ]
+    unique = list(dict.fromkeys(query.strip() for query in candidates if query.strip()))
+    return QueryPlan(question=scoped, queries=unique[:max_queries])
+
+
+def run_multi_query_research(
+    question: ResearchQuestion | str,
+    *,
+    max_results: int = 8,
+    max_queries: int = 3,
+    client: PubMedClient | None = None,
+    provider: EvidenceProvider | None = None,
+    ranking_provider: JournalRankingProvider | None = None,
+) -> MultiQueryResearchResult:
+    """Search multiple query variants, de-duplicate PMIDs, then run v0.1 extraction."""
+
+    if max_results < 1:
+        raise ValueError("max_results 必须大于 0。")
+    plan = generate_search_queries(question, max_queries=max_queries)
+    active_client = client or PubMedClient()
+    active_provider = provider or RuleBasedEvidenceProvider()
+    active_ranking = ranking_provider or LetPubJournalRankingProvider.default()
+    owns_client = client is None
+    owns_ranking = ranking_provider is None
+
+    try:
+        articles_by_pmid: dict[str, PubMedArticle] = {}
+        for query in plan.queries:
+            for article in active_client.search(query, max_results=max_results):
+                articles_by_pmid.setdefault(article.pmid, article)
+        raw_articles = list(articles_by_pmid.values())[:max_results]
+        rankings = active_ranking.lookup_many(raw_articles)
+        articles = [
+            article.model_copy(update={"journal_ranking": ranking})
+            for article, ranking in zip(raw_articles, rankings, strict=True)
+        ]
+        evidence = [active_provider.extract(article) for article in articles]
+        research = ResearchResult(
+            query=plan.question.text,
+            articles=articles,
+            evidence=evidence,
+            answer=active_provider.answer(plan.question.text, evidence),
+            provider_name=active_provider.name,
+            retrieval_request_count=getattr(active_client, "request_count", 0),
+            estimated_llm_cost_usd=0.0,
+        )
+        return MultiQueryResearchResult(query_plan=plan, research=research)
+    finally:
+        if owns_client:
+            active_client.close()
+        if owns_ranking:
+            active_ranking.close()
+
+
+def literature_items(
+    articles: list[PubMedArticle],
+    imported: LiteratureImportResult | None = None,
+) -> list[LiteratureItem]:
+    items = [LiteratureItem.from_pubmed(article) for article in articles]
+    items.extend(
+        LiteratureItem.from_import(record)
+        for record in (imported.records if imported else [])
+    )
+    return items
+
+
+def _missing_fields(condition: ExperimentCondition) -> list[str]:
+    missing = []
+    for field_name in _MISSING_FIELD_LABELS:
+        value = getattr(condition, field_name)
+        if value is None or value == "" or value == []:
+            missing.append(field_name)
+    return missing
+
+
+def build_experiment_conditions(
+    research: ResearchResult | None,
+    imported: LiteratureImportResult | None = None,
+) -> list[ExperimentCondition]:
+    """Build one comparison row per source without inventing missing fields."""
+
+    articles = {
+        article.pmid: article for article in (research.articles if research else [])
+    }
+    conditions: list[ExperimentCondition] = []
+    for evidence in research.evidence if research else []:
+        article = articles[evidence.pmid]
+        condition = ExperimentCondition(
+            source_id=f"PMID {evidence.pmid}",
+            source_type="pubmed",
+            title=article.title,
+            pathogen=evidence.pathogen,
+            condition=evidence.disease_or_condition,
+            species=evidence.species,
+            model=evidence.model,
+            sample_size=evidence.sample_size,
+            intervention=evidence.intervention,
+            dose=evidence.dose,
+            route=evidence.route,
+            duration=evidence.duration,
+            control=evidence.control,
+            metrics=evidence.outcomes,
+            mechanisms=evidence.mechanism,
+            key_result=evidence.key_result,
+            pmid=evidence.pmid,
+            doi=evidence.doi,
+            source_url=evidence.source_url,
+            source_quote=evidence.source_quote,
+        )
+        conditions.append(
+            condition.model_copy(update={"missing_fields": _missing_fields(condition)})
+        )
+
+    for record in imported.records if imported else []:
+        fields = extract_imported_experimental_fields(
+            record.title,
+            record.abstract,
+        )
+        condition = ExperimentCondition(
+            source_id=record.source_id,
+            source_type="user_import",
+            title=record.title,
+            pathogen=fields.pathogen,
+            condition=fields.disease_or_condition,
+            species=fields.species,
+            model=fields.model,
+            sample_size=fields.sample_size,
+            intervention=fields.intervention,
+            dose=fields.dose,
+            route=fields.route,
+            duration=fields.duration,
+            control=fields.control,
+            metrics=fields.outcomes,
+            mechanisms=fields.mechanism,
+            key_result=fields.key_result,
+            doi=record.doi,
+            source_url=record.source_url,
+            source_quote=fields.source_quote,
+        )
+        conditions.append(
+            condition.model_copy(update={"missing_fields": _missing_fields(condition)})
+        )
+    return conditions
+
+
+def experiment_condition_rows(
+    conditions: list[ExperimentCondition],
+) -> list[dict[str, object]]:
+    return [
+        {
+            "来源": condition.source_id,
+            "来源类型": "PubMed" if condition.source_type == "pubmed" else "用户导入",
+            "物种": condition.species or "",
+            "模型": condition.model or "",
+            "样本量": condition.sample_size,
+            "干预": condition.intervention or "",
+            "剂量": condition.dose or "",
+            "时间/时长": condition.duration or "",
+            "对照": condition.control or "",
+            "结局指标": "；".join(condition.metrics),
+            "机制": "；".join(condition.mechanisms),
+            "缺失字段": "；".join(
+                _MISSING_FIELD_LABELS[field_name]
+                for field_name in condition.missing_fields
+            ),
+        }
+        for condition in conditions
+    ]
+
+
+def _direction(text: str | None) -> Literal["up", "down", "no_effect", "unknown"]:
+    normalized = (text or "").casefold()
+    if re.search(r"\b(no|not)\s+(significant\s+)?(effect|change|difference)", normalized):
+        return "no_effect"
+    if any(
+        marker in normalized
+        for marker in (
+            "reduced",
+            "decreased",
+            "inhibited",
+            "alleviated",
+            "mitigated",
+            "降低",
+            "减少",
+            "抑制",
+        )
+    ):
+        return "down"
+    if any(
+        marker in normalized
+        for marker in (
+            "increased",
+            "enhanced",
+            "promoted",
+            "upregulated",
+            "升高",
+            "增加",
+            "促进",
+        )
+    ):
+        return "up"
+    return "unknown"
+
+
+def _claim_from_condition(
+    condition: ExperimentCondition,
+    *,
+    confidence: ConclusionConfidence = ConclusionConfidence.LOW,
+) -> TraceableConclusion | None:
+    reference = condition.reference()
+    if reference is None or not condition.key_result:
+        return None
+    if (
+        condition.source_type == "user_import"
+        and "must not be treated as scientific evidence"
+        in condition.key_result.casefold()
+    ):
+        return None
+    digest = sha256(
+        f"{condition.source_id}|{condition.key_result}".encode("utf-8")
+    ).hexdigest()[:12]
+    return TraceableConclusion(
+        id=f"claim-{digest}",
+        statement=condition.key_result,
+        confidence=confidence,
+        evidence=[reference],
+        limitations=["仅依据当前可见摘要或导出片段，尚未完成全文人工核查。"],
+    )
+
+
+def assess_evidence(
+    conditions: list[ExperimentCondition],
+    analysis: ExperimentAnalysisResult | None = None,
+) -> EvidenceAssessment:
+    """Detect only explicit direction conflicts and report missing condition fields."""
+
+    consistencies: list[str] = []
+    conflicts: list[EvidenceConflict] = []
+    gaps: list[EvidenceGap] = []
+    if analysis is not None and not analysis.valid:
+        error_summary = "；".join(analysis.errors) or "实验 CSV 未通过完整性校验"
+        gaps.append(
+            EvidenceGap(
+                id="gap-invalid-analysis",
+                topic="实验 CSV 校验",
+                missing_evidence=f"实验 CSV 无效，未纳入结论：{error_summary}",
+                impact="不能使用部分有效行或旧分析结果形成实验结论与建议。",
+                recommended_action="修正全部校验错误后重新上传并生成报告。",
+            )
+        )
+        analysis = None
+
+    grouped: dict[str, list[ExperimentCondition]] = {}
+    for condition in conditions:
+        topics = condition.mechanisms or (
+            [condition.pathogen] if condition.pathogen else ["主要效应"]
+        )
+        for topic in topics:
+            grouped.setdefault(topic, []).append(condition)
+
+    for topic, members in grouped.items():
+        by_direction: dict[str, list[ExperimentCondition]] = {}
+        for member in members:
+            direction = _direction(member.key_result)
+            if direction != "unknown":
+                by_direction.setdefault(direction, []).append(member)
+        supported_directions = [
+            direction for direction, rows in by_direction.items() if rows
+        ]
+        if len(supported_directions) == 1 and len(by_direction[supported_directions[0]]) >= 2:
+            consistencies.append(
+                f"{topic}：{len(by_direction[supported_directions[0]])} 个来源的"
+                "摘要级效应方向一致。"
+            )
+        if (
+            ("up" in by_direction and "down" in by_direction)
+            or ("no_effect" in by_direction and len(supported_directions) > 1)
+        ):
+            claims = [
+                claim
+                for member in members
+                if (claim := _claim_from_condition(member)) is not None
+                and _direction(member.key_result) != "unknown"
+            ]
+            if len(claims) >= 2:
+                conflicts.append(
+                    EvidenceConflict(
+                        id=f"conflict-{sha256(topic.encode('utf-8')).hexdigest()[:10]}",
+                        topic=topic,
+                        description=f"同一主题“{topic}”出现方向不一致的摘要级结果。",
+                        claims=claims,
+                        impact="直接合并结论可能掩盖模型、剂量或时间条件差异。",
+                        resolution_status=ConflictResolutionStatus.OPEN,
+                    )
+                )
+
+    for field_name, label in _MISSING_FIELD_LABELS.items():
+        missing = [
+            condition
+            for condition in conditions
+            if (
+                (value := getattr(condition, field_name)) is None
+                or value == ""
+                or value == []
+            )
+        ]
+        if not missing:
+            continue
+        references = [
+            reference
+            for condition in missing
+            if (reference := condition.reference()) is not None
+        ]
+        gaps.append(
+            EvidenceGap(
+                id=f"gap-{field_name}",
+                topic=label,
+                missing_evidence=(
+                    f"{len(missing)}/{len(conditions)} 个来源未报告{label}。"
+                ),
+                impact=f"无法充分比较不同研究的{label}条件。",
+                recommended_action=f"人工核对全文或原始记录并补录{label}。",
+                related_evidence=references,
+            )
+        )
+
+    if isinstance(analysis, FICIAnalysisResult):
+        classifications = {
+            row.classification
+            for row in analysis.rows
+            if row.valid and row.classification
+        }
+        if len(classifications) == 1 and analysis.valid_row_count >= 2:
+            consistencies.append(
+                f"FICI：{analysis.valid_row_count} 个有效数据行均分类为"
+                f" {next(iter(classifications))}。"
+            )
+        if "synergy" in classifications and "antagonism" in classifications:
+            claims = []
+            for row in analysis.rows:
+                if row.valid and row.classification in {"synergy", "antagonism"}:
+                    calculation = (
+                        f"CSV row {row.row_number}: "
+                        f"({row.drug_a_mic_combo}/{row.drug_a_mic_alone}) + "
+                        f"({row.drug_b_mic_combo}/{row.drug_b_mic_alone}) = "
+                        f"FICI={row.fici:.4g}; classification={row.classification}"
+                    )
+                    claims.append(
+                        TraceableConclusion(
+                            id=f"fici-row-{row.row_number}",
+                            statement=calculation,
+                            confidence=ConclusionConfidence.MODERATE,
+                            evidence=[
+                                EvidenceReference(
+                                    source_id=(
+                                        f"sha256:{analysis.input_sha256}"
+                                    ),
+                                    source_type="experiment_csv",
+                                    source_name=analysis.source_name,
+                                    input_sha256=analysis.input_sha256,
+                                    data_rows=[row.row_number],
+                                    calculation=calculation,
+                                )
+                            ],
+                            limitations=["这是描述性 FICI 分类，未包含独立重复验证。"],
+                        )
+                    )
+            conflicts.append(
+                EvidenceConflict(
+                    id="conflict-fici",
+                    topic="FICI",
+                    description="不同 CSV 数据行同时出现协同与拮抗分类。",
+                    claims=claims,
+                    impact="需要先排查菌株、批次、剂量和录入差异再形成判断。",
+                    resolution_status=ConflictResolutionStatus.OPEN,
+                )
+            )
+
+    return EvidenceAssessment(
+        consistencies=consistencies,
+        conflicts=conflicts,
+        gaps=gaps,
+    )
+
+
+def _is_synthetic_analysis(analysis: ExperimentAnalysisResult) -> bool:
+    return any(
+        (row.raw_row.get("data_status") or "").casefold() == "synthetic_demo"
+        for row in analysis.rows
+    )
+
+
+def _analysis_conclusion(
+    analysis: ExperimentAnalysisResult,
+) -> TraceableConclusion | None:
+    is_synthetic_demo = _is_synthetic_analysis(analysis)
+    demo_prefix = (
+        "合成演示数据（不可作为科研证据）："
+        if is_synthetic_demo
+        else ""
+    )
+    demo_limitation = (
+        ["当前输入是合成演示数据，只用于验证计算流程。"]
+        if is_synthetic_demo
+        else []
+    )
+    if isinstance(analysis, FICIAnalysisResult):
+        rows = [row for row in analysis.rows if row.valid and row.fici is not None]
+        if not rows:
+            return None
+        counts: dict[str, int] = {}
+        references = []
+        for row in rows:
+            classification = row.classification or "unclassified"
+            counts[classification] = counts.get(classification, 0) + 1
+            calculation = (
+                f"CSV row {row.row_number}: "
+                f"({row.drug_a_mic_combo}/{row.drug_a_mic_alone}) + "
+                f"({row.drug_b_mic_combo}/{row.drug_b_mic_alone}) = "
+                f"FICI={row.fici:.4g}; classification={classification}"
+            )
+            references.append(
+                EvidenceReference(
+                    source_id=f"sha256:{analysis.input_sha256}",
+                    source_type="experiment_csv",
+                    source_name=analysis.source_name,
+                    input_sha256=analysis.input_sha256,
+                    data_rows=[row.row_number],
+                    calculation=calculation,
+                )
+            )
+        summary = "；".join(f"{key} {value} 行" for key, value in sorted(counts.items()))
+        return TraceableConclusion(
+            id="analysis-fici",
+            statement=(
+                f"{demo_prefix}FICI 描述性分析包含 {len(rows)} 个有效数据行："
+                f"{summary}。"
+            ),
+            confidence=ConclusionConfidence.MODERATE,
+            evidence=references,
+            limitations=[
+                *demo_limitation,
+                "FICI 阈值分类不能替代独立重复和 time-kill 验证。",
+            ],
+        )
+
+    if isinstance(analysis, GrowthCurveAnalysisResult) and analysis.auc_by_group:
+        references = []
+        for row in analysis.auc_by_group:
+            timepoints = [
+                point
+                for point in analysis.timepoints
+                if point.group == row.group
+            ]
+            data_rows = sorted(
+                {
+                    source_row
+                    for point in timepoints
+                    for source_row in point.source_row_numbers
+                }
+            )
+            point_text = ", ".join(
+                f"(t={point.time:g}, mean={point.mean:.6g}, n={point.n})"
+                for point in timepoints
+            )
+            calculation = (
+                f"CSV group {row.group}: trapezoid AUC over {point_text} = "
+                f"{row.auc:.6g}; range={row.start_time:g}-{row.end_time:g}"
+            )
+            references.append(
+                EvidenceReference(
+                    source_id=f"sha256:{analysis.input_sha256}",
+                    source_type="experiment_csv",
+                    source_name=analysis.source_name,
+                    input_sha256=analysis.input_sha256,
+                    data_rows=data_rows,
+                    calculation=calculation,
+                )
+            )
+        statement = "；".join(
+            f"{row.group} AUC={row.auc:.4g}" for row in analysis.auc_by_group
+        )
+        return TraceableConclusion(
+            id="analysis-growth-curve",
+            statement=(
+                f"{demo_prefix}生长曲线梯形积分的描述性结果为：{statement}。"
+            ),
+            confidence=ConclusionConfidence.MODERATE,
+            evidence=references,
+            limitations=[
+                *demo_limitation,
+                "AUC 为描述性统计，尚未进行显著性推断或模型比较。",
+            ],
+        )
+    return None
+
+
+def build_decision_report(
+    question: ResearchQuestion | str,
+    *,
+    conditions: list[ExperimentCondition],
+    task_events: list[TaskEvent],
+    analysis: ExperimentAnalysisResult | None = None,
+    assessment: EvidenceAssessment | None = None,
+    hypotheses: list[TestableHypothesis] | None = None,
+    human_review: HumanReview | None = None,
+) -> ResearchDecisionReport:
+    """Create a source-backed report; refuse to emit conclusions without evidence."""
+
+    scoped = _question(question)
+    active_hypotheses = hypotheses or decompose_research_question(scoped)
+    usable_analysis = (
+        analysis if analysis is not None and analysis.valid else None
+    )
+    # Assessment is always recomputed from the same validated inputs as the
+    # report.  A stale or caller-supplied assessment must not smuggle invalid
+    # CSV results into conflicts, gaps, or recommendations.
+    _ = assessment
+    active_assessment = assess_evidence(conditions, analysis)
+    conclusions = [
+        claim
+        for condition in conditions
+        if (claim := _claim_from_condition(condition)) is not None
+    ][:5]
+    if usable_analysis is not None:
+        analysis_conclusion = _analysis_conclusion(usable_analysis)
+        if analysis_conclusion:
+            conclusions.append(analysis_conclusion)
+    if not conclusions:
+        raise ValueError("没有可追溯的来源片段，不能生成科研决策报告。")
+
+    evidence = [
+        reference
+        for conclusion in conclusions
+        for reference in conclusion.evidence
+    ]
+    if usable_analysis is not None and _is_synthetic_analysis(usable_analysis):
+        recommendation_text = (
+            "当前输入是合成演示数据，只能验证工作流和计算过程；不得据此"
+            "形成科研建议。请上传真实、可追溯的实验数据后重新生成报告。"
+        )
+    elif isinstance(usable_analysis, FICIAnalysisResult):
+        synergy_rows = [
+            row
+            for row in usable_analysis.rows
+            if row.valid and row.classification == "synergy"
+        ]
+        if synergy_rows:
+            recommendation_text = (
+                "当前 FICI 数据包含协同分类；下一步应进行独立生物学重复，"
+                "并使用 time-kill 等正交方法验证协同是否稳定。"
+            )
+        else:
+            recommendation_text = (
+                "当前有效 FICI 数据未形成协同分类；在调整菌株、剂量或时间"
+                "条件前，不应宣称存在协同效应。"
+            )
+    elif isinstance(usable_analysis, GrowthCurveAnalysisResult):
+        recommendation_text = (
+            "当前生长曲线仅支持描述性比较；下一步应确认各时间点生物学"
+            "重复数，并预先登记效应指标后再做统计推断。"
+        )
+    else:
+        recommendation_text = (
+            "当前证据可用于设计验证性实验，但在全文核查、补齐实验条件并"
+            "完成独立重复前，不应把摘要级结果视为确定性结论。"
+        )
+
+    generated_at = datetime.now(timezone.utc)
+    report_id = f"report-{scoped.id}-{uuid4().hex[:12]}"
+    review = human_review or HumanReview(
+        id=f"review-{report_id}",
+        requested_at=generated_at,
+    )
+    return ResearchDecisionReport(
+        id=report_id,
+        question=scoped,
+        hypotheses=active_hypotheses,
+        conclusions=conclusions,
+        recommendation=TraceableConclusion(
+            id=f"recommendation-{scoped.id}",
+            statement=recommendation_text,
+            confidence=ConclusionConfidence.LOW,
+            evidence=evidence,
+            limitations=[
+                "建议仅用于确定下一步科研验证，不构成诊疗、处方或临床决策。"
+            ],
+        ),
+        conflicts=active_assessment.conflicts,
+        evidence_gaps=active_assessment.gaps,
+        task_status=summarize_task_status(task_events),
+        human_review=review,
+        generated_at=generated_at,
+    )
+
+
+def _reference_text(reference: EvidenceReference) -> str:
+    parts = []
+    if reference.pmid:
+        parts.append(f"PMID {reference.pmid}")
+    if reference.doi:
+        parts.append(f"DOI {reference.doi}")
+    if reference.source_quote:
+        parts.append(f"来源片段：{reference.source_quote}")
+    if reference.source_type == "experiment_csv":
+        parts.append(f"CSV：{reference.source_name or reference.source_id}")
+        parts.append(f"SHA-256：{reference.input_sha256}")
+        parts.append(
+            "数据行：" + ",".join(str(row) for row in reference.data_rows)
+        )
+        parts.append(f"计算：{reference.calculation}")
+    return "；".join(parts)
+
+
+def report_content_sha256(report: ResearchDecisionReport) -> str:
+    """Hash the immutable scientific content independently of review state."""
+
+    payload = report.model_dump(
+        mode="json",
+        exclude={
+            "id": True,
+            "generated_at": True,
+            "human_review": True,
+            "task_status": True,
+        },
+    )
+    canonical = json.dumps(
+        payload,
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    )
+    return sha256(canonical.encode("utf-8")).hexdigest()
+
+
+def decision_report_to_markdown(report: ResearchDecisionReport) -> str:
+    lines = [
+        "# VetResearch Workbench 科研决策报告",
+        "",
+        f"- 报告 ID：{report.id}",
+        f"- 科研内容 SHA-256：{report_content_sha256(report)}",
+        f"- 科研问题：{report.question.text}",
+        f"- 任务状态：{report.task_status.current_status}",
+        f"- 人工复核：{report.human_review.decision}",
+        f"- 生成时间：{report.generated_at.isoformat()}",
+        "",
+        "## 可检验假设",
+        "",
+    ]
+    for hypothesis in report.hypotheses:
+        lines.append(f"- {hypothesis.statement}（规则：{hypothesis.rule_id}）")
+
+    lines.extend(["", "## 可追溯结论", ""])
+    for conclusion in report.conclusions:
+        lines.append(f"### {conclusion.statement}")
+        lines.append("")
+        lines.extend(
+            f"- {_reference_text(reference)}" for reference in conclusion.evidence
+        )
+        if conclusion.limitations:
+            lines.append(f"- 局限：{'；'.join(conclusion.limitations)}")
+        lines.append("")
+
+    lines.extend(
+        [
+            "## 证据一致性、冲突与空白",
+            "",
+        ]
+    )
+    if not report.conflicts:
+        lines.append("- 当前未检测到满足规则定义的显式方向冲突。")
+    for conflict in report.conflicts:
+        lines.append(f"- 冲突：{conflict.description} 影响：{conflict.impact}")
+        for claim in conflict.claims:
+            lines.append(f"  - 冲突证据：{claim.statement}")
+            lines.extend(
+                f"    - {_reference_text(reference)}"
+                for reference in claim.evidence
+            )
+    for gap in report.evidence_gaps:
+        lines.append(
+            f"- 空白：{gap.missing_evidence} 下一步：{gap.recommended_action}"
+        )
+        lines.extend(
+            f"  - 空白相关证据：{_reference_text(reference)}"
+            for reference in gap.related_evidence
+        )
+
+    lines.extend(
+        [
+            "",
+            "## 下一步建议",
+            "",
+            report.recommendation.statement,
+            "",
+            "### 建议依据",
+            "",
+            *(
+                f"- {_reference_text(reference)}"
+                for reference in report.recommendation.evidence
+            ),
+            "",
+            "## 风险与边界",
+            "",
+            f"- {report.disclaimer}",
+            "- 用户导入题录和 CSV 在本地处理；正式结论仍需核对全文与原始数据。",
+        ]
+    )
+    return "\n".join(lines)

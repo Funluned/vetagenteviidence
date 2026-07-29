@@ -1,0 +1,4 @@
+drug_a,drug_b,drug_a_mic_alone,drug_a_mic_combo,drug_b_mic_alone,drug_b_mic_combo,replicate,data_status
+Candidate A,Antibiotic B,8,2,4,1,1,synthetic_demo
+Candidate A,Antibiotic B,8,2,4,1,2,synthetic_demo
+Candidate A,Antibiotic B,8,4,4,2,3,synthetic_demo

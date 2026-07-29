@@ -42,6 +42,7 @@
 - 真实查询：`quercetin Streptococcus agalactiae mastitis` 返回 2 篇文献。
 - LetPub 实测：目标论文所在期刊显示中科院农林科学 3 区、兽医学 3 区，以及 WOS JIF Q2（SCIE，54/170）。
 - LetPub 实测：`Animals` 显示中科院农林科学 2 区、两个小类 2 区，以及两个 WOS JIF Q1 分类。
+- GitHub：项目已上传至 `https://github.com/Funluned/vetagenteviidence`，默认分支为 `main`。
 - 目标论文：PMID `42250334`，DOI `10.1016/j.rvsc.2026.106289`。
 - 目标论文提取：小鼠、样本量 25、Quercetin、`25, 50, 100 mg/kg`、腹腔注射、`24 h`、NF-κB、NLRP3、铁死亡及来源原句。
 - 页面验收：文献列表、证据表、证据回答、评测、导出五个标签页均已实际检查。
@@ -51,6 +52,5 @@
 ## 阻塞
 
 - 本机未安装 Docker：Dockerfile 已写，镜像构建未验证。
-- Git 未配置用户名、邮箱和远端：当前代码没有正式提交或推送。
 - 尚未录制演示视频，也未获准进行公开部署。
 - 仍需孙奇亲自完成从零启动、讲解和一次核心流程小修改。

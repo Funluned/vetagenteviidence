@@ -11,6 +11,7 @@ from vetevidence.connector_artifacts import ConnectorArtifactStore
 from vetevidence.database_connectors import (
     ConnectorResult,
     ConnectorStatus,
+    DatabaseEvidenceClass,
     ProvenanceRecord,
     ResponseArtifact,
 )
@@ -18,10 +19,15 @@ from vetevidence.database_ui_support import (
     CUSTOM_TAXON_LABEL,
     DATABASE_SOURCE_CONFIGS,
     DAVID_SUPPORTED_TAXON_IDS,
+    SWISS_TARGET_SUPPORTED_TAXON_IDS,
     VETERINARY_SPECIES_TAX_IDS,
+    DatabaseSourceConfig,
     parse_taxon_selection,
     restore_connector_entries,
     summarize_connector_results,
+)
+from vetevidence.restricted_database_imports import (
+    import_restricted_database_file,
 )
 
 
@@ -76,7 +82,7 @@ def _set_created_at(path, value: str) -> None:
     )
 
 
-def test_source_configs_cover_exactly_seven_product_sources() -> None:
+def test_source_configs_cover_exactly_twelve_product_sources() -> None:
     assert [item.key for item in DATABASE_SOURCE_CONFIGS] == [
         "pubchem",
         "uniprot",
@@ -85,6 +91,11 @@ def test_source_configs_cover_exactly_seven_product_sources() -> None:
         "rcsb-pdb",
         "string",
         "david",
+        "omim",
+        "drugbank",
+        "genecards",
+        "malacards",
+        "swiss-target-prediction",
     ]
     by_key = {item.key: item for item in DATABASE_SOURCE_CONFIGS}
     assert all(
@@ -93,7 +104,14 @@ def test_source_configs_cover_exactly_seven_product_sources() -> None:
     )
     assert {
         key for key, item in by_key.items() if item.requires_taxon_id
-    } == {"uniprot", "ncbi-gene", "genbank", "string", "david"}
+    } == {
+        "uniprot",
+        "ncbi-gene",
+        "genbank",
+        "string",
+        "david",
+        "swiss-target-prediction",
+    }
     assert {
         key for key, item in by_key.items() if item.requires_ncbi_email
     } == {"ncbi-gene", "genbank"}
@@ -105,6 +123,71 @@ def test_source_configs_cover_exactly_seven_product_sources() -> None:
         for key, item in by_key.items()
         if item.requires_external_consent
     } == {"string", "david"}
+    assert {
+        key for key, item in by_key.items() if item.requires_omim_key
+    } == {"omim"}
+    assert {
+        key for key, item in by_key.items() if item.requires_drugbank_key
+    } == {"drugbank"}
+    assert {
+        key
+        for key, item in by_key.items()
+        if item.requires_license_confirmation
+    } == {"drugbank", "genecards", "malacards"}
+    assert {
+        key for key, item in by_key.items() if item.requires_manual_import
+    } == {"genecards", "malacards", "swiss-target-prediction"}
+
+
+def test_new_source_access_modes_evidence_and_taxon_constraints() -> None:
+    by_key = {item.key: item for item in DATABASE_SOURCE_CONFIGS}
+
+    assert {
+        key: by_key[key].access_mode
+        for key in (
+            "omim",
+            "drugbank",
+            "genecards",
+            "malacards",
+            "swiss-target-prediction",
+        )
+    } == {
+        "omim": "credentialed_api",
+        "drugbank": "licensed_api",
+        "genecards": "licensed_import",
+        "malacards": "licensed_import",
+        "swiss-target-prediction": "manual_prediction_import",
+    }
+    assert {
+        key: by_key[key].fixed_taxon_id
+        for key in ("omim", "genecards", "malacards")
+    } == {
+        "omim": 9606,
+        "genecards": 9606,
+        "malacards": 9606,
+    }
+    assert by_key["drugbank"].fixed_taxon_id is None
+    assert "InChIKey" not in by_key["drugbank"].input_label
+    assert (
+        by_key["swiss-target-prediction"].evidence_class
+        is DatabaseEvidenceClass.COMPUTATIONAL_PREDICTION
+    )
+    assert all(
+        by_key[key].evidence_class is DatabaseEvidenceClass.CURATED_DATABASE
+        for key in ("omim", "drugbank", "genecards", "malacards")
+    )
+    assert SWISS_TARGET_SUPPORTED_TAXON_IDS == frozenset(
+        {9606, 10090, 10116}
+    )
+
+    with pytest.raises(ValidationError):
+        DatabaseSourceConfig(
+            key="omim",
+            label="OMIM",
+            input_label="MIM 编号",
+            placeholder="例如：100100",
+            fixed_taxon_id=0,
+        )
 
 
 def test_taxon_selection_supports_named_species_and_strict_custom_ids() -> None:
@@ -205,6 +288,34 @@ def test_restore_infers_offline_source_from_verified_query_id(tmp_path) -> None:
     assert len(report.entries) == 1
     assert report.entries[0].source == "STRING"
     assert report.entries[0].result.status is ConnectorStatus.OFFLINE_EXPORT
+
+
+def test_restore_infers_manual_import_source_and_hydrates_csv(tmp_path) -> None:
+    store = ConnectorArtifactStore(tmp_path)
+    payload = b"Target,UniProt ID,Probability\nEGFR,P00533,0.9\n"
+    result = import_restricted_database_file(
+        "SwissTargetPrediction",
+        "prediction.csv",
+        payload,
+        license_confirmed=True,
+        query_context={"smiles": "CCO", "taxon_id": 9606},
+    )
+    store.save(
+        "run-1",
+        "swiss-target-prediction-import",
+        result,
+    )
+
+    report = restore_connector_entries(store, "run-1")
+
+    assert report.warnings == ()
+    assert report.entries[0].source == "SwissTargetPrediction"
+    restored = report.entries[0].result
+    assert restored.acquisition_mode.value == "manual_import"
+    assert restored.evidence_class.value == "computational_prediction"
+    assert restored.artifacts[0].provenance.method == "IMPORT"
+    assert restored.artifacts[0].provenance.http_status is None
+    assert restored.artifacts[0].raw_response == payload
 
 
 def test_restore_skips_tampering_bad_directories_and_identity_renames(

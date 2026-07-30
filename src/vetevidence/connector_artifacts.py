@@ -28,6 +28,9 @@ from vetevidence.database_connectors import (
 CONNECTOR_ARCHIVE_SCHEMA_VERSION = "vetevidence-connector-archive-v1"
 NORMALIZED_RECORD_SCHEMA_VERSION = "vetevidence-external-record-v1"
 _SAFE_IDENTIFIER = re.compile(r"^[A-Za-z0-9._-]+$")
+_SAFE_RESPONSE_FILENAME = re.compile(
+    r"^response-[0-9]{3}\.(?:json|xml|cif|sdf|csv|xlsx|txt|bin)$"
+)
 
 
 class ConnectorArchiveError(RuntimeError):
@@ -103,6 +106,13 @@ def _suffix_for_content_type(content_type: str | None) -> str:
         return ".cif"
     if "sdf" in media_type:
         return ".sdf"
+    if media_type in {"text/csv", "application/csv"}:
+        return ".csv"
+    if media_type in {
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        "application/vnd.ms-excel",
+    }:
+        return ".xlsx"
     if media_type.startswith("text/"):
         return ".txt"
     return ".bin"
@@ -141,7 +151,10 @@ class ConnectorArtifactStore:
                 f"连接器查询归档已存在，不能覆盖：{target}"
             )
         target.parent.mkdir(parents=True, exist_ok=True)
-        temporary = target.with_name(f".{target.name}.{uuid4().hex}.tmp")
+        # Keep the staging name short: Windows still enforces legacy path
+        # limits in some environments, and repeating a long query ID here can
+        # make an otherwise valid archive path fail before it is written.
+        temporary = target.parent / f".tmp-{uuid4().hex}"
         temporary.mkdir()
         try:
             archived_responses: list[ArchivedResponse] = []
@@ -247,18 +260,28 @@ class ConnectorArtifactStore:
         return manifest
 
     def build_zip(self, run_id: str, query_id: str) -> bytes:
-        self.load_manifest(run_id, query_id)
+        manifest = self.load_manifest(run_id, query_id)
         target = self.path_for(run_id, query_id)
+        response_filenames = [
+            response.filename for response in manifest.responses
+        ]
+        if (
+            len(set(response_filenames)) != len(response_filenames)
+            or any(
+                not _SAFE_RESPONSE_FILENAME.fullmatch(filename)
+                for filename in response_filenames
+            )
+        ):
+            raise ConnectorArchiveError(
+                "连接器归档清单包含重复或不安全的原始材料文件名。"
+            )
         filenames = [
             "manifest.json",
             "result.json",
             "SHA256SUMS.txt",
-            *[
-                item.name
-                for item in sorted(target.glob("response-*"))
-                if item.is_file()
-            ],
+            *response_filenames,
         ]
+        resolved_target = target.resolve(strict=True)
         buffer = io.BytesIO()
         with zipfile.ZipFile(
             buffer,
@@ -266,7 +289,22 @@ class ConnectorArtifactStore:
             compression=zipfile.ZIP_DEFLATED,
         ) as archive:
             for filename in filenames:
-                archive.writestr(filename, (target / filename).read_bytes())
+                path = target / filename
+                try:
+                    resolved_path = path.resolve(strict=True)
+                except OSError as exc:
+                    raise ConnectorArchiveError(
+                        f"连接器归档文件无法解析：{filename}"
+                    ) from exc
+                if (
+                    path.is_symlink()
+                    or resolved_path.parent != resolved_target
+                    or not resolved_path.is_file()
+                ):
+                    raise ConnectorArchiveError(
+                        f"连接器归档文件越界或使用了链接：{filename}"
+                    )
+                archive.writestr(filename, resolved_path.read_bytes())
         return buffer.getvalue()
 
 

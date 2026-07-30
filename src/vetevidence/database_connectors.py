@@ -19,7 +19,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 RETRYABLE_STATUS_CODES = frozenset({429, 500, 502, 503, 504})
 CONNECTOR_EXPORT_SCHEMA_VERSION = "vetevidence-connector-result-v2"
-CONNECTOR_PARSER_VERSION = "vetevidence-database-connectors-0.4"
+CONNECTOR_PARSER_VERSION = "vetevidence-database-connectors-0.5"
 SENSITIVE_KEYS = frozenset(
     {
         "api_key",
@@ -46,6 +46,17 @@ class ConnectorStatus(StrEnum):
     NO_RESULTS = "no_results"
     DEGRADED = "degraded"
     OFFLINE_EXPORT = "offline_export"
+
+
+class AcquisitionMode(StrEnum):
+    ONLINE_API = "online_api"
+    MANUAL_IMPORT = "manual_import"
+    OFFLINE_REQUEST = "offline_request"
+
+
+class DatabaseEvidenceClass(StrEnum):
+    CURATED_DATABASE = "curated_database"
+    COMPUTATIONAL_PREDICTION = "computational_prediction"
 
 
 class ConnectorModel(BaseModel):
@@ -77,7 +88,7 @@ class IdentifierMapping(ConnectorModel):
 class ProvenanceRecord(ConnectorModel):
     source_name: str = Field(min_length=1)
     endpoint_url: str = Field(min_length=1)
-    method: Literal["GET", "POST"]
+    method: Literal["GET", "POST", "IMPORT"]
     normalized_request: str = Field(min_length=1)
     request_sha256: str = Field(
         min_length=64,
@@ -90,7 +101,7 @@ class ProvenanceRecord(ConnectorModel):
         pattern=r"^[0-9a-f]{64}$",
     )
     retrieved_at_utc: datetime
-    http_status: int = Field(ge=100, le=599)
+    http_status: int | None = Field(default=None, ge=100, le=599)
     content_type: str | None = None
     source_version: str | None = None
     source_release_date: str | None = None
@@ -117,6 +128,10 @@ class OfflineRequest(ConnectorModel):
 
 class ConnectorResult(ConnectorModel):
     status: ConnectorStatus
+    acquisition_mode: AcquisitionMode = AcquisitionMode.ONLINE_API
+    evidence_class: DatabaseEvidenceClass = (
+        DatabaseEvidenceClass.CURATED_DATABASE
+    )
     records: tuple[dict[str, Any], ...] = ()
     artifacts: tuple[ResponseArtifact, ...] = ()
     mappings: tuple[IdentifierMapping, ...] = ()
@@ -326,10 +341,13 @@ class RequestExecutor:
                                 "content-type",
                                 "etag",
                                 "last-modified",
+                                "link",
                                 "location",
                                 "retry-after",
                                 "x-uniprot-release",
                                 "x-uniprot-release-date",
+                                "x-per-page",
+                                "x-total-count",
                             }
                         },
                     )
@@ -956,6 +974,7 @@ class NCBIConnector(BaseConnector):
         )
         return ConnectorResult(
             status=ConnectorStatus.OFFLINE_EXPORT,
+            acquisition_mode=AcquisitionMode.OFFLINE_REQUEST,
             offline_request=OfflineRequest(
                 media_type="application/vnd.vetevidence.ncbi-request+json",
                 content=content,
@@ -1648,6 +1667,7 @@ class STRINGConnector(BaseConnector):
         if not consent_external_submission:
             return ConnectorResult(
                 status=ConnectorStatus.OFFLINE_EXPORT,
+                acquisition_mode=AcquisitionMode.OFFLINE_REQUEST,
                 offline_request=offline_request,
                 warnings=(
                     "STRING submission was not sent because explicit external "
@@ -2041,6 +2061,7 @@ class DAVIDConnector(BaseConnector):
         if not consent_external_submission:
             return ConnectorResult(
                 status=ConnectorStatus.OFFLINE_EXPORT,
+                acquisition_mode=AcquisitionMode.OFFLINE_REQUEST,
                 offline_request=offline,
                 warnings=(
                     "DAVID submission was not sent because explicit external "
@@ -2050,6 +2071,7 @@ class DAVIDConnector(BaseConnector):
         if not self.registered_email:
             return ConnectorResult(
                 status=ConnectorStatus.DEGRADED,
+                acquisition_mode=AcquisitionMode.OFFLINE_REQUEST,
                 offline_request=offline,
                 warnings=(
                     "DAVID Web Service requires a registered organization "
@@ -2587,6 +2609,7 @@ class DatabaseConnectorHub:
 
 
 __all__ = [
+    "AcquisitionMode",
     "BaseConnector",
     "ConnectorError",
     "ConnectorResult",
@@ -2594,6 +2617,7 @@ __all__ = [
     "ConnectorTransportError",
     "DatabaseConnectorHub",
     "DAVIDConnector",
+    "DatabaseEvidenceClass",
     "DEFAULT_DAVID_CATEGORIES",
     "IdentifierCandidate",
     "IdentifierMapping",

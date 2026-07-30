@@ -13,6 +13,7 @@ from uuid import uuid4
 
 import streamlit as st
 from pydantic import ValidationError
+from streamlit.errors import StreamlitSecretNotFoundError
 
 from vetevidence.config import load_settings
 from vetevidence.connector_artifacts import (
@@ -20,10 +21,12 @@ from vetevidence.connector_artifacts import (
     ConnectorArtifactStore,
 )
 from vetevidence.database_connectors import (
+    AcquisitionMode,
     ConnectorError,
     ConnectorResult,
     ConnectorStatus,
     DAVIDConnector,
+    DatabaseEvidenceClass,
     DEFAULT_DAVID_CATEGORIES,
     NCBIConnector,
     PubChemConnector,
@@ -36,6 +39,7 @@ from vetevidence.database_ui_support import (
     CUSTOM_TAXON_LABEL,
     DAVID_SUPPORTED_TAXON_IDS,
     DATABASE_SOURCE_CONFIGS,
+    SWISS_TARGET_SUPPORTED_TAXON_IDS,
     VETERINARY_SPECIES_TAX_IDS,
     parse_taxon_selection,
     restore_connector_entries,
@@ -56,6 +60,10 @@ from vetevidence.input_validation import validate_synergy_question_input
 from vetevidence.literature_import import (
     LiteratureImportResult,
     parse_literature_export,
+)
+from vetevidence.licensed_connectors import (
+    DrugBankConnector,
+    OMIMConnector,
 )
 from vetevidence.md_ui import render_md_workbench
 from vetevidence.mechanism_prediction import (
@@ -85,6 +93,9 @@ from vetevidence.openbabel_execution import (
     OpenBabelPreparationOptions,
     discover_openbabel,
     prepare_ligand_pdbqt,
+)
+from vetevidence.restricted_database_imports import (
+    import_restricted_database_file,
 )
 from vetevidence.models import PubMedArticle
 from vetevidence.pubmed import PubMedClient, PubMedError
@@ -457,6 +468,11 @@ DATABASE_SOURCE_SLUGS = {
     "RCSB PDB": "rcsb-pdb",
     "STRING": "string",
     "DAVID": "david",
+    "OMIM": "omim",
+    "DrugBank": "drugbank",
+    "GeneCards": "genecards",
+    "MalaCards": "malacards",
+    "SwissTargetPrediction": "swiss-target-prediction",
     "STRING + DAVID 证据网络": "evidence-network",
     "数据库输入": "input-validation",
     "数据库结果归档": "archive-validation",
@@ -469,6 +485,11 @@ DATABASE_HOME_URLS = {
     "RCSB PDB": "https://www.rcsb.org/",
     "STRING": "https://string-db.org/",
     "DAVID": "https://davidbioinformatics.nih.gov/",
+    "OMIM": "https://www.omim.org/",
+    "DrugBank": "https://go.drugbank.com/",
+    "GeneCards": "https://www.genecards.org/",
+    "MalaCards": "https://www.malacards.org/",
+    "SwissTargetPrediction": "https://www.swisstargetprediction.ch/",
 }
 DATABASE_STATUS_LABELS = {
     ConnectorStatus.OK: "联网有结果",
@@ -481,6 +502,22 @@ DATABASE_EVIDENCE_TYPE_LABELS = {
     "curated_database": "数据库整理",
     "text_mined": "文本推断",
     "computational_prediction": "模型或计算预测",
+}
+DATABASE_ACQUISITION_MODE_LABELS = {
+    AcquisitionMode.ONLINE_API: "官方 API",
+    AcquisitionMode.MANUAL_IMPORT: "人工文件导入",
+    AcquisitionMode.OFFLINE_REQUEST: "未发送 / 离线请求",
+}
+DATABASE_RESULT_EVIDENCE_LABELS = {
+    DatabaseEvidenceClass.CURATED_DATABASE: "数据库整理",
+    DatabaseEvidenceClass.COMPUTATIONAL_PREDICTION: "计算预测",
+}
+DATABASE_SOURCE_ACCESS_MODE_LABELS = {
+    "online_api": "公开官方 API",
+    "credentialed_api": "凭证门控官方 API",
+    "licensed_api": "授权官方 API",
+    "licensed_import": "授权文件导入",
+    "manual_prediction_import": "人工预测结果导入",
 }
 DATABASE_SOURCE_CONFIG_BY_LABEL = {
     config.label: config for config in DATABASE_SOURCE_CONFIGS
@@ -521,6 +558,34 @@ DATABASE_RECORD_COLUMN_LABELS = {
     "p_value": "P 值",
     "bh_adjusted_p_value": "BH 校正 P 值",
     "fold_enrichment": "富集倍数",
+    "mim_number": "MIM 编号",
+    "entry_prefix": "OMIM 类型前缀",
+    "gene_symbols": "关联基因",
+    "phenotype_mappings": "表型映射",
+    "drugbank_id": "DrugBank ID",
+    "name": "名称",
+    "drug_type": "药物类型",
+    "groups": "药物分组",
+    "bond_type": "关系类型",
+    "target_name": "靶点名称",
+    "target_organism": "靶点物种",
+    "bio_entity_name": "生物实体",
+    "organism": "物种",
+    "uniprot_ids": "UniProt ID",
+    "gene_symbols": "基因符号",
+    "actions": "作用方式",
+    "known_action": "已知作用",
+    "knowledge_score": "Knowledge score",
+    "relevance_score": "相关性分数",
+    "gene_type": "基因类型",
+    "mcid": "MalaCards ID",
+    "disease_name": "疾病名称",
+    "family": "疾病家族",
+    "mifts_score": "MIFTS 分数",
+    "chembl_ids": "ChEMBL ID",
+    "target_class": "靶点类别",
+    "probability": "预测概率",
+    "known_actives": "已知活性计数",
 }
 DATABASE_RECORD_PREVIEW_FIELDS = {
     "compound": (
@@ -575,6 +640,55 @@ DATABASE_RECORD_PREVIEW_FIELDS = {
         "p_value",
         "bh_adjusted_p_value",
         "fold_enrichment",
+    ),
+    "omim_entry": (
+        "mim_number",
+        "title",
+        "entry_prefix",
+        "gene_symbols",
+        "taxon_id",
+    ),
+    "drugbank_drug": (
+        "drugbank_id",
+        "name",
+        "drug_type",
+        "groups",
+        "inchikey",
+    ),
+    "drugbank_bond": (
+        "drugbank_id",
+        "bond_type",
+        "bio_entity_name",
+        "organism",
+        "uniprot_ids",
+        "gene_symbols",
+        "known_action",
+        "taxon_id",
+    ),
+    "genecards_gene": (
+        "symbol",
+        "name",
+        "gene_type",
+        "relevance_score",
+        "knowledge_score",
+        "taxon_id",
+    ),
+    "malacards_disease": (
+        "mcid",
+        "disease_name",
+        "family",
+        "mifts_score",
+        "relevance_score",
+        "taxon_id",
+    ),
+    "swiss_target_prediction": (
+        "target_name",
+        "gene_names",
+        "uniprot_ids",
+        "chembl_ids",
+        "target_class",
+        "probability",
+        "taxon_id",
     ),
 }
 
@@ -681,6 +795,19 @@ def database_state(run_id: str) -> dict[str, object]:
     return state
 
 
+def database_runtime_secret(name: str) -> str:
+    """Read one connector credential without persisting or displaying it."""
+
+    environment_value = os.getenv(name, "").strip()
+    if environment_value:
+        return environment_value
+    try:
+        value = st.secrets.get(name, "")
+    except StreamlitSecretNotFoundError:
+        return ""
+    return str(value).strip() if value is not None else ""
+
+
 def redact_database_error(
     error: Exception,
     *,
@@ -695,6 +822,8 @@ def redact_database_error(
         settings.ncbi_email,
         settings.ncbi_api_key,
         os.getenv("DAVID_EMAIL"),
+        database_runtime_secret("OMIM_API_KEY"),
+        database_runtime_secret("DRUGBANK_API_KEY"),
     )
     for value in redactions:
         if value:
@@ -795,8 +924,10 @@ def run_database_query(
         "source": source,
         "query_id": query_id,
         "connector_status": result.status.value,
+        "acquisition_mode": result.acquisition_mode.value,
+        "evidence_class": result.evidence_class.value,
         "record_count": len(result.records),
-        "raw_response_count": len(result.artifacts),
+        "raw_artifact_count": len(result.artifacts),
         "archive_path": archive_display,
         "raw_response_sha256": [
             item.provenance.raw_response_sha256 for item in result.artifacts
@@ -812,7 +943,7 @@ def run_database_query(
         output_summary=(
             f"连接器状态 {result.status.value}；"
             f"{len(result.records)} 条标准化记录；"
-            f"{len(result.artifacts)} 份原始响应"
+            f"{len(result.artifacts)} 份原始材料"
         ),
         metadata=metadata,
     )
@@ -945,6 +1076,19 @@ def database_display_value(value: object) -> object:
     return text if len(text) <= 500 else text[:497] + "..."
 
 
+def database_result_status_label(result: ConnectorResult) -> str:
+    """Describe transport and outcome without calling an import a network call."""
+
+    if result.acquisition_mode is AcquisitionMode.MANUAL_IMPORT:
+        return {
+            ConnectorStatus.OK: "文件已导入",
+            ConnectorStatus.NO_RESULTS: "文件已导入但无有效记录",
+            ConnectorStatus.DEGRADED: "文件已导入但有警告",
+            ConnectorStatus.OFFLINE_EXPORT: "等待人工导入",
+        }[result.status]
+    return DATABASE_STATUS_LABELS[result.status]
+
+
 def connector_source_url(
     result: ConnectorResult,
     *,
@@ -999,7 +1143,31 @@ def render_latest_database_result(entry: dict[str, object]) -> None:
     query_id = str(entry.get("query_id") or "")
     record_count = len(result.records)
 
-    if result.status is ConnectorStatus.OK:
+    if (
+        result.acquisition_mode is AcquisitionMode.MANUAL_IMPORT
+        and result.status is ConnectorStatus.OK
+    ):
+        evidence_label = DATABASE_RESULT_EVIDENCE_LABELS[result.evidence_class]
+        evidence_origin = (
+            "用户声明的授权导出"
+            if result.evidence_class
+            is DatabaseEvidenceClass.CURATED_DATABASE
+            else "用户手工生成的计算预测"
+        )
+        st.success(
+            f"{source} 文件导入完成：保留 {record_count} 条{evidence_label}记录；"
+            f"来源真实性为“{evidence_origin}”，系统未独立验证文件出处。",
+            icon=":material/check_circle:",
+        )
+    elif (
+        result.acquisition_mode is AcquisitionMode.MANUAL_IMPORT
+        and result.status is ConnectorStatus.NO_RESULTS
+    ):
+        st.info(
+            f"{source} 文件已完成校验，但没有可导入的有效记录。",
+            icon=":material/search_off:",
+        )
+    elif result.status is ConnectorStatus.OK:
         st.success(
             f"{source} 联网检索完成：找到 {record_count} 条记录。",
             icon=":material/check_circle:",
@@ -1022,6 +1190,12 @@ def render_latest_database_result(entry: dict[str, object]) -> None:
             icon=":material/cloud_off:",
         )
 
+    st.caption(
+        "获取方式："
+        f"{DATABASE_ACQUISITION_MODE_LABELS[result.acquisition_mode]}；"
+        "证据层级："
+        f"{DATABASE_RESULT_EVIDENCE_LABELS[result.evidence_class]}。"
+    )
     if result.records:
         st.dataframe(
             database_record_preview_rows(result),
@@ -1047,7 +1221,7 @@ def render_latest_database_result(entry: dict[str, object]) -> None:
             key=f"download-latest-database-offline-{query_id}",
             on_click="ignore",
         )
-    st.caption(f"本地归档已保存：{query_id}。联网状态与本地保存状态分开记录。")
+    st.caption(f"本地归档已保存：{query_id}。获取状态与本地保存状态分开记录。")
 
 
 def render_database_network(network: EvidenceNetwork) -> None:
@@ -1189,7 +1363,7 @@ def render_database_results(
         "显示审计、历史与下载",
         value=False,
         key=f"show-database-audit-{run_id}",
-        help="展开后可查看历史查询、来源版本、访问时间、哈希和原始响应下载。",
+        help="展开后可查看历史、来源版本、访问或导入时间、哈希和原始材料下载。",
     )
     if not show_audit:
         network = state.get("network")
@@ -1204,9 +1378,15 @@ def render_database_results(
             {
                 "数据源": entry["source"],
                 "查询 ID": entry["query_id"],
-                "状态": DATABASE_STATUS_LABELS[entry["result"].status],
+                "状态": database_result_status_label(entry["result"]),
+                "获取方式": DATABASE_ACQUISITION_MODE_LABELS[
+                    entry["result"].acquisition_mode
+                ],
+                "证据层级": DATABASE_RESULT_EVIDENCE_LABELS[
+                    entry["result"].evidence_class
+                ],
                 "标准化记录": len(entry["result"].records),
-                "原始响应": len(entry["result"].artifacts),
+                "原始材料": len(entry["result"].artifacts),
                 "来源版本": next(
                     (
                         provenance.source_version
@@ -1215,7 +1395,7 @@ def render_database_results(
                     ),
                     "",
                 ),
-                "访问时间 UTC": next(
+                "获取/导入时间 UTC": next(
                     (
                         provenance.retrieved_at_utc.isoformat()
                         for provenance in reversed(entry["result"].provenance)
@@ -1239,14 +1419,15 @@ def render_database_results(
 
     st.caption(
         f"当前会话显示最近 {min(len(valid_entries), MAX_DATABASE_HISTORY)} 次查询；"
-        "完整原始响应、清单与 SHA-256 校验文件保存在 .workbench/connectors/。"
+        "完整原始响应或导入文件、清单与 SHA-256 校验文件保存在 "
+        ".workbench/connectors/。"
     )
     for entry in reversed(valid_entries[-20:]):
         result = entry["result"]
         query_id = str(entry["query_id"])
         with st.expander(
             f"{entry['source']} · {query_id} · "
-            f"{DATABASE_STATUS_LABELS[result.status]}"
+            f"{database_result_status_label(result)}"
         ):
             if result.warnings:
                 for warning in result.warnings:
@@ -1298,7 +1479,7 @@ def render_database_results(
                 )
 
             if result.provenance:
-                st.markdown("**来源与原始响应哈希**")
+                st.markdown("**来源与原始材料哈希**")
                 st.dataframe(
                     [
                         {
@@ -1308,7 +1489,9 @@ def render_database_results(
                             "HTTP": provenance.http_status,
                             "来源版本": provenance.source_version or "",
                             "发布日期": provenance.source_release_date or "",
-                            "访问时间 UTC": provenance.retrieved_at_utc.isoformat(),
+                            "获取/导入时间 UTC": (
+                                provenance.retrieved_at_utc.isoformat()
+                            ),
                             "稳定 ID": "；".join(provenance.stable_ids),
                             "请求 SHA-256": provenance.request_sha256,
                             "响应 SHA-256": provenance.raw_response_sha256,
@@ -1331,7 +1514,7 @@ def render_database_results(
                 archive_valid = False
                 safe_error = redact_database_error(exc)
                 st.warning(
-                    "原始响应归档缺失或完整性校验失败，已禁用 ZIP 下载；"
+                    "原始材料归档缺失或完整性校验失败，已禁用 ZIP 下载；"
                     f"标准化 JSON 与离线请求仍可下载。详情：{safe_error}"
                 )
                 if not entry.get("archive_error_logged"):
@@ -1366,7 +1549,7 @@ def render_database_results(
 
                 if archive_valid:
                     st.download_button(
-                        "下载原始响应归档 ZIP",
+                        "下载原始材料归档 ZIP",
                         data=build_archive,
                         file_name=f"{query_id}-archive.zip",
                         mime="application/zip",
@@ -2451,15 +2634,15 @@ with database_tab:
     if not snapshot:
         st.info("请先创建研究任务。")
     else:
-        st.header("公开数据库证据")
+        st.header("数据库证据")
         st.warning(
-            "数据库记录、PPI 与富集分析属于可追溯的外部资料或计算证据，"
-            "不等同于论文中的直接实验结论；物种必须用 NCBI TaxID 明确限定。"
+            "数据库记录、授权导入、PPI、富集和靶点预测属于不同证据层，"
+            "都不等同于论文中的直接实验结论；物种必须明确限定。"
         )
         st.caption(
-            "所有外部请求都只在提交表单后执行。每次结果会保存请求参数、"
-            "数据库版本、访问时间、来源 URL、原始响应及 SHA-256；"
-            "联系方式和 API Key 不写入结果或审计摘要。"
+            "系统只在你提交后调用允许自动访问的官方 API；受限来源采用"
+            "授权文件或人工预测结果导入。每次结果保存来源、访问或导入时间、"
+            "原始材料 SHA-256；联系方式和 API Key 不写入结果或审计摘要。"
         )
         settings = load_settings()
         state = database_state(snapshot.run_id)
@@ -2474,8 +2657,10 @@ with database_tab:
         source_config = DATABASE_SOURCE_CONFIG_BY_LABEL[database_source_label]
         source_key = source_config.key
         st.caption(
-            "选择一个数据库，输入名称或标准编号；查询结果会自动保存来源、"
-            "访问时间和原始响应校验信息。"
+            "接入方式："
+            f"{DATABASE_SOURCE_ACCESS_MODE_LABELS[source_config.access_mode]}；"
+            "证据类型："
+            f"{DATABASE_RESULT_EVIDENCE_LABELS[source_config.evidence_class]}。"
         )
 
         pubchem_namespace_label = "名称"
@@ -2494,8 +2679,14 @@ with database_tab:
         david_background_input = ""
         ncbi_email = settings.ncbi_email or ""
         david_email = os.getenv("DAVID_EMAIL", "")
+        omim_api_key = database_runtime_secret("OMIM_API_KEY")
+        drugbank_api_key = database_runtime_secret("DRUGBANK_API_KEY")
         string_consent = False
         david_consent = False
+        license_confirmed = False
+        manual_import_confirmed = False
+        manual_import_file = None
+        manual_source_version = ""
 
         with st.container(border=True):
             st.subheader("2 输入检索内容")
@@ -2530,21 +2721,58 @@ with database_tab:
                 input_label = "GeneID"
                 input_placeholder = "例如：3043"
 
-            primary_input = st.text_area(
-                f"{input_label} *",
-                key=f"database-query-{source_key}-{snapshot.run_id}",
-                placeholder=input_placeholder,
-                help="每行一项，也可以使用中文或英文分号分隔。",
-                persist_state="session",
-            )
+            if source_key in {"genecards", "malacards"}:
+                primary_input = st.text_input(
+                    "人工官网检索词（可选）",
+                    key=f"database-query-{source_key}-{snapshot.run_id}",
+                    placeholder="用于记录本次授权导出的检索背景",
+                    help="系统不会用该检索词抓取网页。",
+                )
+            elif source_key == "swiss-target-prediction":
+                primary_input = st.text_area(
+                    "查询分子 SMILES *",
+                    key=f"database-query-{source_key}-{snapshot.run_id}",
+                    placeholder="例如：CC(=O)OC1=CC=CC=C1C(=O)O",
+                    help="系统只校验并记录 SMILES，不会自动提交到官网。",
+                    persist_state="session",
+                )
+            else:
+                primary_input = st.text_area(
+                    f"{input_label} *",
+                    key=f"database-query-{source_key}-{snapshot.run_id}",
+                    placeholder=input_placeholder,
+                    help="每行一项，也可以使用中文或英文分号分隔。",
+                    persist_state="session",
+                )
 
             taxon_required = source_config.requires_taxon_id or (
                 source_key == "rcsb-pdb"
                 and rcsb_query_mode == "按 UniProt 找结构"
             )
-            taxon_id: int | None = None
+            taxon_id: int | None = source_config.fixed_taxon_id
             taxon_error: str | None = None
-            if taxon_required:
+            if source_config.fixed_taxon_id is not None:
+                st.caption(
+                    "该来源仅按人类数据使用："
+                    f"NCBI TaxID {source_config.fixed_taxon_id}。"
+                )
+            elif source_key == "swiss-target-prediction":
+                swiss_species = {
+                    label: value
+                    for label, value in VETERINARY_SPECIES_TAX_IDS.items()
+                    if value in SWISS_TARGET_SUPPORTED_TAXON_IDS
+                }
+                taxon_selection = st.selectbox(
+                    "预测物种 *",
+                    list(swiss_species),
+                    index=None,
+                    placeholder="仅支持人、小鼠或大鼠",
+                    key=f"database-species-{source_key}-{snapshot.run_id}",
+                    persist_state="session",
+                )
+                if taxon_selection:
+                    taxon_id = swiss_species[taxon_selection]
+            elif taxon_required:
                 taxon_selection = st.selectbox(
                     "物种 *",
                     [*VETERINARY_SPECIES_TAX_IDS, CUSTOM_TAXON_LABEL],
@@ -2575,6 +2803,70 @@ with database_tab:
                         )
                     except ValueError as exc:
                         taxon_error = str(exc)
+
+            if source_key == "omim":
+                if omim_api_key:
+                    st.success("已检测到 OMIM API Key；提交后调用官方 API。")
+                else:
+                    st.warning(
+                        "未配置 OMIM_API_KEY；提交后只生成离线请求，"
+                        "不会访问或抓取 OMIM 网页。"
+                    )
+            elif source_key == "drugbank":
+                license_confirmed = st.checkbox(
+                    "我确认当前 DrugBank 订阅许可本次 API 检索与内部研究使用",
+                    key=f"database-license-{source_key}-{snapshot.run_id}",
+                    help="未确认时不会向 DrugBank 发送任何请求。",
+                )
+                if drugbank_api_key:
+                    st.caption("已检测到 DrugBank API Key；密钥不会进入归档。")
+                else:
+                    st.warning(
+                        "未配置 DRUGBANK_API_KEY；本次只能生成离线请求。"
+                    )
+            elif source_config.requires_manual_import:
+                if source_key in {"genecards", "malacards"}:
+                    license_confirmed = st.checkbox(
+                        "我确认该文件由本人依法获得，许可允许本地导入和内部研究使用",
+                        key=f"database-license-{source_key}-{snapshot.run_id}",
+                        help="系统不会抓取网页，也不会把原始文件提交给第三方。",
+                    )
+                else:
+                    manual_import_confirmed = st.checkbox(
+                        "我确认结果由本人在官网手工生成，且仅用于允许的内部研究",
+                        key=f"database-import-confirm-{source_key}-{snapshot.run_id}",
+                        help="系统不会模拟表单、批量提交或抓取预测结果。",
+                    )
+
+                manual_home_url = DATABASE_HOME_URLS[
+                    {
+                        "genecards": "GeneCards",
+                        "malacards": "MalaCards",
+                        "swiss-target-prediction": "SwissTargetPrediction",
+                    }[source_key]
+                ]
+                st.link_button(
+                    "打开官方页面手工检索",
+                    manual_home_url,
+                    icon=":material/open_in_new:",
+                )
+                manual_import_file = st.file_uploader(
+                    source_config.input_label,
+                    type=["csv", "tsv", "xlsx"],
+                    key=f"database-import-{source_key}-{snapshot.run_id}",
+                    max_upload_size=10,
+                    help=(
+                        "只接受官方导出的 CSV、TSV 或 XLSX；"
+                        "导入后保存原文件 SHA-256 和来源说明。"
+                    ),
+                )
+                manual_source_version = st.text_input(
+                    "来源版本或导出日期",
+                    value="",
+                    key=f"database-source-version-{source_key}-{snapshot.run_id}",
+                    placeholder="例如：2026-07-30；未注明则留空",
+                    help="如官网或导出文件注明版本，请原样填写；未注明不要代填。",
+                ).strip()
 
             if source_config.requires_ncbi_email:
                 ncbi_email = st.text_input(
@@ -2727,6 +3019,8 @@ with database_tab:
         )
         string_input = primary_input if source_key == "string" else ""
         david_target_input = primary_input if source_key == "david" else ""
+        omim_input = primary_input if source_key == "omim" else ""
+        drugbank_input = primary_input if source_key == "drugbank" else ""
 
         online_ready = True
         offline_reason = ""
@@ -2741,6 +3035,15 @@ with database_tab:
         ):
             online_ready = False
             offline_reason = "尚未允许向第三方提交标识符，本次不会联网。"
+        elif source_config.requires_omim_key and not omim_api_key:
+            online_ready = False
+            offline_reason = "未配置 OMIM_API_KEY，本次不会联网。"
+        elif source_config.requires_drugbank_key and not drugbank_api_key:
+            online_ready = False
+            offline_reason = "未配置 DRUGBANK_API_KEY，本次不会联网。"
+        elif source_key == "drugbank" and not license_confirmed:
+            online_ready = False
+            offline_reason = "尚未确认 DrugBank 许可，本次不会联网。"
         if (
             source_key == "david"
             and taxon_id is not None
@@ -2753,7 +3056,7 @@ with database_tab:
             )
         if source_key == "david" and not online_ready:
             david_consent = False
-        if not online_ready:
+        if not online_ready and not source_config.requires_manual_import:
             st.warning(
                 f"{offline_reason} 如需保存参数，可点击“生成离线请求”。",
                 icon=":material/cloud_off:",
@@ -2761,10 +3064,24 @@ with database_tab:
         if taxon_error:
             st.error(taxon_error, icon=":material/error:")
 
-        target_ready = bool(primary_input.strip())
+        target_ready = (
+            bool(primary_input.strip())
+            if source_key != "genecards" and source_key != "malacards"
+            else True
+        )
         taxon_ready = not taxon_required or taxon_id is not None
         background_ready = (
             source_key != "david" or bool(david_background_input.strip())
+        )
+        import_ready = (
+            manual_import_file is not None
+            and (
+                license_confirmed
+                if source_key in {"genecards", "malacards"}
+                else manual_import_confirmed
+            )
+            if source_config.requires_manual_import
+            else True
         )
         if not target_ready:
             st.caption("先输入检索词或标准编号，按钮才会启用。")
@@ -2772,16 +3089,38 @@ with database_tab:
             st.caption("请选择物种后再继续。")
         elif not background_ready:
             st.caption("DAVID 必须填写包含全部目标基因的明确背景集。")
+        elif source_config.requires_manual_import and not import_ready:
+            st.caption("请上传官方导出文件，并确认合法使用范围后再导入。")
 
-        database_submitted = st.button(
-            "开始联网检索" if online_ready else "生成离线请求",
-            type="primary" if online_ready else "secondary",
-            icon=(
+        if source_config.requires_manual_import:
+            action_label = (
+                "导入预测结果"
+                if source_key == "swiss-target-prediction"
+                else "导入授权文件"
+            )
+            action_icon = ":material/upload_file:"
+            action_primary = True
+        else:
+            action_label = (
+                "开始联网检索" if online_ready else "生成离线请求"
+            )
+            action_icon = (
                 ":material/database_search:"
                 if online_ready
                 else ":material/download:"
+            )
+            action_primary = online_ready
+
+        database_submitted = st.button(
+            action_label,
+            type="primary" if action_primary else "secondary",
+            icon=action_icon,
+            disabled=not (
+                target_ready
+                and taxon_ready
+                and background_ready
+                and import_ready
             ),
-            disabled=not (target_ready and taxon_ready and background_ready),
             key=f"database-submit-{source_key}-{snapshot.run_id}",
             width="stretch",
         )
@@ -2846,6 +3185,16 @@ with database_tab:
                     label="DAVID 背景基因",
                     limit=1000,
                 )
+                omim_identifiers = split_database_identifiers(
+                    omim_input,
+                    label="OMIM 检索词",
+                    limit=20,
+                )
+                drugbank_identifiers = split_database_identifiers(
+                    drugbank_input,
+                    label="DrugBank 检索词",
+                    limit=10,
+                )
                 if bool(david_targets) != bool(david_background):
                     raise ValueError("DAVID 目标基因和明确背景基因集必须同时提供。")
                 if david_targets and not set(david_targets).issubset(
@@ -2865,6 +3214,12 @@ with database_tab:
                     + len(rcsb_uniprot_accessions)
                     + int(bool(string_identifiers))
                     + int(bool(david_targets))
+                    + len(omim_identifiers)
+                    + len(drugbank_identifiers)
+                    + int(
+                        source_config.requires_manual_import
+                        and manual_import_file is not None
+                    )
                 )
                 if planned_calls == 0:
                     raise ValueError("至少填写一个数据库查询输入。")
@@ -2874,7 +3229,12 @@ with database_tab:
                     source="数据库输入",
                     input_summary="数据库批量查询表单校验",
                     error=exc,
-                    sensitive_values=(ncbi_email, david_email),
+                    sensitive_values=(
+                        ncbi_email,
+                        david_email,
+                        omim_api_key,
+                        drugbank_api_key,
+                    ),
                 )
             else:
                 query_status = st.status(
@@ -3154,6 +3514,127 @@ with database_tab:
                 if david_targets:
                     query_status.write(f"DAVID：已归档 {completed}/1 项。")
 
+                snapshot, completed = run_database_query_group(
+                    snapshot,
+                    state,
+                    source="OMIM",
+                    connector_factory=lambda: OMIMConnector(
+                        api_key=omim_api_key or None,
+                    ),
+                    operations=tuple(
+                        (
+                            (
+                                "OMIM query; "
+                                f"input_sha256="
+                                f"{hashlib.sha256(query.encode('utf-8')).hexdigest()}; "
+                                "TaxID=9606"
+                            ),
+                            lambda connector, query=query: connector.fetch(
+                                query,
+                                max_results=10,
+                            ),
+                        )
+                        for query in omim_identifiers
+                    ),
+                    sensitive_values=(omim_api_key,),
+                )
+                archived_calls += completed
+                if omim_identifiers:
+                    query_status.write(
+                        f"OMIM：已归档 {completed}/{len(omim_identifiers)} 项。"
+                    )
+
+                snapshot, completed = run_database_query_group(
+                    snapshot,
+                    state,
+                    source="DrugBank",
+                    connector_factory=lambda: DrugBankConnector(
+                        api_key=drugbank_api_key or None,
+                        license_confirmed=license_confirmed,
+                    ),
+                    operations=tuple(
+                        (
+                            (
+                                "DrugBank drug query; "
+                                "license_attestation="
+                                f"{'confirmed' if license_confirmed else 'not_confirmed'}; "
+                                f"input_sha256="
+                                f"{hashlib.sha256(query.encode('utf-8')).hexdigest()}"
+                            ),
+                            lambda connector, query=query: connector.fetch_drug(
+                                query,
+                                include_bonds=True,
+                                max_results=20,
+                            ),
+                        )
+                        for query in drugbank_identifiers
+                    ),
+                    sensitive_values=(drugbank_api_key,),
+                )
+                archived_calls += completed
+                if drugbank_identifiers:
+                    query_status.write(
+                        "DrugBank：已归档 "
+                        f"{completed}/{len(drugbank_identifiers)} 项。"
+                    )
+
+                if (
+                    source_config.requires_manual_import
+                    and manual_import_file is not None
+                ):
+                    imported_payload = manual_import_file.getvalue()
+                    imported_sha256 = hashlib.sha256(
+                        imported_payload
+                    ).hexdigest()
+                    import_source = {
+                        "genecards": "GeneCards",
+                        "malacards": "MalaCards",
+                        "swiss-target-prediction": "SwissTargetPrediction",
+                    }[source_key]
+                    if source_key == "swiss-target-prediction":
+                        import_context: dict[str, object] = {
+                            "smiles": primary_input.strip(),
+                            "taxon_id": int(taxon_id),
+                        }
+                    else:
+                        import_context = {
+                            "query": primary_input.strip(),
+                            "taxon_id": 9606,
+                        }
+                    snapshot, archived = run_database_query(
+                        snapshot,
+                        state,
+                        source=import_source,
+                        input_summary=(
+                            "manual_import; "
+                            "source_attestation="
+                            + (
+                                "user_attested_manual_prediction"
+                                if source_key == "swiss-target-prediction"
+                                else "user_attested_licensed_export"
+                            )
+                            + "; "
+                            f"file_sha256={imported_sha256}; "
+                            f"TaxID={taxon_id}"
+                        ),
+                        query=lambda: import_restricted_database_file(
+                            source_key,
+                            manual_import_file.name,
+                            imported_payload,
+                            license_confirmed=(
+                                license_confirmed
+                                if source_key in {"genecards", "malacards"}
+                                else manual_import_confirmed
+                            ),
+                            query_context=import_context,
+                            source_version=manual_source_version or None,
+                        ),
+                    )
+                    archived_calls += int(archived)
+                    query_status.write(
+                        f"{import_source}：已校验并归档 {int(archived)}/1 份文件。"
+                    )
+
                 if network_result_archived:
                     snapshot = build_database_network(snapshot, state)
                     query_status.write("STRING + DAVID 证据网络已重建。")
@@ -3174,8 +3655,8 @@ with database_tab:
                 query_status.update(
                     label=(
                         "处理完成："
-                        f"联网有结果 {outcome.online_available}；"
-                        f"联网无结果 {outcome.no_results}；"
+                        f"可用结果 {outcome.online_available}；"
+                        f"无匹配结果 {outcome.no_results}；"
                         f"未发送 {outcome.offline_export}；"
                         f"已返回但有警告 {outcome.degraded}；"
                         f"本地归档 {archived_calls}/{planned_calls}；"

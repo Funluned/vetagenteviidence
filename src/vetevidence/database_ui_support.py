@@ -1,4 +1,4 @@
-"""Pure helpers for the public-database Streamlit page.
+"""Pure helpers for the mixed-access database Streamlit page.
 
 The module contains no Streamlit calls.  It keeps source metadata, veterinary
 TaxID parsing, status summaries and hash-verified archive restoration
@@ -26,6 +26,7 @@ from vetevidence.database_connectors import (
     CONNECTOR_EXPORT_SCHEMA_VERSION,
     ConnectorResult,
     ConnectorStatus,
+    DatabaseEvidenceClass,
     ResponseArtifact,
     canonical_json,
     sha256_bytes,
@@ -40,6 +41,18 @@ DatabaseSourceKey = Literal[
     "rcsb-pdb",
     "string",
     "david",
+    "omim",
+    "drugbank",
+    "genecards",
+    "malacards",
+    "swiss-target-prediction",
+]
+DatabaseSourceAccessMode = Literal[
+    "online_api",
+    "credentialed_api",
+    "licensed_api",
+    "licensed_import",
+    "manual_prediction_import",
 ]
 
 CUSTOM_TAXON_LABEL = "自定义 TaxID"
@@ -47,13 +60,14 @@ MAX_RESTORED_CONNECTOR_ENTRIES = 100
 DAVID_SUPPORTED_TAXON_IDS = frozenset(
     {9031, 9606, 9615, 9685, 9823, 9913, 10090, 10116}
 )
+SWISS_TARGET_SUPPORTED_TAXON_IDS = frozenset({9606, 10090, 10116})
 _MAX_MANIFEST_BYTES = 2 * 1024 * 1024
 _MAX_RESULT_BYTES = 64 * 1024 * 1024
 _MAX_RESPONSE_BYTES = 64 * 1024 * 1024
 _MAX_ARCHIVE_RESPONSE_BYTES = 128 * 1024 * 1024
 _SAFE_ARCHIVE_IDENTIFIER = re.compile(r"^[A-Za-z0-9._-]+$")
 _SAFE_RESPONSE_FILENAME = re.compile(
-    r"^response-[0-9]{3}\.(?:json|xml|cif|sdf|txt|bin)$"
+    r"^response-[0-9]{3}\.(?:json|xml|cif|sdf|csv|xlsx|txt|bin)$"
 )
 _SENSITIVE_FIELD_NAMES = frozenset(
     {
@@ -94,9 +108,18 @@ class DatabaseSourceConfig(DatabaseUISupportModel):
     label: str = Field(min_length=1)
     input_label: str = Field(min_length=1)
     placeholder: str = Field(min_length=1)
+    access_mode: DatabaseSourceAccessMode = "online_api"
+    evidence_class: DatabaseEvidenceClass = (
+        DatabaseEvidenceClass.CURATED_DATABASE
+    )
+    fixed_taxon_id: int | None = Field(default=None, ge=1)
     requires_taxon_id: bool = False
     requires_ncbi_email: bool = False
     requires_david_email: bool = False
+    requires_omim_key: bool = False
+    requires_drugbank_key: bool = False
+    requires_license_confirmation: bool = False
+    requires_manual_import: bool = False
     requires_external_consent: bool = False
 
 
@@ -152,6 +175,54 @@ DATABASE_SOURCE_CONFIGS: tuple[DatabaseSourceConfig, ...] = (
         requires_taxon_id=True,
         requires_david_email=True,
         requires_external_consent=True,
+    ),
+    DatabaseSourceConfig(
+        key="omim",
+        label="OMIM 人类遗传",
+        input_label="MIM 编号、基因符号或疾病名称",
+        placeholder="例如：100100、BRCA1 或 Alzheimer disease",
+        access_mode="credentialed_api",
+        fixed_taxon_id=9606,
+        requires_omim_key=True,
+    ),
+    DatabaseSourceConfig(
+        key="drugbank",
+        label="DrugBank 药物",
+        input_label="DrugBank ID 或药物名称",
+        placeholder="例如：DB01050 或 ibuprofen",
+        access_mode="licensed_api",
+        requires_drugbank_key=True,
+        requires_license_confirmation=True,
+    ),
+    DatabaseSourceConfig(
+        key="genecards",
+        label="GeneCards 人类基因",
+        input_label="GeneCards 授权导出文件",
+        placeholder="上传 GeneALaCart 官方导出的 CSV 或 XLSX 文件",
+        access_mode="licensed_import",
+        fixed_taxon_id=9606,
+        requires_license_confirmation=True,
+        requires_manual_import=True,
+    ),
+    DatabaseSourceConfig(
+        key="malacards",
+        label="MalaCards 人类疾病",
+        input_label="MalaCards 授权导出文件",
+        placeholder="上传 MalaCards 官方导出的 CSV 或 XLSX 文件",
+        access_mode="licensed_import",
+        fixed_taxon_id=9606,
+        requires_license_confirmation=True,
+        requires_manual_import=True,
+    ),
+    DatabaseSourceConfig(
+        key="swiss-target-prediction",
+        label="SwissTargetPrediction 靶点预测",
+        input_label="SwissTargetPrediction 预测结果文件",
+        placeholder="上传官网下载的 CSV 或 XLSX 文件",
+        access_mode="manual_prediction_import",
+        evidence_class=DatabaseEvidenceClass.COMPUTATIONAL_PREDICTION,
+        requires_taxon_id=True,
+        requires_manual_import=True,
     ),
 )
 
@@ -522,6 +593,11 @@ def _infer_database_source(
         "rcsb pdb": "RCSB PDB",
         "string": "STRING",
         "david": "DAVID",
+        "omim": "OMIM",
+        "drugbank": "DrugBank",
+        "genecards": "GeneCards",
+        "malacards": "MalaCards",
+        "swisstargetprediction": "SwissTargetPrediction",
     }
     for provenance in reversed(result.provenance):
         normalized = provenance.source_name.strip().casefold()
@@ -538,6 +614,12 @@ def _infer_database_source(
             "structure_hit": "RCSB PDB",
             "string_interaction": "STRING",
             "david_enrichment": "DAVID",
+            "omim_entry": "OMIM",
+            "drugbank_drug": "DrugBank",
+            "drugbank_bond": "DrugBank",
+            "genecards_gene": "GeneCards",
+            "malacards_disease": "MalaCards",
+            "swiss_target_prediction": "SwissTargetPrediction",
         }[record_type]
         for record in result.records
         if (
@@ -553,6 +635,12 @@ def _infer_database_source(
                 "structure_hit",
                 "string_interaction",
                 "david_enrichment",
+                "omim_entry",
+                "drugbank_drug",
+                "drugbank_bond",
+                "genecards_gene",
+                "malacards_disease",
+                "swiss_target_prediction",
             }
         )
     }
@@ -567,6 +655,11 @@ def _infer_database_source(
         ("genbank-", "GenBank"),
         ("string-", "STRING"),
         ("david-", "DAVID"),
+        ("omim-", "OMIM"),
+        ("drugbank-", "DrugBank"),
+        ("genecards-", "GeneCards"),
+        ("malacards-", "MalaCards"),
+        ("swiss-target-prediction-", "SwissTargetPrediction"),
     )
     normalized_query_id = query_id.casefold()
     for prefix, label in prefixes:
@@ -653,7 +746,10 @@ __all__ = [
     "DAVID_SUPPORTED_TAXON_IDS",
     "DATABASE_SOURCE_CONFIG_BY_KEY",
     "DATABASE_SOURCE_CONFIGS",
+    "DatabaseSourceAccessMode",
+    "DatabaseSourceKey",
     "MAX_RESTORED_CONNECTOR_ENTRIES",
+    "SWISS_TARGET_SUPPORTED_TAXON_IDS",
     "VETERINARY_SPECIES_TAX_IDS",
     "DatabaseSourceConfig",
     "parse_taxon_selection",

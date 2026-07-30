@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from typing import Any, Iterable
 
@@ -58,6 +59,8 @@ def _create_research_task(
     )
     monkeypatch.delenv("NCBI_EMAIL", raising=False)
     monkeypatch.delenv("DAVID_EMAIL", raising=False)
+    monkeypatch.delenv("OMIM_API_KEY", raising=False)
+    monkeypatch.delenv("DRUGBANK_API_KEY", raising=False)
 
     app = AppTest.from_file(str(APP_PATH)).run(timeout=40)
     assert not app.exception
@@ -305,3 +308,172 @@ def test_rcsb_uniprot_search_calls_connector_and_renders_result(
         for table in app.dataframe
     )
     assert list((tmp_path / "connectors").rglob("manifest.json"))
+
+
+def test_new_database_sources_show_offline_and_license_gates(
+    tmp_path: Path,
+    monkeypatch: Any,
+) -> None:
+    app = _create_research_task(tmp_path, monkeypatch)
+
+    source = _element_with_key_prefix(app.selectbox, "database-source-")
+    app = source.select("OMIM 人类遗传").run(timeout=40)
+    assert not app.exception
+    omim_query = _element_with_key_prefix(
+        app.text_area,
+        "database-query-omim-",
+    )
+    assert omim_query.label == "MIM 编号、基因符号或疾病名称 *"
+    assert not _has_key_prefix(app.selectbox, "database-species-omim-")
+    omim_submit = _element_with_key_prefix(
+        app.button,
+        "database-submit-omim-",
+    )
+    assert omim_submit.label == "生成离线请求"
+    assert omim_submit.disabled is True
+
+    app = omim_query.set_value("100640").run(timeout=40)
+    omim_submit = _element_with_key_prefix(
+        app.button,
+        "database-submit-omim-",
+    )
+    assert omim_submit.disabled is False
+    app = omim_submit.click().run(timeout=40)
+    assert not app.exception
+    assert any(
+        "OMIM 未向数据库发送请求" in message.value
+        for message in app.warning
+    )
+
+    source = _element_with_key_prefix(app.selectbox, "database-source-")
+    app = source.select("DrugBank 药物").run(timeout=40)
+    assert not app.exception
+    assert _has_key_prefix(app.checkbox, "database-license-drugbank-")
+    drugbank_submit = _element_with_key_prefix(
+        app.button,
+        "database-submit-drugbank-",
+    )
+    assert drugbank_submit.label == "生成离线请求"
+    assert not _has_key_prefix(app.selectbox, "database-species-drugbank-")
+    drugbank_query = _element_with_key_prefix(
+        app.text_area,
+        "database-query-drugbank-",
+    )
+    app = drugbank_query.set_value("DB01050").run(timeout=40)
+    drugbank_submit = _element_with_key_prefix(
+        app.button,
+        "database-submit-drugbank-",
+    )
+    assert drugbank_submit.disabled is False
+    app = drugbank_submit.click().run(timeout=40)
+    assert not app.exception
+    snapshot_path = next((tmp_path / "runs").glob("*.json"))
+    snapshot = json.loads(snapshot_path.read_text(encoding="utf-8"))
+    drugbank_calls = [
+        call
+        for call in snapshot["tool_calls"]
+        if call["tool_name"] == "database.drugbank"
+    ]
+    assert len(drugbank_calls) == 1
+    assert "license_attestation=not_confirmed" in (
+        drugbank_calls[0]["input_summary"]
+    )
+    assert "license_attestation=confirmed" not in (
+        drugbank_calls[0]["input_summary"]
+    )
+
+
+def test_manual_database_imports_render_curated_and_prediction_labels(
+    tmp_path: Path,
+    monkeypatch: Any,
+) -> None:
+    app = _create_research_task(tmp_path, monkeypatch)
+
+    source = _element_with_key_prefix(app.selectbox, "database-source-")
+    app = source.select("GeneCards 人类基因").run(timeout=40)
+    assert not app.exception
+    assert _has_key_prefix(app.text_input, "database-query-genecards-")
+    license_checkbox = _element_with_key_prefix(
+        app.checkbox,
+        "database-license-genecards-",
+    )
+    app = license_checkbox.set_value(True).run(timeout=40)
+    uploader = _element_with_key_prefix(
+        app.file_uploader,
+        "database-import-genecards-",
+    )
+    app = uploader.set_value(
+        (
+            "genecards.csv",
+            (
+                b"Gene Symbol,Description,Relevance Score\n"
+                b"BRCA1,BRCA1 DNA repair associated,87.5\n"
+            ),
+            "text/csv",
+        )
+    ).run(timeout=40)
+    submit = _element_with_key_prefix(
+        app.button,
+        "database-submit-genecards-",
+    )
+    assert submit.label == "导入授权文件"
+    assert submit.disabled is False
+    app = submit.click().run(timeout=40)
+    assert not app.exception
+    assert any(
+        "GeneCards 文件导入完成" in message.value
+        for message in app.success
+    )
+
+    source = _element_with_key_prefix(app.selectbox, "database-source-")
+    app = source.select("SwissTargetPrediction 靶点预测").run(timeout=40)
+    assert not app.exception
+    smiles = _element_with_key_prefix(
+        app.text_area,
+        "database-query-swiss-target-prediction-",
+    )
+    app = smiles.set_value("CCO").run(timeout=40)
+    species = _element_with_key_prefix(
+        app.selectbox,
+        "database-species-swiss-target-prediction-",
+    )
+    app = species.select("人（Homo sapiens）").run(timeout=40)
+    confirmation = _element_with_key_prefix(
+        app.checkbox,
+        "database-import-confirm-swiss-target-prediction-",
+    )
+    app = confirmation.set_value(True).run(timeout=40)
+    uploader = _element_with_key_prefix(
+        app.file_uploader,
+        "database-import-swiss-target-prediction-",
+    )
+    app = uploader.set_value(
+        (
+            "swiss-target.csv",
+            (
+                b"Target,Common Name,UniProt ID,Probability\n"
+                b"Epidermal growth factor receptor,EGFR,P00533,0.87\n"
+            ),
+            "text/csv",
+        )
+    ).run(timeout=40)
+    submit = _element_with_key_prefix(
+        app.button,
+        "database-submit-swiss-target-prediction-",
+    )
+    assert submit.label == "导入预测结果"
+    assert submit.disabled is False
+    app = submit.click().run(timeout=40)
+    assert not app.exception
+    assert any(
+        "SwissTargetPrediction 文件导入完成" in message.value
+        for message in app.success
+    ), {
+        "success": [message.value for message in app.success],
+        "warning": [message.value for message in app.warning],
+        "error": [message.value for message in app.error],
+    }
+    assert any(
+        "证据层级：计算预测" in caption.value
+        for caption in app.caption
+    )

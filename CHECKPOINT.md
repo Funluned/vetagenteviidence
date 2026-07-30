@@ -260,6 +260,42 @@ VetResearch Workbench v0.6 已完成受控 OpenMM 技术烟测：v0.5 分子对�
 - 上述 fixture 不是蛋白—配体科研体系；通过只表示技术完整性和最小数值
   健康，不能解释构象稳定性、结合、抗菌活性、协同或自由能。
 
+## 数据库许可接入与人工导入增量（已完成）
+
+### 本阶段交付契约
+
+- [x] 数据库证据页由 7 个公开入口扩展为 12 个混合访问入口，新增 OMIM、
+  DrugBank、GeneCards、MalaCards 与 SwissTargetPrediction。
+- [x] OMIM 仅在配置 `OMIM_API_KEY` 后调用官方 API；未配置时只生成可审计的
+  离线请求，不伪装为在线命中。
+- [x] DrugBank 同时要求 `DRUGBANK_API_KEY` 与用户明确确认机构许可；支持按
+  DrugBank ID 或名称查询、分页药物—靶点关系，并批量补充 BioEntity 的
+  UniProt、NCBI TaxID 和基因名称。分页被截断或详情补充失败时降级并警告，
+  不伪造稳定标识。
+- [x] GeneCards 与 MalaCards 只接收用户声明的授权 CSV/TSV/XLSX 导出；
+  SwissTargetPrediction 只接收用户声明为本人手工生成且允许使用的预测结果；
+  三者均不实施页面抓取或后台自动化。
+- [x] 访问方式与证据等级分别记录：官方公开 API、凭证门控 API、授权人工
+  导入和手工预测导入不混为一类；SwissTargetPrediction 始终标记为
+  `computational_prediction`。
+- [x] 导入结果记录用户声明的来源真实性、条款 URL、文件 SHA-256、访问/
+  导入时间、解析器版本和原始材料归档；未核验来源不写成平台独立认证。
+- [x] XLSX 导入强制启用 `defusedxml`，并拒绝外部实体、压缩包路径穿越、
+  非清单原始材料和不安全文件名。
+- [x] 当前机制证据网络仍只消费已定义语义的 STRING/DAVID 结果；新增五类
+  来源先作为可追溯数据库证据展示，不静默进入网络排名。
+
+### 验证证据
+
+- 新增数据库与归档专项回归：`97 passed`。
+- 最终全量自动回归：`413 passed`；`pip check`、Python 编译检查和
+  `git diff --check` 均通过。
+- 已确认运行时 `openpyxl.xml.DEFUSEDXML=True`，恶意 XML 实体 XLSX、
+  缺少安全 XML 解析器和 ZIP 路径穿越均有失败关闭测试。
+- 本轮未使用真实 OMIM/DrugBank 密钥或商业账号；在线请求契约使用模拟响应
+  验证，缺凭证和缺许可门禁使用真实离线路径验证，不能据此声称商业服务
+  账号已在线验收。
+
 ## 阻塞
 
 - 本机未安装 Docker：Dockerfile 已写，镜像构建未验证。
@@ -272,5 +308,8 @@ VetResearch Workbench v0.6 已完成受控 OpenMM 技术烟测：v0.5 分子对�
   收敛/不确定性与轨迹分析仍不在当前实现范围。
 - NCBI Gene/GenBank 和 DAVID 的在线路径仍需由研究者提供合规联系邮箱或已
   注册机构邮箱后做真实服务验收；当前离线门禁与导出已验证。
+- OMIM 与 DrugBank 的真实在线路径仍需研究者提供合法 API 凭证，DrugBank
+  还需确认机构许可；GeneCards、MalaCards 与 SwissTargetPrediction 的内容
+  真实性依赖用户对导入材料来源的声明，系统当前不独立向上游验证。
 - 尚未录制演示视频，也未获准进行公开部署。
 - 仍需孙奇亲自完成一次从零启动、完整垂直案例讲解和一次核心流程小修改。

@@ -8,6 +8,7 @@ import httpx
 import pytest
 
 from vetevidence.database_connectors import (
+    AcquisitionMode,
     CONNECTOR_PARSER_VERSION,
     ConnectorResult,
     ConnectorStatus,
@@ -375,6 +376,8 @@ def test_ncbi_without_contact_email_does_not_send_request() -> None:
 
     assert gene.status == ConnectorStatus.OFFLINE_EXPORT
     assert nucleotide.status == ConnectorStatus.OFFLINE_EXPORT
+    assert gene.acquisition_mode is AcquisitionMode.OFFLINE_REQUEST
+    assert nucleotide.acquisition_mode is AcquisitionMode.OFFLINE_REQUEST
     assert gene.offline_request is not None
     assert nucleotide.offline_request is not None
     assert "NCBI_EMAIL" in gene.offline_request.content
@@ -553,6 +556,7 @@ def test_string_without_external_consent_only_exports_request() -> None:
         )
 
     assert result.status == ConnectorStatus.OFFLINE_EXPORT
+    assert result.acquisition_mode is AcquisitionMode.OFFLINE_REQUEST
     assert result.offline_request is not None
     request = json.loads(result.offline_request.content)
     assert request["taxon_id"] == 9913
@@ -581,9 +585,14 @@ def test_david_requires_consent_background_and_registered_email() -> None:
         )
 
     assert offline.status == ConnectorStatus.OFFLINE_EXPORT
+    assert offline.acquisition_mode is AcquisitionMode.OFFLINE_REQUEST
     assert offline.offline_request is not None
     assert json.loads(offline.offline_request.content)["taxon_id"] == 9913
     assert missing_credential.status == ConnectorStatus.DEGRADED
+    assert (
+        missing_credential.acquisition_mode
+        is AcquisitionMode.OFFLINE_REQUEST
+    )
     assert "registered organization email" in missing_credential.warnings[0]
 
     with pytest.raises(ValueError, match="background"):
@@ -802,7 +811,7 @@ def test_result_export_is_deterministic_and_keeps_hash_not_raw_body() -> None:
     assert (
         payload["export_metadata"]["parser_version"]
         == CONNECTOR_PARSER_VERSION
-        == "vetevidence-database-connectors-0.4"
+        == "vetevidence-database-connectors-0.5"
     )
     assert len(payload["export_metadata"]["records_sha256"]) == 64
     assert payload["export_metadata"]["record_sha256"] == []

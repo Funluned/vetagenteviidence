@@ -1,7 +1,7 @@
 # VetResearch Workbench v0.6
 
 VetResearch Workbench 基于 VetEvidence AI v0.1，把科研问题、可核查文献、
-实验条件、实验数据、公开数据库、网络药理学、分子对接和受控的分子动力学
+实验条件、实验数据、数据库证据、网络药理学、分子对接和受控的分子动力学
 技术烟测串成一个可审计的科研决策闭环。
 当前首个垂直场景聚焦：
 
@@ -78,6 +78,26 @@ VetResearch Workbench 基于 VetEvidence AI v0.1，把科研问题、可核查�
 - 把任务事件、工具调用、失败、重试关系和人工复核保存到本地 `.workbench/runs/*.json`，可凭完整运行 ID 恢复；
 - 通过本地 Streamlit 界面完成完整闭环，无需 LLM API Key。
 
+### 数据库许可接入与人工导入增量
+
+- 数据库页现有 12 个入口：原有 PubChem、UniProt、NCBI Gene、GenBank、
+  RCSB PDB、STRING、DAVID，加上 OMIM、DrugBank、GeneCards、MalaCards
+  与 SwissTargetPrediction；
+- OMIM 使用凭证门控的官方 API；未配置 `OMIM_API_KEY` 时只生成离线请求。
+  DrugBank 只有在配置 `DRUGBANK_API_KEY` 且用户确认当前许可后才调用官方
+  Discovery API；
+- GeneCards 与 MalaCards 不抓取网页，只接受用户依法取得并声明许可允许
+  内部研究使用的 CSV、TSV 或 XLSX；两者固定为人类 TaxID 9606；
+- SwissTargetPrediction 不模拟网页提交或自动抓取，只导入用户手工生成的
+  结果；必须绑定原查询 SMILES，物种仅限人、小鼠和大鼠，证据等级固定为
+  `computational_prediction`；
+- 获取方式（在线 API、人工文件导入、未发送的离线请求）与证据等级
+  （数据库整理、计算预测）分开记录。人工导入保存原文件、查询背景、导出
+  版本或日期（如有）及 SHA-256；哈希证明文件未被修改，不证明文件来源，
+  因此界面明确显示“用户声明的授权导出/手工预测结果”；
+- XLSX 导入拒绝公式、宏、嵌入对象、外部链接和异常压缩文件，并限制文件
+  大小、行数和列数。所有受限原始文件只保存在 Git 忽略的本地归档中。
+
 ### 继承自 VetEvidence AI v0.1
 
 - 使用 NCBI E-utilities 检索真实 PubMed 题录和摘要；
@@ -131,9 +151,9 @@ CPU/OpenCL；CUDA 的产品级验收应再运行下文
 1. `问题与假设`：填写研究对象、候选干预、联合药物和预设指标，检查并修改透明规则生成的假设；
 2. `文献证据`：执行最多 3 轮 PubMed 检索，查看逐篇证据等级、准入理由和判定原句，或上传 RIS、EndNote、RefWorks 导出文件；
 3. `实验数据`：核查实验条件矩阵、冲突和空白，再上传 FICI 或生长曲线 CSV；
-4. `数据库证据`：一次选择一个数据库，输入名称或标准编号并检索七类公开
-   数据库；从常用兽医物种选择 TaxID，审阅真实查询状态、来源和独立的本地
-   归档状态，并把 STRING/DAVID 结果组织为分层证据网络；
+4. `数据库证据`：一次选择一个数据源，通过公开 API、凭证/许可 API 或授权
+   文件导入取得记录；审阅获取方式、证据等级、物种、来源与独立的本地归档
+   状态，并把 STRING/DAVID 结果组织为分层证据网络；
 5. `网络药理`：导入可追溯的 CSV/XLSX/DOCX 网络关系并导出 XLSX/DOCX 结果；
 6. `分子对接`：审批受体模型、链、替代构象、水和异源原子处理后，批量导入
    带类型化身份的配体并按多个 seed 运行已核验 Vina；审阅强绑定产物、
@@ -147,19 +167,20 @@ CPU/OpenCL；CUDA 的产品级验收应再运行下文
 
 ## 支持的输入
 
-### 公开数据库查询
+### 数据库查询与授权结果导入
 
-数据库查询必须由用户点击提交，不会在 Streamlit 重跑时自动重复。页面按
-“选择数据库、输入检索内容、开始联网检索或生成离线请求”三步操作；需要
+数据库操作必须由用户点击提交，不会在 Streamlit 重跑时自动重复。页面按
+“选择数据库、输入检索内容或上传文件、查询或导入”三步操作；需要
 物种的来源必须从常用兽医物种中选择，或显式填写正整数 NCBI TaxID，不再
 静默使用人类。RCSB PDB 既支持直接输入 PDB ID，也支持用 UniProt accession
 加 TaxID 查找结构。名称或符号映射出现多个候选时，结果会标记歧义，不替
 用户静默选择。
 
 结果状态明确区分“联网有结果”“联网无结果”“未发送 / 离线请求”和
-“已返回但有警告”；“已归档”只说明本地保存成功，不代表联网成功或存在
-生物学关系。页面刷新后会从当前运行目录重新发现结果，但只有 manifest、
-`result.json`、原始响应及 SHA-256 一致的归档才会恢复，损坏项会逐项警告。
+“已返回但有警告”，人工导入另标为“人工文件导入”；“已归档”只说明本地
+保存成功，不代表联网成功、文件来源已经验证或存在生物学关系。页面刷新后
+会从当前运行目录重新发现结果，但只有 manifest、`result.json`、原始响应
+或原文件及 SHA-256 一致的归档才会恢复，损坏项会逐项警告。
 STRING 与 DAVID 会把标识列表发送给第三方服务，界面因此要求单独确认；
 敏感或未公开列表应下载离线请求并在获批环境中处理。详细的数据源、证据
 类型与归档口径见
@@ -346,6 +367,8 @@ NVT/NPT、production、多重复、收敛、RMSD/RMSF、回转半径、接触、
 ```powershell
 $env:NCBI_EMAIL = "your_email@example.com"
 $env:NCBI_API_KEY = "your_api_key"
+$env:OMIM_API_KEY = "your_authorized_omim_key"
+$env:DRUGBANK_API_KEY = "your_licensed_drugbank_key"
 $env:STRING_CALLER_IDENTITY = "VetEvidenceAI"
 $env:DAVID_EMAIL = "registered_email@example.com"
 $env:VINA_EXECUTABLE = "C:\path\to\vina.exe"
@@ -371,7 +394,8 @@ $env:PLIP_BABEL_DATADIR = "C:\path\to\OpenBabel\share\openbabel\3.1.0"
 自动化测试覆盖文献证据准入、实验分析、网络文件适配与导出、Open Babel
 单配体准备、受体审批、类型化结构身份、批量多 seed Vina 任务与强绑定产物、
 3Dmol.js/PyMOL/PLIP 降级路径，以及数据库请求脱敏、真实字段解析、TaxID
-门禁、证据分层、原始响应归档和审计留痕。MD 测试另覆盖输入与 manifest
+门禁、许可双门禁、受限 CSV/TSV/XLSX 安全解析、预测证据分层、原始响应或
+原文件归档和审计留痕。MD 测试另覆盖输入与 manifest
 绑定、System/topology/source mapping 复核、后台任务状态、取消、
 checkpoint/resume、资源与平台门禁、产物哈希和只允许真实温度/势能健康
 检查的分析边界。定向评测是受控工程检查，不代表通用模型准确率。
@@ -462,8 +486,10 @@ Vina 时仍可生成任务清单；未提供 PyMOL/PLIP 时仍可下载 PML、�
   当前尚未计算的跨 seed RMSD 或构象簇；
 - PDBQT→PDB 会损失部分化学语义，PLIP 和三维图因此只能作启发式解释；生成
   的 PNG/PSE 还必须按各自校验状态展示，不能用“有文件”冒充“已验证”；
-- 当前只在用户主动提交后从公开接口获取数据库记录，不自动运行未知在线
-  预测服务或下载 Vina；Open Babel 只转换用户主动提供的单个配体，且不准备
+- 当前只在用户主动提交后调用允许自动访问的官方 API；GeneCards、MalaCards
+  与 SwissTargetPrediction 不抓取网页，前两者只导入用户声明合法取得的授权
+  文件，后者只导入用户手工生成的计算预测。系统不自动运行未知在线预测服务
+  或下载 Vina；Open Babel 只转换用户主动提供的单个配体，且不准备
   受体。Agent 只在用户明确选择后受控执行已发现且通过版本与哈希核验的本机
   工具。用户仍须合法取得输入并核查结构、互变异构体、立体化学、质子化
   状态和搜索框；

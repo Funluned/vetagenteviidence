@@ -481,6 +481,49 @@ def test_schema_v4_snapshot_adds_empty_mechanism_prediction_layer() -> None:
     assert "实验范围规则" in restored.task_events[-1].message
 
 
+def test_schema_v5_snapshot_invalidates_report_after_prediction_upgrade() -> None:
+    question = ResearchQuestion(
+        id="rq-v5",
+        text="A 与 B 对 target 是否协同？",
+        population="target",
+        intervention="A",
+        comparator="B",
+    )
+    review_event = build_task_event(
+        "run-v5",
+        TaskStatus.COMPLETED,
+        "旧报告已通过人工复核",
+        metadata={
+            "report_content_sha256": "1" * 64,
+            "report_snapshot": {"legacy": True},
+        },
+    )
+    legacy_payload = {
+        "schema_version": 5,
+        "run_id": "run-v5",
+        "question": question.model_dump(mode="json"),
+        "query_plan": generate_search_queries(question).model_dump(mode="json"),
+        "task_events": [review_event.model_dump(mode="json")],
+        "mechanism_prediction": {},
+        "report": {"legacy": True},
+    }
+
+    restored = WorkbenchRunSnapshot.model_validate(legacy_payload)
+
+    assert restored.schema_version == CURRENT_SNAPSHOT_SCHEMA_VERSION
+    assert restored.report is None
+    assert restored.task_events[0].event_id == review_event.event_id
+    assert restored.task_events[-1].actor == "migration"
+    assert restored.task_events[-1].status is TaskStatus.PENDING
+    assert restored.task_events[-1].metadata == {
+        "from_schema_version": 5,
+        "to_schema_version": CURRENT_SNAPSHOT_SCHEMA_VERSION,
+    }
+    assert "旧决策报告和人工复核安全失效" in (
+        restored.task_events[-1].message
+    )
+
+
 def test_store_datetimes_must_be_timezone_aware() -> None:
     naive = datetime(2026, 7, 29, 10, 0)
     with pytest.raises(ValidationError, match="工具调用时间必须包含时区"):

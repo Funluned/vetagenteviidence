@@ -41,7 +41,7 @@ from vetevidence.workbench_pipeline import (
 )
 
 
-CURRENT_SNAPSHOT_SCHEMA_VERSION = 5
+CURRENT_SNAPSHOT_SCHEMA_VERSION = 6
 
 
 def _utc_now() -> datetime:
@@ -248,6 +248,17 @@ class WorkbenchRunSnapshot(StoreModel):
         if version < 5:
             payload.setdefault("mechanism_prediction", {})
             migration_notes.append("新增独立的网络药理学与分子对接预测层")
+        if version < 6:
+            had_report = payload.get("report") is not None
+            payload["report"] = None
+            migration_notes.append(
+                "升级机制预测的通路名称与本机 Vina 执行审计字段"
+                + (
+                    "，并使旧决策报告和人工复核安全失效"
+                    if had_report
+                    else ""
+                )
+            )
 
         events = list(payload.get("task_events") or [])
         if not events:

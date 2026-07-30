@@ -121,6 +121,35 @@ def test_network_csv_builds_traceable_intersection_and_ranking() -> None:
         (link.compound, link.compound_accession)
         for link in result.ranked_targets[0].compounds
     ] == [("Compound A", "CID:1"), ("Compound B", "CID:2")]
+    assert [
+        (link.pathway, link.pathway_accession)
+        for link in result.ranked_targets[0].pathways
+    ] == [
+        ("Pathway A", "KEGG:map00010"),
+        ("Pathway B", "KEGG:map00020"),
+    ]
+
+
+def test_network_rejects_one_pathway_accession_with_multiple_names() -> None:
+    with pytest.raises(ValueError, match="通路 accession.*多个名称"):
+        analyze_network_pharmacology_csv(
+            COMPOUND_TARGET_CSV,
+            (
+                "organism,target,target_accession,pathway,pathway_accession\n"
+                "Target bacterium,Target One,UniProt:P11111,Pathway A,"
+                "KEGG:map00010\n"
+                "Target bacterium,Target One,UniProt:P11111,Wrong name,"
+                "KEGG:map00010\n"
+            ),
+            compound_target_source=source(
+                "compound-target.csv",
+                "dataset:ct-1",
+            ),
+            target_pathway_source=source(
+                "target-pathway.csv",
+                "dataset:tp-1",
+            ),
+        )
 
 
 def test_network_csv_missing_columns_are_reported_by_name() -> None:

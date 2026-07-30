@@ -3,6 +3,7 @@ from __future__ import annotations
 import csv
 import io
 import json
+import os
 from datetime import datetime, timezone
 from pathlib import Path
 from uuid import uuid4
@@ -26,12 +27,21 @@ from vetevidence.mechanism_prediction import (
     MechanismPredictionBundle,
     SourceProvenance,
     VinaParameters,
-    analyze_network_pharmacology_csv,
     build_vina_manifest,
     parse_vina_output,
     require_docking_scope,
     require_network_scope,
     validate_pdbqt_bytes,
+)
+from vetevidence.network_files import (
+    MAX_NETWORK_FILE_BYTES,
+    analyze_network_pharmacology_files,
+    compound_target_template_docx,
+    compound_target_template_xlsx,
+    network_result_to_docx,
+    network_result_to_xlsx,
+    target_pathway_template_docx,
+    target_pathway_template_xlsx,
 )
 from vetevidence.models import PubMedArticle
 from vetevidence.pubmed import PubMedClient, PubMedError
@@ -39,6 +49,13 @@ from vetevidence.run_store import (
     RunStore,
     WorkbenchRunSnapshot,
     build_tool_call,
+)
+from vetevidence.vina_artifacts import VinaArtifactStore
+from vetevidence.vina_execution import (
+    VinaExecutableInfo,
+    VinaExecutionError,
+    discover_vina,
+    execute_vina,
 )
 from vetevidence.workbench import (
     EvidenceAdmissionStatus,
@@ -69,6 +86,28 @@ from vetevidence.workbench_pipeline import (
 PROJECT_ROOT = Path(__file__).parent
 RUN_STATE_KEY = "vetresearch_run_snapshot"
 RUN_STORE = RunStore()
+VINA_ARTIFACT_STORE = VinaArtifactStore()
+
+
+@st.cache_data(ttl=300, show_spinner=False)
+def discover_vina_for_ui(
+    vina_executable: str,
+    local_appdata: str,
+    path_value: str,
+) -> tuple[VinaExecutableInfo | None, str | None]:
+    """Cache both successful and failed discovery across Streamlit reruns."""
+
+    environment = {
+        "VINA_EXECUTABLE": vina_executable,
+        "LOCALAPPDATA": local_appdata,
+        "PATH": path_value,
+    }
+    try:
+        return discover_vina(environment=environment), None
+    except VinaExecutionError as exc:
+        return None, str(exc)
+
+
 EVIDENCE_GRADE_LABELS = {
     LiteratureEvidenceGrade.UNASSESSED: "未评估",
     LiteratureEvidenceGrade.OUT_OF_SCOPE: "主题不匹配",
@@ -218,6 +257,7 @@ def append_tool_call(
     status: str,
     output_summary: str | None = None,
     error: str | None = None,
+    metadata: dict[str, object] | None = None,
 ) -> WorkbenchRunSnapshot:
     retry_of = next(
         (
@@ -234,6 +274,7 @@ def append_tool_call(
         output_summary=output_summary,
         error=error,
         retry_of=retry_of,
+        metadata=metadata,
     )
     return snapshot.model_copy(
         update={"tool_calls": [*snapshot.tool_calls, call]}
@@ -462,7 +503,11 @@ def render_analysis(snapshot: WorkbenchRunSnapshot) -> None:
             st.error(error)
 
 
-def render_mechanism_prediction(bundle: MechanismPredictionBundle) -> None:
+def render_mechanism_prediction(
+    bundle: MechanismPredictionBundle,
+    *,
+    run_id: str | None = None,
+) -> None:
     """Render predictions separately from literature and experimental evidence."""
 
     if bundle.network is not None:
@@ -492,6 +537,10 @@ def render_mechanism_prediction(bundle: MechanismPredictionBundle) -> None:
                         for link in item.compounds
                     ),
                     "化合物 accession": "；".join(item.compound_accessions),
+                    "通路": "；".join(
+                        f"{link.pathway} ({link.pathway_accession})"
+                        for link in item.pathways
+                    ),
                     "通路 accession": "；".join(item.pathway_accessions),
                 }
                 for item in network.ranked_targets
@@ -512,19 +561,48 @@ def render_mechanism_prediction(bundle: MechanismPredictionBundle) -> None:
             width="stretch",
             hide_index=True,
         )
+        export_columns = st.columns(2)
+        export_columns[0].download_button(
+            "下载 Excel 结果",
+            data=network_result_to_xlsx(network),
+            file_name="network_pharmacology_targets_pathways.xlsx",
+            mime=(
+                "application/vnd.openxmlformats-officedocument."
+                "spreadsheetml.sheet"
+            ),
+            key=f"download-network-xlsx-{run_id or 'current'}",
+            width="stretch",
+        )
+        export_columns[1].download_button(
+            "下载 Word 报告",
+            data=network_result_to_docx(network),
+            file_name="network_pharmacology_targets_pathways.docx",
+            mime=(
+                "application/vnd.openxmlformats-officedocument."
+                "wordprocessingml.document"
+            ),
+            key=f"download-network-docx-{run_id or 'current'}",
+            width="stretch",
+        )
 
     if bundle.prepared_manifests:
         st.subheader("AutoDock Vina 任务清单")
-        completed_ids = {
-            run.manifest.task_id for run in bundle.docking_runs
+        runs_by_task = {
+            run.manifest.task_id: run for run in bundle.docking_runs
         }
         st.dataframe(
             [
                 {
                     "任务 ID": manifest.task_id,
                     "状态": (
-                        "已导入真实输出"
-                        if manifest.task_id in completed_ids
+                        (
+                            "本机 Vina 已执行（可审计）"
+                            if runs_by_task[
+                                manifest.task_id
+                            ].execution_audit is not None
+                            else "已导入用户输出（未认证运行真实性）"
+                        )
+                        if manifest.task_id in runs_by_task
                         else "待运行，无分数"
                     ),
                     "配体": manifest.compound_name,
@@ -563,11 +641,20 @@ def render_mechanism_prediction(bundle: MechanismPredictionBundle) -> None:
             )
 
     if bundle.docking_runs:
-        st.subheader("已解析的用户导入 Vina 输出")
-        st.warning(
-            "系统只校验输出格式、版本和内容哈希，不能证明文件确由 Vina "
-            "实际运行产生。对接得分仍是计算预测，不是结合实验证据，也不能"
-            "单独证明抗菌活性或协同。"
+        st.subheader("AutoDock Vina 对接结果")
+        if any(run.execution_audit is None for run in bundle.docking_runs):
+            st.warning(
+                "用户导入输出只经过格式、版本和内容哈希校验，系统不能证明"
+                "文件确由 Vina 实际运行产生。"
+            )
+        if any(run.execution_audit is not None for run in bundle.docking_runs):
+            st.info(
+                "本机结果记录了 Vina 可执行文件、参数、退出码和输出哈希；"
+                "这些记录仍不能替代结构准备审查或结合实验。"
+            )
+        st.caption(
+            "所有对接得分都属于计算预测，不是结合实验证据，也不能单独证明"
+            "抗菌活性或药物协同。"
         )
         for run in bundle.docking_runs:
             with st.expander(
@@ -579,6 +666,14 @@ def render_mechanism_prediction(bundle: MechanismPredictionBundle) -> None:
                     f"{run.manifest.engine_version} · "
                     f"输出 SHA-256 {run.output_source.sha256}"
                 )
+                if run.execution_audit is not None:
+                    audit = run.execution_audit
+                    st.caption(
+                        "VetEvidence Agent 本机执行 · "
+                        f"退出码 {audit.exit_code} · "
+                        f"{audit.duration_seconds:.3f} 秒 · "
+                        f"可执行文件 SHA-256 {audit.executable_sha256}"
+                    )
                 st.dataframe(
                     [
                         {
@@ -592,6 +687,33 @@ def render_mechanism_prediction(bundle: MechanismPredictionBundle) -> None:
                     width="stretch",
                     hide_index=True,
                 )
+                if run.execution_audit is not None and run_id is not None:
+                    try:
+                        artifacts = VINA_ARTIFACT_STORE.load(
+                            run_id,
+                            run.manifest.task_id,
+                            expected_manifest_sha256=(
+                                run.manifest.manifest_sha256
+                            ),
+                        )
+                    except (OSError, ValueError) as exc:
+                        st.caption(f"本地 Vina 产物当前不可下载：{exc}")
+                    else:
+                        with st.container(horizontal=True):
+                            st.download_button(
+                                "下载 Vina 绑定日志",
+                                data=artifacts.bound_log,
+                                file_name=f"{run.manifest.task_id}.log",
+                                mime="text/plain",
+                                key=f"download-vina-log-{run.manifest.task_id}",
+                            )
+                            st.download_button(
+                                "下载对接构象 PDBQT",
+                                data=artifacts.output_pdbqt,
+                                file_name=f"{run.manifest.task_id}-poses.pdbqt",
+                                mime="chemical/x-pdb",
+                                key=f"download-vina-poses-{run.manifest.task_id}",
+                            )
 
 
 st.set_page_config(
@@ -618,7 +740,8 @@ with st.sidebar:
         "中科院 2025 年 3 月升级版和 WOS JIF 分区。"
     )
     st.caption(
-        "用户导入题录与 CSV 只在本机处理；未报告字段保持为空，不由系统补造。"
+        "用户导入题录、CSV、Excel 与 Word 文件只在本机处理；"
+        "未报告字段保持为空，不由系统补造。"
     )
     st.caption(
         "当前版本仅支持可信的单用户本机运行，不具备共享部署所需的账号与对象授权。"
@@ -1219,29 +1342,74 @@ with mechanism_tab:
         st.subheader("网络药理学：化合物—靶点—通路")
         st.caption(
             "系统只分析用户合法取得并上传的关系表，不自动猜测靶点。"
-            "两个 CSV 都必须包含 organism，并与当前科研问题完全匹配。"
+            "两端均支持 CSV、Excel（.xlsx）和 Word（.docx）；"
+            "都必须包含 organism，并与当前科研问题完全匹配。"
         )
         template_columns = st.columns(2)
-        template_columns[0].download_button(
-            "下载化合物—靶点模板",
-            data=(
-                PROJECT_ROOT / "data" / "templates"
-                / "compound_target_template.csv"
-            ).read_bytes(),
-            file_name="compound_target_template.csv",
-            mime="text/csv",
-            width="stretch",
-        )
-        template_columns[1].download_button(
-            "下载靶点—通路模板",
-            data=(
-                PROJECT_ROOT / "data" / "templates"
-                / "target_pathway_template.csv"
-            ).read_bytes(),
-            file_name="target_pathway_template.csv",
-            mime="text/csv",
-            width="stretch",
-        )
+        with template_columns[0]:
+            st.markdown("**化合物—靶点模板**")
+            with st.container(horizontal=True):
+                st.download_button(
+                    "CSV",
+                    data=(
+                        PROJECT_ROOT
+                        / "data"
+                        / "templates"
+                        / "compound_target_template.csv"
+                    ).read_bytes(),
+                    file_name="compound_target_template.csv",
+                    mime="text/csv",
+                )
+                st.download_button(
+                    "Excel",
+                    data=compound_target_template_xlsx(),
+                    file_name="compound_target_template.xlsx",
+                    mime=(
+                        "application/vnd.openxmlformats-officedocument."
+                        "spreadsheetml.sheet"
+                    ),
+                )
+                st.download_button(
+                    "Word",
+                    data=compound_target_template_docx(),
+                    file_name="compound_target_template.docx",
+                    mime=(
+                        "application/vnd.openxmlformats-officedocument."
+                        "wordprocessingml.document"
+                    ),
+                )
+        with template_columns[1]:
+            st.markdown("**靶点—通路模板**")
+            with st.container(horizontal=True):
+                st.download_button(
+                    "CSV",
+                    data=(
+                        PROJECT_ROOT
+                        / "data"
+                        / "templates"
+                        / "target_pathway_template.csv"
+                    ).read_bytes(),
+                    file_name="target_pathway_template.csv",
+                    mime="text/csv",
+                )
+                st.download_button(
+                    "Excel",
+                    data=target_pathway_template_xlsx(),
+                    file_name="target_pathway_template.xlsx",
+                    mime=(
+                        "application/vnd.openxmlformats-officedocument."
+                        "spreadsheetml.sheet"
+                    ),
+                )
+                st.download_button(
+                    "Word",
+                    data=target_pathway_template_docx(),
+                    file_name="target_pathway_template.docx",
+                    mime=(
+                        "application/vnd.openxmlformats-officedocument."
+                        "wordprocessingml.document"
+                    ),
+                )
         st.info(
             "化合物—靶点必填：compound、compound_accession、organism、"
             "target、target_accession。靶点—通路必填：organism、target、"
@@ -1249,14 +1417,16 @@ with mechanism_tab:
         )
         network_upload_columns = st.columns(2)
         compound_target_file = network_upload_columns[0].file_uploader(
-            "上传化合物—靶点 CSV",
-            type=["csv"],
+            "上传化合物—靶点文件",
+            type=["csv", "xlsx", "docx"],
             key=f"compound-target-{snapshot.run_id}",
+            max_upload_size=MAX_NETWORK_FILE_BYTES // (1024 * 1024),
         )
         target_pathway_file = network_upload_columns[1].file_uploader(
-            "上传靶点—通路 CSV",
-            type=["csv"],
+            "上传靶点—通路文件",
+            type=["csv", "xlsx", "docx"],
             key=f"target-pathway-{snapshot.run_id}",
+            max_upload_size=MAX_NETWORK_FILE_BYTES // (1024 * 1024),
         )
         provenance_columns = st.columns(2)
         with provenance_columns[0]:
@@ -1319,10 +1489,14 @@ with mechanism_tab:
                     accession="synthetic-demo:target-pathway",
                     version="v1",
                 )
+                compound_filename = "synthetic_compound_target.csv"
+                pathway_filename = "synthetic_target_pathway.csv"
                 network_input_summary = "合成网络药理学演示"
             else:
                 compound_payload = compound_target_file.getvalue()
                 pathway_payload = target_pathway_file.getvalue()
+                compound_filename = compound_target_file.name
+                pathway_filename = target_pathway_file.name
                 compound_provenance = SourceProvenance(
                     source_name=compound_source_name,
                     accession=compound_source_accession,
@@ -1338,9 +1512,11 @@ with mechanism_tab:
                     f"{target_pathway_file.name}"
                 )
             try:
-                network_result = analyze_network_pharmacology_csv(
+                network_result = analyze_network_pharmacology_files(
                     compound_payload,
                     pathway_payload,
+                    compound_target_filename=compound_filename,
+                    target_pathway_filename=pathway_filename,
                     compound_target_source=compound_provenance,
                     target_pathway_source=pathway_provenance,
                 )
@@ -1423,12 +1599,28 @@ with mechanism_tab:
                     st.success("网络药理学数据已通过范围校验并保存。")
 
         st.divider()
-        st.subheader("AutoDock Vina：准备可复现任务")
+        st.subheader("AutoDock Vina：准备并执行可复现任务")
         st.caption(
-            "本机未捆绑 Vina。这里先保存 PDBQT 内容哈希、来源、搜索框和"
-            "版本，下载任务清单后可在合规环境运行，再把带任务清单哈希的"
-            "标准输出导回。格式校验不能代替运行环境审计。"
+            "系统保存 PDBQT 内容哈希、来源、搜索框和版本；检测到本机 Vina "
+            "时可由 Agent 受控执行，也可以只生成任务清单后导入外部输出。"
+            "所有得分都属于计算预测，不能替代结构准备审查或结合实验。"
         )
+        local_vina, local_vina_error = discover_vina_for_ui(
+            os.environ.get("VINA_EXECUTABLE", ""),
+            os.environ.get("LOCALAPPDATA", ""),
+            os.environ.get("PATH", ""),
+        )
+        if local_vina is None:
+            st.warning(f"本机 Vina 当前不可用：{local_vina_error}")
+        else:
+            st.success(
+                f"已连接 AutoDock Vina {local_vina.version}："
+                f"{local_vina.path}"
+            )
+            st.caption(
+                f"可执行文件 SHA-256：{local_vina.sha256}。"
+                "执行前会再次核验版本和哈希。"
+            )
         current_bundle = current_snapshot().mechanism_prediction
         network_target = (
             current_bundle.network.ranked_targets[0]
@@ -1466,6 +1658,7 @@ with mechanism_tab:
                 "上传配体 PDBQT",
                 type=["pdbqt"],
                 key=f"ligand-pdbqt-{snapshot.run_id}",
+                max_upload_size=25,
             )
         with docking_columns[1]:
             receptor_name = st.text_input(
@@ -1497,12 +1690,13 @@ with mechanism_tab:
                 "上传受体 PDBQT",
                 type=["pdbqt"],
                 key=f"receptor-pdbqt-{snapshot.run_id}",
+                max_upload_size=25,
             )
 
         engine_version = st.text_input(
             "AutoDock Vina 版本",
-            value="1.2.5",
-            key=f"vina-version-{snapshot.run_id}",
+            value=local_vina.version if local_vina is not None else "1.2.7",
+            key=f"vina-version-v2-{snapshot.run_id}",
         )
         center_columns = st.columns(3)
         center_x = center_columns[0].number_input(
@@ -1545,19 +1739,41 @@ with mechanism_tab:
             step=1,
             key=f"seed-{snapshot.run_id}",
         )
-        prepare_manifest = st.button(
-            "生成并保存 Vina 任务清单",
-            disabled=ligand_file is None or receptor_file is None,
-            width="stretch",
-        )
-        if prepare_manifest and ligand_file and receptor_file:
+        with st.container(horizontal=True):
+            prepare_manifest = st.button(
+                "仅生成 Vina 任务清单",
+                disabled=ligand_file is None or receptor_file is None,
+                width="stretch",
+            )
+            execute_local_vina = st.button(
+                "由 Agent 运行本机 Vina",
+                type="primary",
+                disabled=(
+                    ligand_file is None
+                    or receptor_file is None
+                    or local_vina is None
+                ),
+                width="stretch",
+            )
+        if (
+            (prepare_manifest or execute_local_vina)
+            and ligand_file
+            and receptor_file
+        ):
+            operation_name = (
+                "docking.vina_execute"
+                if execute_local_vina
+                else "docking.prepare"
+            )
             try:
+                ligand_payload = ligand_file.getvalue()
+                receptor_payload = receptor_file.getvalue()
                 ligand_sha256 = validate_pdbqt_bytes(
-                    ligand_file.getvalue(),
+                    ligand_payload,
                     role="ligand",
                 )
                 receptor_sha256 = validate_pdbqt_bytes(
-                    receptor_file.getvalue(),
+                    receptor_payload,
                     role="receptor",
                 )
                 manifest = build_vina_manifest(
@@ -1607,7 +1823,7 @@ with mechanism_tab:
             except (ValidationError, ValueError) as exc:
                 snapshot = append_tool_call(
                     current_snapshot(),
-                    "docking.prepare",
+                    operation_name,
                     f"{docking_compound} × {receptor_name}",
                     status="failed",
                     error=str(exc),
@@ -1615,16 +1831,21 @@ with mechanism_tab:
                 snapshot = append_event(
                     snapshot,
                     TaskStatus.FAILED,
-                    f"Vina 任务清单校验失败：{exc}",
+                    f"Vina 任务准备失败：{exc}",
                 )
                 save_snapshot(snapshot)
                 st.error(str(exc))
             else:
                 snapshot = current_snapshot()
+                previous_manifests = [
+                    item
+                    for item in snapshot.mechanism_prediction.prepared_manifests
+                    if item.task_id != manifest.task_id
+                ]
                 bundle = snapshot.mechanism_prediction.model_copy(
                     update={
                         "prepared_manifests": [
-                            *snapshot.mechanism_prediction.prepared_manifests,
+                            *previous_manifests,
                             manifest,
                         ]
                     }
@@ -1635,22 +1856,176 @@ with mechanism_tab:
                         "report": None,
                     }
                 )
-                snapshot = append_tool_call(
-                    snapshot,
-                    "docking.prepare",
-                    f"{docking_compound} × {receptor_name}",
-                    status="succeeded",
-                    output_summary=(
-                        f"生成任务 {manifest.task_id}；尚无对接分数"
-                    ),
-                )
-                snapshot = append_event(
-                    snapshot,
-                    TaskStatus.RUNNING,
-                    "AutoDock Vina 可复现任务清单已生成，等待外部运行。",
-                )
-                save_snapshot(snapshot)
-                st.success("任务清单已保存；未导入真实输出前不会显示分数。")
+                if not execute_local_vina:
+                    snapshot = append_tool_call(
+                        snapshot,
+                        operation_name,
+                        f"{docking_compound} × {receptor_name}",
+                        status="succeeded",
+                        output_summary=(
+                            f"生成任务 {manifest.task_id}；尚无对接分数"
+                        ),
+                        metadata={
+                            "manifest_sha256": manifest.manifest_sha256,
+                        },
+                    )
+                    snapshot = append_event(
+                        snapshot,
+                        TaskStatus.RUNNING,
+                        "AutoDock Vina 可复现任务清单已生成，等待外部运行。",
+                    )
+                    save_snapshot(snapshot)
+                    st.success(
+                        "任务清单已保存；未导入真实输出前不会显示分数。"
+                    )
+                else:
+                    snapshot = append_event(
+                        snapshot,
+                        TaskStatus.RUNNING,
+                        (
+                            "VetEvidence Agent 准备调用本机 AutoDock Vina；"
+                            "任务清单已先行保存。"
+                        ),
+                        metadata={
+                            "task_id": manifest.task_id,
+                            "manifest_sha256": manifest.manifest_sha256,
+                        },
+                    )
+                    save_snapshot(snapshot)
+                    status_box = st.status(
+                        "正在由 VetEvidence Agent 运行本机 AutoDock Vina…",
+                        expanded=True,
+                    )
+                    try:
+                        if local_vina is None:
+                            raise VinaExecutionError(
+                                "本机 Vina 在执行前不可用。"
+                            )
+                        status_box.write("再次核验 Vina 版本和可执行文件哈希。")
+                        execution = execute_vina(
+                            manifest,
+                            ligand_payload,
+                            receptor_payload,
+                            executable=local_vina,
+                        )
+                        audit = execution.docking_run.execution_audit
+                        if audit is None:
+                            raise ValueError("本机 Vina 执行缺少审计记录。")
+                        status_box.write("Vina 已退出，正在校验日志与构象文件。")
+                        execution_metadata = execution.metadata.model_dump(
+                            mode="json",
+                            exclude={"executable_path"},
+                        )
+                        stored_artifacts = VINA_ARTIFACT_STORE.save(
+                            run_id=snapshot.run_id,
+                            task_id=manifest.task_id,
+                            manifest_sha256=manifest.manifest_sha256,
+                            bound_log=execution.bound_log,
+                            output_pdbqt=execution.output_pdbqt,
+                            execution=execution_metadata,
+                        )
+                        if (
+                            stored_artifacts.metadata.log_sha256
+                            != execution.docking_run.output_source.sha256
+                        ):
+                            raise ValueError(
+                                "保存后的 Vina 日志哈希与解析来源不一致。"
+                            )
+                    except (
+                        OSError,
+                        ValidationError,
+                        ValueError,
+                        VinaExecutionError,
+                    ) as exc:
+                        status_box.update(
+                            label="本机 Vina 执行失败",
+                            state="error",
+                            expanded=True,
+                        )
+                        snapshot = append_tool_call(
+                            snapshot,
+                            operation_name,
+                            f"{docking_compound} × {receptor_name}",
+                            status="failed",
+                            error=str(exc),
+                            metadata={
+                                "manifest_sha256": manifest.manifest_sha256,
+                            },
+                        )
+                        snapshot = append_event(
+                            snapshot,
+                            TaskStatus.FAILED,
+                            f"本机 AutoDock Vina 执行失败：{exc}",
+                        )
+                        save_snapshot(snapshot)
+                        st.error(
+                            "任务清单已保留，但没有保存对接分数："
+                            f"{exc}"
+                        )
+                    else:
+                        previous_runs = [
+                            run
+                            for run in bundle.docking_runs
+                            if run.manifest.task_id != manifest.task_id
+                        ]
+                        bundle = bundle.model_copy(
+                            update={
+                                "docking_runs": [
+                                    *previous_runs,
+                                    execution.docking_run,
+                                ]
+                            }
+                        )
+                        snapshot = snapshot.model_copy(
+                            update={
+                                "mechanism_prediction": bundle,
+                                "report": None,
+                            }
+                        )
+                        snapshot = append_tool_call(
+                            snapshot,
+                            operation_name,
+                            f"{docking_compound} × {receptor_name}",
+                            status="succeeded",
+                            output_summary=(
+                                f"{len(execution.docking_run.poses)} 个模式；"
+                                f"最佳 "
+                                f"{execution.docking_run.best_affinity_kcal_mol:g} "
+                                "kcal/mol"
+                            ),
+                            metadata={
+                                "manifest_sha256": manifest.manifest_sha256,
+                                "bound_log_sha256": (
+                                    stored_artifacts.metadata.log_sha256
+                                ),
+                                **audit.model_dump(mode="json"),
+                            },
+                        )
+                        snapshot = append_event(
+                            snapshot,
+                            TaskStatus.RUNNING,
+                            (
+                                "VetEvidence Agent 已调用本机 AutoDock Vina，"
+                                "并保存版本、参数、退出码和输出哈希。"
+                            ),
+                            metadata={
+                                "task_id": manifest.task_id,
+                                "manifest_sha256": manifest.manifest_sha256,
+                                "executable_sha256": audit.executable_sha256,
+                                "output_pdbqt_sha256": (
+                                    audit.output_pdbqt_sha256
+                                ),
+                            },
+                        )
+                        save_snapshot(snapshot)
+                        status_box.update(
+                            label="本机 AutoDock Vina 执行完成",
+                            state="complete",
+                            expanded=False,
+                        )
+                        st.success(
+                            "真实 Vina 进程已完成；日志、构象文件和哈希已保存。"
+                        )
 
         st.subheader("导入用户提供的 AutoDock Vina 文本输出")
         snapshot = current_snapshot()
@@ -1666,6 +2041,24 @@ with mechanism_tab:
                 for manifest in manifests
                 if manifest.task_id == selected_task_id
             )
+            selected_run = next(
+                (
+                    run
+                    for run in snapshot.mechanism_prediction.docking_runs
+                    if run.manifest.task_id == selected_task_id
+                ),
+                None,
+            )
+            has_local_audit = (
+                selected_run is not None
+                and selected_run.execution_audit is not None
+            )
+            if has_local_audit:
+                st.info(
+                    "该任务已有 VetEvidence Agent 本机执行审计。为避免审计"
+                    "记录与当前结果矛盾，不能用用户上传日志覆盖；请生成新"
+                    "任务清单后再导入。"
+                )
             vina_output_file = st.file_uploader(
                 "上传 Vina 标准输出文本",
                 type=["txt", "log"],
@@ -1673,11 +2066,15 @@ with mechanism_tab:
             )
             import_vina_output = st.button(
                 "校验并导入 Vina 输出",
-                disabled=vina_output_file is None,
+                disabled=vina_output_file is None or has_local_audit,
                 width="stretch",
             )
             if import_vina_output and vina_output_file:
                 try:
+                    if has_local_audit:
+                        raise ValueError(
+                            "已有本机 Vina 执行审计的任务不能被外部输出覆盖。"
+                        )
                     docking_run = parse_vina_output(
                         vina_output_file.getvalue(),
                         manifest=selected_manifest,
@@ -1746,7 +2143,11 @@ with mechanism_tab:
         else:
             st.info("请先上传配体和受体 PDBQT，生成一个任务清单。")
 
-        render_mechanism_prediction(current_snapshot().mechanism_prediction)
+        active_snapshot = current_snapshot()
+        render_mechanism_prediction(
+            active_snapshot.mechanism_prediction,
+            run_id=active_snapshot.run_id,
+        )
 
 with report_tab:
     snapshot = current_snapshot()

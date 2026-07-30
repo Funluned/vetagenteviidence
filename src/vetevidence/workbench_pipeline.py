@@ -1983,6 +1983,15 @@ def decision_report_to_markdown(report: ResearchDecisionReport) -> str:
                     f"{link.compound} ({link.compound_accession})"
                     for link in target.compounds
                 )
+                + "；pathways="
+                + (
+                    "、".join(
+                        f"{link.pathway} ({link.pathway_accession})"
+                        for link in target.pathways
+                    )
+                    if target.pathways
+                    else "、".join(target.pathway_accessions)
+                )
             )
         lines.append(
             "- 局限：网络排名只反映用户导入关系的透明拓扑统计，"
@@ -2011,6 +2020,30 @@ def decision_report_to_markdown(report: ResearchDecisionReport) -> str:
         )
     for run in prediction.docking_runs:
         manifest = run.manifest
+        execution_lines: list[str] = []
+        if run.execution_audit is not None:
+            audit = run.execution_audit
+            execution_lines.extend(
+                [
+                    "- 执行方式：VetEvidence Agent 调用本机 AutoDock Vina",
+                    f"- Vina 可执行文件 SHA-256：{audit.executable_sha256}",
+                    f"- 本机执行退出码：{audit.exit_code}；"
+                    f"耗时={audit.duration_seconds:.3f} 秒",
+                    f"- 对接构象文件 SHA-256：{audit.output_pdbqt_sha256}",
+                ]
+            )
+            limitation = (
+                "- 局限：系统记录了本机 Vina 版本、可执行文件哈希、参数、"
+                "退出码和输出哈希，但对接得分仍只表示该结构、质子化状态、"
+                "搜索框和评分函数下的计算结果，不能证明体内外活性或药物协同。"
+            )
+        else:
+            limitation = (
+                "- 局限：对接得分只表示该结构、质子化状态、搜索框和"
+                "评分函数下的计算结果，不能证明体内外活性或药物协同；"
+                "系统只核验文件格式、任务哈希、版本与内容哈希，不能"
+                "认证该文件确由 Vina 实际运行产生。"
+            )
         lines.extend(
             [
                 f"### 分子对接：{manifest.compound_name} × "
@@ -2039,12 +2072,8 @@ def decision_report_to_markdown(report: ResearchDecisionReport) -> str:
                 f"num_modes={manifest.parameters.num_modes}；"
                 f"seed={manifest.parameters.seed}",
                 f"- 最佳解析得分：{run.best_affinity_kcal_mol} kcal/mol",
-                (
-                    "- 局限：对接得分只表示该结构、质子化状态、搜索框和"
-                    "评分函数下的计算结果，不能证明体内外活性或药物协同；"
-                    "系统只核验文件格式、任务哈希、版本与内容哈希，不能"
-                    "认证该文件确由 Vina 实际运行产生。"
-                ),
+                *execution_lines,
+                limitation,
                 "",
             ]
         )

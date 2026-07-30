@@ -88,12 +88,18 @@ class NetworkCompoundLink(PredictionModel):
     compound_accession: str = Field(min_length=1)
 
 
+class NetworkPathwayLink(PredictionModel):
+    pathway: str = Field(min_length=1)
+    pathway_accession: str = Field(min_length=1)
+
+
 class RankedNetworkTarget(PredictionModel):
     rank: int = Field(ge=1)
     target: str = Field(min_length=1)
     target_accession: str = Field(min_length=1)
     organism: str = Field(min_length=1)
     compounds: list[NetworkCompoundLink] = Field(default_factory=list)
+    pathways: list[NetworkPathwayLink] = Field(default_factory=list)
     compound_accessions: list[str]
     pathway_accessions: list[str]
     compound_degree: int = Field(ge=1)
@@ -183,12 +189,31 @@ class VinaPose(PredictionModel):
     rmsd_upper_bound: float = Field(ge=0)
 
 
+class VinaExecutionAudit(PredictionModel):
+    execution_mode: Literal["local_vina"] = "local_vina"
+    executable_sha256: str = Field(
+        min_length=64,
+        max_length=64,
+        pattern=r"^[0-9a-f]{64}$",
+    )
+    executable_version: str = Field(min_length=1)
+    arguments: list[str] = Field(min_length=1)
+    exit_code: Literal[0] = 0
+    duration_seconds: float = Field(ge=0)
+    output_pdbqt_sha256: str = Field(
+        min_length=64,
+        max_length=64,
+        pattern=r"^[0-9a-f]{64}$",
+    )
+
+
 class VinaDockingRun(PredictionModel):
     parser_version: str = VINA_PARSER_VERSION
     manifest: VinaTaskManifest
     output_source: SourceProvenance
     poses: list[VinaPose] = Field(min_length=1)
     best_affinity_kcal_mol: float
+    execution_audit: VinaExecutionAudit | None = None
     evidence_grade: PredictionEvidenceGrade = (
         PredictionEvidenceGrade.COMPUTATIONAL_PREDICTION
     )
@@ -229,7 +254,7 @@ def _provenance_with_digest(
 def _read_csv_rows(
     payload: str | bytes,
     *,
-    required_columns: set[str],
+    required_columns: tuple[str, ...],
     source: SourceProvenance,
 ) -> tuple[list[tuple[int, dict[str, str]]], SourceProvenance]:
     raw = _csv_bytes(payload)
@@ -239,29 +264,58 @@ def _read_csv_rows(
     except UnicodeDecodeError as exc:
         raise ValueError(f"{source.source_name} 必须是 UTF-8 CSV。") from exc
 
-    reader = csv.DictReader(io.StringIO(text))
-    fieldnames = {field.strip() for field in (reader.fieldnames or []) if field}
-    missing = sorted(required_columns - fieldnames)
+    reader = csv.DictReader(io.StringIO(text), strict=True)
+    fieldnames = [
+        (field or "").strip() for field in (reader.fieldnames or [])
+    ]
+    if not fieldnames or not any(fieldnames):
+        raise ValueError(f"{source.source_name} 第一行必须是字段表头。")
+    if any(not field for field in fieldnames):
+        raise ValueError(f"{source.source_name} 表头包含空列名。")
+    duplicates = sorted(
+        {field for field in fieldnames if fieldnames.count(field) > 1}
+    )
+    if duplicates:
+        raise ValueError(
+            f"{source.source_name} 表头包含重复列：" + "、".join(duplicates)
+        )
+    missing = sorted(set(required_columns) - set(fieldnames))
     if missing:
         raise ValueError(
             f"{source.source_name} 缺少必需列：" + "、".join(missing)
         )
+    if tuple(fieldnames) != required_columns:
+        raise ValueError(
+            f"{source.source_name} 表头必须与模板完全一致并保持顺序："
+            + "、".join(required_columns)
+        )
 
     rows: list[tuple[int, dict[str, str]]] = []
-    for row_number, raw_row in enumerate(reader, start=2):
-        row = {
-            (key or "").strip(): (value or "").strip()
-            for key, value in raw_row.items()
-        }
-        if not any(row.values()):
-            continue
-        empty = sorted(column for column in required_columns if not row.get(column))
-        if empty:
-            raise ValueError(
-                f"{source.source_name} 第 {row_number} 行缺少值："
-                + "、".join(empty)
+    try:
+        for row_number, raw_row in enumerate(reader, start=2):
+            if None in raw_row:
+                raise ValueError(
+                    f"{source.source_name} 第 {row_number} 行的列数多于表头。"
+                )
+            row = {
+                (key or "").strip(): (value or "").strip()
+                for key, value in raw_row.items()
+            }
+            if not any(row.values()):
+                continue
+            empty = sorted(
+                column for column in required_columns if not row.get(column)
             )
-        rows.append((row_number, row))
+            if empty:
+                raise ValueError(
+                    f"{source.source_name} 第 {row_number} 行缺少值："
+                    + "、".join(empty)
+                )
+            rows.append((row_number, row))
+    except csv.Error as exc:
+        raise ValueError(
+            f"{source.source_name} 不是结构完整的 CSV：{exc}"
+        ) from exc
     if not rows:
         raise ValueError(f"{source.source_name} 没有可用数据行。")
     return rows, traced_source
@@ -272,13 +326,13 @@ def parse_compound_target_csv(
     *,
     source: SourceProvenance,
 ) -> list[CompoundTargetRecord]:
-    required = {
+    required = (
         "compound",
         "compound_accession",
         "organism",
         "target",
         "target_accession",
-    }
+    )
     rows, traced_source = _read_csv_rows(
         payload,
         required_columns=required,
@@ -303,13 +357,13 @@ def parse_target_pathway_csv(
     *,
     source: SourceProvenance,
 ) -> list[TargetPathwayRecord]:
-    required = {
+    required = (
         "organism",
         "target",
         "target_accession",
         "pathway",
         "pathway_accession",
-    }
+    )
     rows, traced_source = _read_csv_rows(
         payload,
         required_columns=required,
@@ -347,12 +401,32 @@ def analyze_network_pharmacology_csv(
         target_pathway_csv,
         source=target_pathway_source,
     )
+    return analyze_network_pharmacology_records(
+        compound_records,
+        pathway_records,
+        parameters=parameters,
+    )
+
+
+def analyze_network_pharmacology_records(
+    compound_records: list[CompoundTargetRecord],
+    pathway_records: list[TargetPathwayRecord],
+    *,
+    parameters: NetworkPharmacologyParameters | None = None,
+) -> NetworkPharmacologyResult:
+    """Build a traceable intersection network from normalized relation rows."""
+
+    if not compound_records:
+        raise ValueError("化合物—靶点数据没有可用数据行。")
+    if not pathway_records:
+        raise ValueError("靶点—通路数据没有可用数据行。")
     active_parameters = parameters or NetworkPharmacologyParameters()
 
     TargetKey = tuple[str, str]
     compound_by_target: dict[TargetKey, set[str]] = defaultdict(set)
     compound_names_by_target: dict[TargetKey, dict[str, str]] = defaultdict(dict)
     pathway_by_target: dict[TargetKey, set[str]] = defaultdict(set)
+    pathway_names_by_target: dict[TargetKey, dict[str, str]] = defaultdict(dict)
     target_names: dict[TargetKey, str] = {}
     organism_names: dict[TargetKey, str] = {}
     references: dict[TargetKey, set[tuple[str, int]]] = defaultdict(set)
@@ -376,6 +450,18 @@ def analyze_network_pharmacology_csv(
     for record in pathway_records:
         key = (record.organism.casefold(), record.target_accession)
         pathway_by_target[key].add(record.pathway_accession)
+        existing_pathway_name = pathway_names_by_target[key].get(
+            record.pathway_accession
+        )
+        if (
+            existing_pathway_name is not None
+            and _scope_key(existing_pathway_name) != _scope_key(record.pathway)
+        ):
+            raise ValueError(
+                f"通路 accession {record.pathway_accession} 在同一靶点"
+                f"对应多个名称：{existing_pathway_name}、{record.pathway}。"
+            )
+        pathway_names_by_target[key][record.pathway_accession] = record.pathway
         target_names.setdefault(key, record.target)
         organism_names.setdefault(key, record.organism)
         references[key].add((record.source.accession, record.row_number))
@@ -400,6 +486,13 @@ def analyze_network_pharmacology_csv(
                     compound_accession=accession,
                 )
                 for accession in sorted(compound_by_target[key])
+            ],
+            pathways=[
+                NetworkPathwayLink(
+                    pathway=pathway_names_by_target[key][accession],
+                    pathway_accession=accession,
+                )
+                for accession in sorted(pathway_by_target[key])
             ],
             compound_accessions=sorted(compound_by_target[key]),
             pathway_accessions=sorted(pathway_by_target[key]),
@@ -767,6 +860,7 @@ __all__ = [
     "CompoundTargetRecord",
     "MechanismPredictionBundle",
     "NetworkCompoundLink",
+    "NetworkPathwayLink",
     "NetworkPharmacologyParameters",
     "NetworkPharmacologyResult",
     "NetworkSummary",
@@ -776,9 +870,11 @@ __all__ = [
     "SourceProvenance",
     "TargetPathwayRecord",
     "VinaDockingRun",
+    "VinaExecutionAudit",
     "VinaParameters",
     "VinaPose",
     "VinaTaskManifest",
+    "analyze_network_pharmacology_records",
     "analyze_network_pharmacology_csv",
     "build_vina_manifest",
     "canonical_manifest_sha256",

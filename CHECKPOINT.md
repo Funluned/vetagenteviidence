@@ -138,17 +138,26 @@ VetResearch Workbench v0.6 已完成受控 OpenMM 技术烟测：v0.5 分子对�
 - [x] 用户主动查询 PubChem、UniProt、NCBI Gene/GenBank、RCSB PDB、
   STRING 和 DAVID，并统一记录 CID/InChIKey、UniProt accession、GeneID、
   GenBank accession.version、PDB ID 与 NCBI TaxID
+- [x] 数据库页改为单库三步式检索：先选数据库，再输入名称或标准编号，
+  最后联网检索或生成离线请求；需要物种时从常用兽医物种选择或填写 TaxID，
+  不再静默默认成人类
+- [x] RCSB PDB 同时支持直接按 PDB ID 获取结构，以及用 UniProt accession
+  加 TaxID 搜索结构候选
 - [x] NCBI 缺联系邮箱时不发请求；STRING/DAVID 未明确同意标识外发时只生成
   带参数和 SHA-256 的离线请求
 - [x] 每个查询按运行 ID 和查询 ID 保存原始响应、规范化结果、解析器版本、
   ETag/Last-Modified、来源时间、清单和 `SHA256SUMS.txt`，拒绝覆盖已有归档
+- [x] 联网有结果、联网无结果、未发送的离线请求、已返回但有警告四种
+  连接器状态与本地归档成功分别显示，不再用“已归档”代替查询结论
+- [x] 页面刷新或会话重建时扫描当前运行的本地归档；只有 manifest、结果
+  与原始响应 SHA-256 全部通过校验的最近 100 条会恢复，坏项逐项警告
 - [x] STRING 实验、人工整理、文本挖掘与计算预测通道分开显示，
   `combined_score` 只用于排序
 - [x] DAVID 保留明确目标集与背景集、TaxID、映射比例、原始 P 值和上游
   BH 校正值；缺失校正值时标记未报告，不在筛选后的不完整集合上补算
 - [x] 建立 DAVID 基因—条目注释边及 STRING 标识映射边；不同 TaxID、同层
   混合 TaxID 或无法证明的跨库身份不会被合并
-- [x] 七步 Streamlit 工作台新增“数据库证据”，提供状态、记录、标识映射、
+- [x] Streamlit 工作台“数据库证据”提供状态、记录、标识映射、
   来源 URL、原始响应哈希、JSON/ZIP/离线请求下载和工具调用审计
 
 ### 验证证据
@@ -158,14 +167,16 @@ VetResearch Workbench v0.6 已完成受控 OpenMM 技术烟测：v0.5 分子对�
 - 真实 PubChem：`quercetin` 解析为 CID `5280343` 和 InChIKey
   `REFJWTPEDVJJIY-UHFFFAOYSA-N`。
 - 真实 UniProt：`P69905` 返回 TaxID `9606`，release `2026_02`。
-- 真实 RCSB 搜索：`P00533 / TaxID 9606` 返回 `1IVO`、`1M14`；已修复旧字段
-  导致的 HTTP 400。
+- 真实 RCSB 搜索：`P00533 / TaxID 9606` 返回 `1IVO`、`1M14`、`1M17`；
+  单库界面的 UniProt→PDB 执行分支已通过 AppTest 调用契约验证。
 - 真实 STRING：`P69905 + P68871 / TaxID 9606` 使用固定版本 `12.0`，
   返回 1 条关系、7 条分层证据边和 1 条仅排序关系。
 - NCBI 与 DAVID 本轮未使用真实联系邮箱或注册邮箱；已实测安全离线导出，
   不把未执行的网络请求写成在线成功。
 - 浏览器实测七个顶层标签；创建任务后完成真实 PubChem 查询、原始归档与
   JSON/ZIP 下载入口，并完成 NCBI 无邮箱离线请求与下载；控制台无错误。
+- 本轮数据库连接器、归档、证据网络、单库 UI 与项目文档专项回归：
+  `51 passed`；浏览器再次完成真实 PubChem 查询并核对结果优先页面。
 
 ## VetResearch Workbench v0.5 分子对接科研链（已完成）
 
@@ -244,7 +255,7 @@ VetResearch Workbench v0.6 已完成受控 OpenMM 技术烟测：v0.5 分子对�
   `C:\Users\sunqi\AppData\Local\VetEvidence\md-smoke-results\v06-final-cuda-20260730T185000`。
 - v0.6 文档、代码、测试与 smoke 脚本的项目制品契约：
   `tests/test_project_artifacts.py` 为 `4 passed`。
-- 最终全量自动回归：`341 passed`；`pip check` 无依赖冲突，
+- 最终全量自动回归：`352 passed`；`pip check` 无依赖冲突，
   `git diff --check` 通过。
 - 上述 fixture 不是蛋白—配体科研体系；通过只表示技术完整性和最小数值
   健康，不能解释构象稳定性、结合、抗菌活性、协同或自由能。

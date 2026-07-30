@@ -233,8 +233,19 @@ python -m venv .venv
 
 - 接入 PubChem、UniProt、NCBI Gene/GenBank、RCSB PDB、STRING 与 DAVID，
   统一使用稳定标识和 NCBI TaxID，并把每次原始响应与规范化结果分开归档。
+- 数据库页收敛为一次只选一个数据库的三步流程：选择数据库、输入名称或
+  标准编号、开始检索；物种从常用兽医物种中选择或显式填写 TaxID，不再
+  隐式使用人类。
+- RCSB PDB 保留直接按 PDB ID 获取结构，并增加 UniProt accession + TaxID
+  的结构候选搜索入口。
 - STRING/DAVID 的标识列表只有在用户明确同意后才外发；NCBI 无联系邮箱时
   不发送请求。离线路径仍保留参数、输入哈希与下载文件。
+- 连接器的四种真实结果状态必须与存储动作分开：联网有结果、联网无结果、
+  未发送的离线请求、已返回但有警告，都可能成功写入本地归档；“已归档”
+  不能当成“联网成功”。
+- Streamlit 会话不是结果的唯一来源。刷新后从当前运行目录发现归档，但先
+  校验 manifest、`result.json`、原始响应和 SHA-256；只恢复最近 100 条
+  通过校验的结果，坏项逐项提示且不载入。
 - STRING 的 `experimental/database/text mining/prediction` 分数各自形成
   证据边，combined score 只形成排序关系。
 - DAVID chart 中的稳定 term ID 从 `ID~名称` 拆出，内部行号单独保留；物种
@@ -260,6 +271,8 @@ python -m venv .venv
   验证。
 - 数据库零结果不等于不存在生物学关系；数据库关联、PPI 与富集也不等于实验
   验证、因果机制或药物协同。
+- UI 中“查询状态”和“本地归档状态”必须使用不同概念；离线请求被保存是
+  可审计性成功，不是外部服务命中。
 - DAVID SOAP 不提供可核验知识库 release 时就明确写未报告；用户填写的版本
   只能标为 user-asserted，不能进入上游 provenance。
 
@@ -344,7 +357,8 @@ python -m venv .venv
   样本并通过 QC。CUDA 实际设备为
   `NVIDIA GeForce RTX 5070 Laptop GPU`，`DeviceIndex=0`、`mixed` 精度；
   CPU 执行审计的实际平台为 `CPU`。
-- 最终全量自动回归为 `341 passed`，依赖检查与 Git 差异检查通过。
+- 本轮数据库界面收敛后最终全量自动回归为 `352 passed`，依赖检查与
+  Git 差异检查通过。
 - 两次 smoke 均只证明技术完整性。合成两原子体系不是生物分子科研案例，
   不能支持稳定性、收敛、结合、抗菌作用、协同或自由能结论。
 

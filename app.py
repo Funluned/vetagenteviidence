@@ -32,6 +32,15 @@ from vetevidence.database_connectors import (
     UniProtConnector,
     export_connector_result,
 )
+from vetevidence.database_ui_support import (
+    CUSTOM_TAXON_LABEL,
+    DAVID_SUPPORTED_TAXON_IDS,
+    DATABASE_SOURCE_CONFIGS,
+    VETERINARY_SPECIES_TAX_IDS,
+    parse_taxon_selection,
+    restore_connector_entries,
+    summarize_connector_results,
+)
 from vetevidence.docking_ui import render_docking_workbench
 from vetevidence.evidence_network import (
     EvidenceNetwork,
@@ -462,10 +471,10 @@ DATABASE_HOME_URLS = {
     "DAVID": "https://davidbioinformatics.nih.gov/",
 }
 DATABASE_STATUS_LABELS = {
-    ConnectorStatus.OK: "可用",
-    ConnectorStatus.NO_RESULTS: "无结果",
-    ConnectorStatus.DEGRADED: "降级",
-    ConnectorStatus.OFFLINE_EXPORT: "未发送 / 离线导出",
+    ConnectorStatus.OK: "联网有结果",
+    ConnectorStatus.NO_RESULTS: "联网无结果",
+    ConnectorStatus.DEGRADED: "已返回但有警告",
+    ConnectorStatus.OFFLINE_EXPORT: "未发送 / 离线请求",
 }
 DATABASE_EVIDENCE_TYPE_LABELS = {
     "experimental": "实验验证",
@@ -473,7 +482,101 @@ DATABASE_EVIDENCE_TYPE_LABELS = {
     "text_mined": "文本推断",
     "computational_prediction": "模型或计算预测",
 }
+DATABASE_SOURCE_CONFIG_BY_LABEL = {
+    config.label: config for config in DATABASE_SOURCE_CONFIGS
+}
 MAX_DATABASE_HISTORY = 100
+DATABASE_RECORD_COLUMN_LABELS = {
+    "record_type": "记录类型",
+    "cid": "PubChem CID",
+    "iupac_name": "IUPAC 名称",
+    "canonical_smiles": "Canonical SMILES",
+    "isomeric_smiles": "Isomeric SMILES",
+    "inchikey": "InChIKey",
+    "molecular_formula": "分子式",
+    "molecular_weight": "分子量",
+    "primary_accession": "UniProt accession",
+    "reviewed": "已审阅",
+    "protein_name": "蛋白名称",
+    "gene_names": "基因名",
+    "gene_id": "GeneID",
+    "symbol": "基因符号",
+    "description": "描述",
+    "accession": "Accession",
+    "accession_version": "Accession.version",
+    "pdb_id": "PDB ID",
+    "uniprot_accession": "UniProt accession",
+    "title": "标题",
+    "experimental_methods": "实验方法",
+    "resolution_angstrom": "分辨率（Å）",
+    "organism_name": "物种",
+    "taxon_id": "NCBI TaxID",
+    "preferred_name_a": "蛋白 A",
+    "preferred_name_b": "蛋白 B",
+    "combined_score": "STRING 综合分数",
+    "term_id": "通路/术语 ID",
+    "term_name": "通路/术语名称",
+    "category": "类别",
+    "hit_count": "命中基因数",
+    "p_value": "P 值",
+    "bh_adjusted_p_value": "BH 校正 P 值",
+    "fold_enrichment": "富集倍数",
+}
+DATABASE_RECORD_PREVIEW_FIELDS = {
+    "compound": (
+        "cid",
+        "iupac_name",
+        "molecular_formula",
+        "molecular_weight",
+        "inchikey",
+    ),
+    "protein": (
+        "primary_accession",
+        "protein_name",
+        "gene_names",
+        "organism_name",
+        "taxon_id",
+        "reviewed",
+    ),
+    "gene": (
+        "gene_id",
+        "symbol",
+        "description",
+        "organism_name",
+        "taxon_id",
+    ),
+    "nucleotide": (
+        "accession_version",
+        "organism_name",
+        "taxon_id",
+    ),
+    "structure_hit": (
+        "pdb_id",
+        "uniprot_accession",
+        "taxon_id",
+    ),
+    "structure": (
+        "pdb_id",
+        "title",
+        "experimental_methods",
+        "resolution_angstrom",
+    ),
+    "string_interaction": (
+        "preferred_name_a",
+        "preferred_name_b",
+        "combined_score",
+        "taxon_id",
+    ),
+    "david_enrichment": (
+        "term_id",
+        "term_name",
+        "category",
+        "hit_count",
+        "p_value",
+        "bh_adjusted_p_value",
+        "fold_enrichment",
+    ),
+}
 
 
 def split_database_identifiers(
@@ -497,8 +600,45 @@ def split_database_identifiers(
     return identifiers
 
 
+def database_network_from_entries(
+    entries: list[dict[str, object]],
+) -> EvidenceNetwork | None:
+    """Rebuild the latest STRING/DAVID network without writing a second audit."""
+
+    latest: dict[str, ConnectorResult] = {}
+    for entry in reversed(entries):
+        source = entry.get("source")
+        result = entry.get("result")
+        if (
+            source in {"STRING", "DAVID"}
+            and source not in latest
+            and isinstance(result, ConnectorResult)
+        ):
+            latest[str(source)] = result
+    if not latest or not any(result.records for result in latest.values()):
+        return None
+
+    string_result = latest.get("STRING")
+    david_result = latest.get("DAVID")
+    return build_evidence_network(
+        string_result.records if string_result else (),
+        string_provenance=(
+            string_result.provenance[-1]
+            if string_result and string_result.provenance
+            else None
+        ),
+        string_mappings=string_result.mappings if string_result else (),
+        enrichment_records=david_result.records if david_result else (),
+        enrichment_provenance=(
+            david_result.provenance[-1]
+            if david_result and david_result.provenance
+            else None
+        ),
+    )
+
+
 def database_state(run_id: str) -> dict[str, object]:
-    """Return bounded, per-session connector state for the active run only."""
+    """Return bounded state and restore hash-verified archives after reload."""
 
     state = st.session_state.get(DATABASE_RESULTS_STATE_KEY)
     if (
@@ -506,10 +646,36 @@ def database_state(run_id: str) -> dict[str, object]:
         or state.get("run_id") != run_id
         or not isinstance(state.get("entries"), list)
     ):
+        restored = restore_connector_entries(
+            CONNECTOR_ARTIFACT_STORE,
+            run_id,
+            limit=MAX_DATABASE_HISTORY,
+        )
+        restored_entries = [
+            {
+                "source": entry.source,
+                "query_id": entry.query_id,
+                "input_summary": "从本地校验归档恢复",
+                "archive_path": (
+                    f".workbench/connectors/{run_id}/{entry.query_id}"
+                ),
+                "result": entry.result,
+            }
+            for entry in restored.entries
+        ]
+        restore_warnings = list(restored.warnings)
+        try:
+            restored_network = database_network_from_entries(restored_entries)
+        except (TypeError, ValueError):
+            restored_network = None
+            restore_warnings.append(
+                "已恢复数据库结果，但 STRING/DAVID 证据网络无法安全重建。"
+            )
         state = {
             "run_id": run_id,
-            "entries": [],
-            "network": None,
+            "entries": restored_entries,
+            "network": restored_network,
+            "restore_warnings": restore_warnings,
         }
         st.session_state[DATABASE_RESULTS_STATE_KEY] = state
     return state
@@ -710,41 +876,18 @@ def build_database_network(
 ) -> WorkbenchRunSnapshot:
     """Build the latest STRING + DAVID evidence network and audit the result."""
 
-    latest: dict[str, ConnectorResult] = {}
     entries = state.get("entries")
-    if isinstance(entries, list):
-        for entry in reversed(entries):
-            if not isinstance(entry, dict):
-                continue
-            source = entry.get("source")
-            result = entry.get("result")
-            if (
-                source in {"STRING", "DAVID"}
-                and source not in latest
-                and isinstance(result, ConnectorResult)
-            ):
-                latest[str(source)] = result
-
-    string_result = latest.get("STRING")
-    david_result = latest.get("DAVID")
+    valid_entries = [
+        entry
+        for entry in (entries if isinstance(entries, list) else [])
+        if isinstance(entry, dict)
+    ]
     try:
-        network = build_evidence_network(
-            string_result.records if string_result else (),
-            string_provenance=(
-                string_result.provenance[-1]
-                if string_result and string_result.provenance
-                else None
-            ),
-            string_mappings=(
-                string_result.mappings if string_result else ()
-            ),
-            enrichment_records=david_result.records if david_result else (),
-            enrichment_provenance=(
-                david_result.provenance[-1]
-                if david_result and david_result.provenance
-                else None
-            ),
-        )
+        network = database_network_from_entries(valid_entries)
+        if network is None:
+            state["network"] = None
+            st.session_state[DATABASE_RESULTS_STATE_KEY] = state
+            return snapshot
     except Exception as exc:
         state["network"] = None
         st.session_state[DATABASE_RESULTS_STATE_KEY] = state
@@ -762,8 +905,12 @@ def build_database_network(
         "evidence_edge_count": len(network.edges),
         "ranking_count": len(network.rankings),
         "enrichment_count": len(network.enrichment),
-        "string_query_present": string_result is not None,
-        "david_query_present": david_result is not None,
+        "string_query_present": any(
+            entry.get("source") == "STRING" for entry in valid_entries
+        ),
+        "david_query_present": any(
+            entry.get("source") == "DAVID" for entry in valid_entries
+        ),
     }
     snapshot = append_tool_call(
         snapshot,
@@ -813,6 +960,94 @@ def connector_source_url(
         if provenance.endpoint_url:
             return provenance.endpoint_url
     return DATABASE_HOME_URLS.get(source or "", "")
+
+
+def database_record_preview_rows(
+    result: ConnectorResult,
+) -> list[dict[str, object]]:
+    """Build a compact, source-aware table for the result-first view."""
+
+    rows: list[dict[str, object]] = []
+    for record in result.records:
+        record_type = str(record.get("record_type") or "")
+        fields = DATABASE_RECORD_PREVIEW_FIELDS.get(record_type)
+        if fields is None:
+            fields = tuple(
+                key
+                for key in record
+                if key not in {"record_type", "source_url"}
+            )[:8]
+        row = {
+            DATABASE_RECORD_COLUMN_LABELS.get(key, key): database_display_value(
+                record.get(key)
+            )
+            for key in fields
+            if record.get(key) is not None
+        }
+        row["来源 URL"] = str(record.get("source_url") or "")
+        rows.append(row)
+    return rows
+
+
+def render_latest_database_result(entry: dict[str, object]) -> None:
+    """Explain the latest connector outcome before exposing audit detail."""
+
+    result = entry["result"]
+    if not isinstance(result, ConnectorResult):
+        return
+    source = str(entry.get("source") or "数据库")
+    query_id = str(entry.get("query_id") or "")
+    record_count = len(result.records)
+
+    if result.status is ConnectorStatus.OK:
+        st.success(
+            f"{source} 联网检索完成：找到 {record_count} 条记录。",
+            icon=":material/check_circle:",
+        )
+    elif result.status is ConnectorStatus.NO_RESULTS:
+        st.info(
+            f"{source} 已完成联网检索，但没有找到匹配记录。"
+            "请核对编号、物种或输入类型。",
+            icon=":material/search_off:",
+        )
+    elif result.status is ConnectorStatus.DEGRADED:
+        st.warning(
+            f"{source} 已返回，但结果不完整或需要人工确认；"
+            f"当前保留 {record_count} 条记录。",
+            icon=":material/warning:",
+        )
+    else:
+        st.warning(
+            f"{source} 未向数据库发送请求；已生成可下载的离线请求。",
+            icon=":material/cloud_off:",
+        )
+
+    if result.records:
+        st.dataframe(
+            database_record_preview_rows(result),
+            column_config={
+                "来源 URL": st.column_config.LinkColumn("来源 URL"),
+            },
+            hide_index=True,
+            width="stretch",
+        )
+    source_url = connector_source_url(result, source=source)
+    if source_url:
+        st.link_button(
+            "打开数据库来源",
+            source_url,
+            icon=":material/open_in_new:",
+        )
+    if result.offline_request:
+        st.download_button(
+            "下载离线请求 JSON",
+            data=result.offline_request.content,
+            file_name=f"{query_id}-offline-request.json",
+            mime=result.offline_request.media_type,
+            key=f"download-latest-database-offline-{query_id}",
+            on_click="ignore",
+        )
+    st.caption(f"本地归档已保存：{query_id}。联网状态与本地保存状态分开记录。")
 
 
 def render_database_network(network: EvidenceNetwork) -> None:
@@ -937,11 +1172,33 @@ def render_database_results(
         if isinstance(entry, dict)
         and isinstance(entry.get("result"), ConnectorResult)
     ]
+    st.subheader("3 查看结果")
+    restore_warnings = state.get("restore_warnings")
+    if isinstance(restore_warnings, list) and restore_warnings:
+        st.warning(
+            f"有 {len(restore_warnings)} 个本地归档未通过完整性校验，"
+            "系统已安全跳过；其他结果不受影响。",
+            icon=":material/shield:",
+        )
     if not valid_entries:
-        st.info("尚无数据库查询结果。提交上方表单后，结果与原始响应将写入本地归档。")
+        st.info("尚无结果。输入检索内容并提交后，结果会显示在这里。")
         return snapshot
 
-    st.subheader("连接器结果与可追溯归档")
+    render_latest_database_result(valid_entries[-1])
+    show_audit = st.toggle(
+        "显示审计、历史与下载",
+        value=False,
+        key=f"show-database-audit-{run_id}",
+        help="展开后可查看历史查询、来源版本、访问时间、哈希和原始响应下载。",
+    )
+    if not show_audit:
+        network = state.get("network")
+        if isinstance(network, EvidenceNetwork):
+            st.divider()
+            render_database_network(network)
+        return snapshot
+
+    st.subheader("审计、历史与下载")
     st.dataframe(
         [
             {
@@ -2207,191 +2464,327 @@ with database_tab:
         settings = load_settings()
         state = database_state(snapshot.run_id)
 
-        with st.form(
-            f"database-connectors-{snapshot.run_id}",
-            enter_to_submit=False,
-        ):
-            st.subheader("共同范围与联系信息")
-            shared_columns = st.columns(3)
-            taxon_id = int(
-                shared_columns[0].number_input(
-                    "NCBI TaxID",
-                    min_value=1,
-                    value=9606,
-                    step=1,
-                    key=f"database-taxon-{snapshot.run_id}",
-                    help="所有蛋白、基因、PPI 和富集结果共用这一物种范围。",
+        st.subheader("1 选择数据库")
+        database_source_label = st.selectbox(
+            "数据库",
+            [config.label for config in DATABASE_SOURCE_CONFIGS],
+            key=f"database-source-{snapshot.run_id}",
+            help="一次只检索一个数据库，避免不同数据库的条件互相干扰。",
+        )
+        source_config = DATABASE_SOURCE_CONFIG_BY_LABEL[database_source_label]
+        source_key = source_config.key
+        st.caption(
+            "选择一个数据库，输入名称或标准编号；查询结果会自动保存来源、"
+            "访问时间和原始响应校验信息。"
+        )
+
+        pubchem_namespace_label = "名称"
+        pubchem_include_3d = False
+        gene_identifier_label = "基因符号"
+        pdb_download_mmcif = True
+        rcsb_query_mode = "PDB ID"
+        rcsb_experimental_only = True
+        rcsb_max_results = 25
+        string_network_label = "功能关联"
+        string_required_score = 400
+        david_id_type = "ENTREZ_GENE_ID"
+        david_categories = list(DEFAULT_DAVID_CATEGORIES)
+        david_max_p_value = 0.1
+        david_min_count = 2
+        david_background_input = ""
+        ncbi_email = settings.ncbi_email or ""
+        david_email = os.getenv("DAVID_EMAIL", "")
+        string_consent = False
+        david_consent = False
+
+        with st.container(border=True):
+            st.subheader("2 输入检索内容")
+            if source_key == "rcsb-pdb":
+                rcsb_query_mode = st.segmented_control(
+                    "查询方式",
+                    ["PDB ID", "按 UniProt 找结构"],
+                    default="PDB ID",
+                    required=True,
+                    key=f"database-rcsb-mode-{snapshot.run_id}",
+                    width="stretch",
                 )
+            if source_key == "ncbi-gene":
+                gene_identifier_label = st.segmented_control(
+                    "输入类型",
+                    ["基因符号", "GeneID"],
+                    default="基因符号",
+                    required=True,
+                    key=f"database-gene-mode-{snapshot.run_id}",
+                    width="stretch",
+                )
+
+            input_label = source_config.input_label
+            input_placeholder = source_config.placeholder
+            if source_key == "rcsb-pdb" and rcsb_query_mode == "按 UniProt 找结构":
+                input_label = "UniProt accession"
+                input_placeholder = "例如：P00533"
+            elif source_key == "ncbi-gene" and gene_identifier_label == "基因符号":
+                input_label = "基因符号"
+                input_placeholder = "例如：HBB"
+            elif source_key == "ncbi-gene":
+                input_label = "GeneID"
+                input_placeholder = "例如：3043"
+
+            primary_input = st.text_area(
+                f"{input_label} *",
+                key=f"database-query-{source_key}-{snapshot.run_id}",
+                placeholder=input_placeholder,
+                help="每行一项，也可以使用中文或英文分号分隔。",
+                persist_state="session",
             )
-            ncbi_email = shared_columns[1].text_input(
-                "NCBI 联系邮箱（可选）",
-                value=settings.ncbi_email or "",
-                key=f"database-ncbi-email-{snapshot.run_id}",
-                help="未提供时 NCBI Gene/GenBank 不发送请求，只生成离线请求文件。",
-            ).strip()
-            david_email = shared_columns[2].text_input(
-                "DAVID 注册邮箱（可选）",
-                value=os.getenv("DAVID_EMAIL", ""),
-                key=f"database-david-email-{snapshot.run_id}",
-                help="DAVID Web Service 需要已注册邮箱；该值不会写入审计摘要。",
-            ).strip()
 
-            with st.expander("化合物与蛋白", expanded=True):
-                compound_columns = st.columns(2)
-                with compound_columns[0]:
-                    pubchem_namespace_label = st.selectbox(
-                        "PubChem 输入类型",
-                        ["名称", "CID", "InChIKey"],
-                        key=f"database-pubchem-namespace-{snapshot.run_id}",
-                    )
-                    pubchem_input = st.text_area(
-                        "PubChem 化合物（最多 10 项）",
-                        key=f"database-pubchem-{snapshot.run_id}",
-                        help=(
-                            "每行或分号分隔一项；名称模式不会按逗号切分，"
-                            "以免破坏系统命名。"
-                        ),
-                        placeholder="quercetin",
-                    )
-                    pubchem_include_3d = st.checkbox(
-                        "同时获取可用的 PubChem 3D SDF",
-                        key=f"database-pubchem-3d-{snapshot.run_id}",
-                    )
-                with compound_columns[1]:
-                    uniprot_input = st.text_area(
-                        "UniProt accession（最多 20 项）",
-                        key=f"database-uniprot-{snapshot.run_id}",
-                        help="一行一个标识符，也可用中文或英文分号分隔。",
-                        placeholder="P69905",
-                    )
-
-            with st.expander("NCBI Gene、GenBank 与 RCSB PDB"):
-                ncbi_columns = st.columns(3)
-                with ncbi_columns[0]:
-                    gene_identifier_label = st.selectbox(
-                        "NCBI Gene 输入类型",
-                        ["GeneID", "基因符号"],
-                        key=f"database-gene-mode-{snapshot.run_id}",
-                    )
-                    gene_input = st.text_area(
-                        "NCBI Gene（最多 20 项）",
-                        key=f"database-gene-{snapshot.run_id}",
-                        help="一行一个标识符，也可用中文或英文分号分隔。",
-                        placeholder="3043",
-                    )
-                with ncbi_columns[1]:
-                    genbank_input = st.text_area(
-                        "GenBank accession.version（最多 10 项）",
-                        key=f"database-genbank-{snapshot.run_id}",
-                        help="优先输入带版本号的 accession.version。",
-                        placeholder="NM_000518.5",
-                    )
-                with ncbi_columns[2]:
-                    pdb_input = st.text_area(
-                        "RCSB PDB ID（最多 10 项）",
-                        key=f"database-pdb-{snapshot.run_id}",
-                        help="一行一个标识符，也可用中文或英文分号分隔。",
-                        placeholder="1IEP",
-                    )
-                    pdb_download_mmcif = st.checkbox(
-                        "保存 mmCIF 坐标原始文件",
-                        value=True,
-                        key=f"database-pdb-mmcif-{snapshot.run_id}",
-                    )
-
-            with st.expander("STRING PPI"):
-                string_input = st.text_area(
-                    "蛋白标识符（最多 50 项）",
-                    key=f"database-string-{snapshot.run_id}",
-                    help="可输入 UniProt accession、基因名或 STRING ID；物种由 TaxID 限定。",
-                    placeholder="P69905\nP68871",
+            taxon_required = source_config.requires_taxon_id or (
+                source_key == "rcsb-pdb"
+                and rcsb_query_mode == "按 UniProt 找结构"
+            )
+            taxon_id: int | None = None
+            taxon_error: str | None = None
+            if taxon_required:
+                taxon_selection = st.selectbox(
+                    "物种 *",
+                    [*VETERINARY_SPECIES_TAX_IDS, CUSTOM_TAXON_LABEL],
+                    index=None,
+                    placeholder="请选择物种；不会再默认成人类",
+                    key=f"database-species-{source_key}-{snapshot.run_id}",
+                    persist_state="session",
                 )
-                string_columns = st.columns(2)
-                string_network_label = string_columns[0].selectbox(
-                    "网络类型",
-                    ["功能关联", "物理相互作用"],
-                    key=f"database-string-type-{snapshot.run_id}",
-                )
-                string_required_score = int(
-                    string_columns[1].slider(
-                        "最低 STRING 分数",
-                        min_value=0,
-                        max_value=1000,
-                        value=400,
-                        step=50,
-                        key=f"database-string-score-{snapshot.run_id}",
-                    )
-                )
-                string_consent = st.checkbox(
-                    "我同意把上述蛋白标识符和 TaxID 提交给 STRING 公共服务",
-                    key=f"database-string-consent-{snapshot.run_id}",
-                    help="未勾选时不会联网提交，只生成可下载的离线请求 JSON。",
-                )
-
-            with st.expander("DAVID 富集"):
-                david_columns = st.columns(2)
-                with david_columns[0]:
-                    david_target_input = st.text_area(
-                        "目标基因（最多 500 项）",
-                        key=f"database-david-targets-{snapshot.run_id}",
-                        help="一行一个标识符，也可用中文或英文分号分隔。",
-                        placeholder="3043\n3040",
-                    )
-                    david_id_type = st.selectbox(
-                        "DAVID 标识符类型",
-                        [
-                            "ENTREZ_GENE_ID",
-                            "UNIPROT_ACCESSION",
-                            "OFFICIAL_GENE_SYMBOL",
-                        ],
-                        key=f"database-david-id-type-{snapshot.run_id}",
-                    )
-                with david_columns[1]:
-                    david_background_input = st.text_area(
-                        "明确背景基因集（最多 1000 项）",
-                        key=f"database-david-background-{snapshot.run_id}",
-                        help="背景必须包含全部目标基因，不能留空或使用隐式全基因组背景。",
-                        placeholder="3043\n3040\n3039",
-                    )
-                    david_categories = st.multiselect(
-                        "注释类别",
-                        options=list(DEFAULT_DAVID_CATEGORIES),
-                        default=list(DEFAULT_DAVID_CATEGORIES),
-                        key=f"database-david-categories-{snapshot.run_id}",
-                    )
-                david_threshold_columns = st.columns(2)
-                david_max_p_value = float(
-                    david_threshold_columns[0].number_input(
-                        "最大 EASE P 值",
-                        min_value=0.000001,
-                        max_value=1.0,
-                        value=0.1,
-                        step=0.01,
-                        format="%.6f",
-                        key=f"database-david-p-{snapshot.run_id}",
-                    )
-                )
-                david_min_count = int(
-                    david_threshold_columns[1].number_input(
-                        "最少命中基因数",
+                custom_taxon_id: int | None = None
+                if taxon_selection == CUSTOM_TAXON_LABEL:
+                    custom_value = st.number_input(
+                        "自定义 NCBI TaxID *",
                         min_value=1,
-                        value=2,
+                        value=None,
                         step=1,
-                        key=f"database-david-min-count-{snapshot.run_id}",
+                        placeholder="例如：1311",
+                        key=f"database-custom-taxon-{source_key}-{snapshot.run_id}",
+                        persist_state="session",
                     )
-                )
-                david_consent = st.checkbox(
-                    "我同意把上述目标、背景基因、TaxID 和类别提交给 DAVID 公共服务",
-                    key=f"database-david-consent-{snapshot.run_id}",
-                    help="未勾选时不会联网提交，只生成可下载的离线请求 JSON。",
+                    custom_taxon_id = (
+                        int(custom_value) if custom_value is not None else None
+                    )
+                if taxon_selection:
+                    try:
+                        taxon_id = parse_taxon_selection(
+                            taxon_selection,
+                            custom_taxon_id,
+                        )
+                    except ValueError as exc:
+                        taxon_error = str(exc)
+
+            if source_config.requires_ncbi_email:
+                ncbi_email = st.text_input(
+                    "NCBI 联系邮箱（联网必填）",
+                    value=ncbi_email,
+                    key=f"database-ncbi-email-{snapshot.run_id}",
+                    help="NCBI 要求请求携带联系邮箱；该值不会写入审计摘要。",
+                ).strip()
+            if source_config.requires_david_email:
+                david_email = st.text_input(
+                    "DAVID 注册邮箱（联网必填）",
+                    value=david_email,
+                    key=f"database-david-email-{snapshot.run_id}",
+                    help="必须是已在 DAVID 注册的邮箱；该值不会写入审计摘要。",
+                ).strip()
+
+            if source_key == "david":
+                david_background_input = st.text_area(
+                    "明确背景基因集 *",
+                    key=f"database-david-background-{snapshot.run_id}",
+                    help="背景必须包含全部目标基因，不能使用隐式全基因组背景。",
+                    placeholder="例如：3043\n3040\n3039",
+                    persist_state="session",
                 )
 
-            database_submitted = st.form_submit_button(
-                "查询并归档数据库证据",
-                type="primary",
-                icon=":material/database_search:",
-                width="stretch",
+            if source_config.requires_external_consent:
+                consent_label = (
+                    "我同意把蛋白标识符和 TaxID 提交给 STRING 公共服务"
+                    if source_key == "string"
+                    else "我同意把目标、背景基因、TaxID 和类别提交给 DAVID"
+                )
+                external_consent = st.checkbox(
+                    consent_label,
+                    key=f"database-consent-{source_key}-{snapshot.run_id}",
+                    help="未同意时不会联网，只能生成离线请求。",
+                )
+                string_consent = external_consent if source_key == "string" else False
+                david_consent = external_consent if source_key == "david" else False
+
+            if source_key in {
+                "pubchem",
+                "rcsb-pdb",
+                "string",
+                "david",
+            }:
+                with st.expander(
+                    "高级设置",
+                    icon=":material/tune:",
+                ):
+                    if source_key == "pubchem":
+                        pubchem_namespace_label = st.selectbox(
+                            "输入类型",
+                            ["名称", "CID", "InChIKey"],
+                            key=f"database-pubchem-namespace-{snapshot.run_id}",
+                        )
+                        pubchem_include_3d = st.checkbox(
+                            "同时获取可用的 PubChem 3D SDF",
+                            key=f"database-pubchem-3d-{snapshot.run_id}",
+                        )
+                    elif source_key == "rcsb-pdb":
+                        if rcsb_query_mode == "PDB ID":
+                            pdb_download_mmcif = st.checkbox(
+                                "保存 mmCIF 坐标原始文件",
+                                value=True,
+                                key=f"database-pdb-mmcif-{snapshot.run_id}",
+                            )
+                        else:
+                            rcsb_experimental_only = st.checkbox(
+                                "只返回实验结构",
+                                value=True,
+                                key=f"database-rcsb-experimental-{snapshot.run_id}",
+                            )
+                            rcsb_max_results = int(
+                                st.number_input(
+                                    "最多返回结构数",
+                                    min_value=1,
+                                    max_value=100,
+                                    value=25,
+                                    step=1,
+                                    key=f"database-rcsb-limit-{snapshot.run_id}",
+                                )
+                            )
+                    elif source_key == "string":
+                        string_network_label = st.selectbox(
+                            "网络类型",
+                            ["功能关联", "物理相互作用"],
+                            key=f"database-string-type-{snapshot.run_id}",
+                        )
+                        string_required_score = int(
+                            st.slider(
+                                "最低 STRING 分数",
+                                min_value=0,
+                                max_value=1000,
+                                value=400,
+                                step=50,
+                                key=f"database-string-score-{snapshot.run_id}",
+                            )
+                        )
+                    else:
+                        david_id_type = st.selectbox(
+                            "标识符类型",
+                            [
+                                "ENTREZ_GENE_ID",
+                                "UNIPROT_ACCESSION",
+                                "OFFICIAL_GENE_SYMBOL",
+                            ],
+                            key=f"database-david-id-type-{snapshot.run_id}",
+                        )
+                        david_categories = st.multiselect(
+                            "注释类别",
+                            options=list(DEFAULT_DAVID_CATEGORIES),
+                            default=list(DEFAULT_DAVID_CATEGORIES),
+                            key=f"database-david-categories-{snapshot.run_id}",
+                        )
+                        david_max_p_value = float(
+                            st.number_input(
+                                "最大 EASE P 值",
+                                min_value=0.000001,
+                                max_value=1.0,
+                                value=0.1,
+                                step=0.01,
+                                format="%.6f",
+                                key=f"database-david-p-{snapshot.run_id}",
+                            )
+                        )
+                        david_min_count = int(
+                            st.number_input(
+                                "最少命中基因数",
+                                min_value=1,
+                                value=2,
+                                step=1,
+                                key=f"database-david-min-count-{snapshot.run_id}",
+                            )
+                        )
+
+        pubchem_input = primary_input if source_key == "pubchem" else ""
+        uniprot_input = primary_input if source_key == "uniprot" else ""
+        gene_input = primary_input if source_key == "ncbi-gene" else ""
+        genbank_input = primary_input if source_key == "genbank" else ""
+        pdb_input = (
+            primary_input
+            if source_key == "rcsb-pdb" and rcsb_query_mode == "PDB ID"
+            else ""
+        )
+        rcsb_uniprot_input = (
+            primary_input
+            if source_key == "rcsb-pdb"
+            and rcsb_query_mode == "按 UniProt 找结构"
+            else ""
+        )
+        string_input = primary_input if source_key == "string" else ""
+        david_target_input = primary_input if source_key == "david" else ""
+
+        online_ready = True
+        offline_reason = ""
+        if source_config.requires_ncbi_email and not ncbi_email:
+            online_ready = False
+            offline_reason = "未填写 NCBI 联系邮箱，本次不会联网。"
+        elif source_config.requires_david_email and not david_email:
+            online_ready = False
+            offline_reason = "未填写 DAVID 注册邮箱，本次不会联网。"
+        elif source_config.requires_external_consent and not (
+            string_consent or david_consent
+        ):
+            online_ready = False
+            offline_reason = "尚未允许向第三方提交标识符，本次不会联网。"
+        if (
+            source_key == "david"
+            and taxon_id is not None
+            and taxon_id not in DAVID_SUPPORTED_TAXON_IDS
+        ):
+            online_ready = False
+            david_consent = False
+            offline_reason = (
+                "DAVID 连接器不能可靠核对该物种，本次只允许生成离线请求。"
             )
+        if source_key == "david" and not online_ready:
+            david_consent = False
+        if not online_ready:
+            st.warning(
+                f"{offline_reason} 如需保存参数，可点击“生成离线请求”。",
+                icon=":material/cloud_off:",
+            )
+        if taxon_error:
+            st.error(taxon_error, icon=":material/error:")
+
+        target_ready = bool(primary_input.strip())
+        taxon_ready = not taxon_required or taxon_id is not None
+        background_ready = (
+            source_key != "david" or bool(david_background_input.strip())
+        )
+        if not target_ready:
+            st.caption("先输入检索词或标准编号，按钮才会启用。")
+        elif not taxon_ready:
+            st.caption("请选择物种后再继续。")
+        elif not background_ready:
+            st.caption("DAVID 必须填写包含全部目标基因的明确背景集。")
+
+        database_submitted = st.button(
+            "开始联网检索" if online_ready else "生成离线请求",
+            type="primary" if online_ready else "secondary",
+            icon=(
+                ":material/database_search:"
+                if online_ready
+                else ":material/download:"
+            ),
+            disabled=not (target_ready and taxon_ready and background_ready),
+            key=f"database-submit-{source_key}-{snapshot.run_id}",
+            width="stretch",
+        )
 
         if database_submitted:
             pubchem_namespace = {
@@ -2433,6 +2826,11 @@ with database_tab:
                     label="RCSB PDB ID",
                     limit=10,
                 )
+                rcsb_uniprot_accessions = split_database_identifiers(
+                    rcsb_uniprot_input,
+                    label="RCSB UniProt accession",
+                    limit=10,
+                )
                 string_identifiers = split_database_identifiers(
                     string_input,
                     label="STRING 蛋白标识符",
@@ -2456,12 +2854,15 @@ with database_tab:
                     raise ValueError("DAVID 明确背景基因集必须包含全部目标基因。")
                 if david_targets and not david_categories:
                     raise ValueError("DAVID 至少选择一个注释类别。")
+                if taxon_required and taxon_id is None:
+                    raise ValueError("当前数据库必须选择物种。")
                 planned_calls = (
                     len(pubchem_identifiers)
                     + len(uniprot_accessions)
                     + len(gene_identifiers)
                     + len(genbank_accessions)
                     + len(pdb_ids)
+                    + len(rcsb_uniprot_accessions)
                     + int(bool(string_identifiers))
                     + int(bool(david_targets))
                 )
@@ -2480,7 +2881,13 @@ with database_tab:
                     f"正在执行并归档 {planned_calls} 项数据库查询…",
                     expanded=True,
                 )
-                successful_calls = 0
+                existing_entries = state.get("entries")
+                entry_start = (
+                    len(existing_entries)
+                    if isinstance(existing_entries, list)
+                    else 0
+                )
+                archived_calls = 0
                 network_result_archived = False
 
                 snapshot, completed = run_database_query_group(
@@ -2506,7 +2913,7 @@ with database_tab:
                         for identifier in pubchem_identifiers
                     ),
                 )
-                successful_calls += completed
+                archived_calls += completed
                 if pubchem_identifiers:
                     query_status.write(
                         f"PubChem：已归档 {completed}/{len(pubchem_identifiers)} 项。"
@@ -2535,7 +2942,7 @@ with database_tab:
                         for accession in uniprot_accessions
                     ),
                 )
-                successful_calls += completed
+                archived_calls += completed
                 if uniprot_accessions:
                     query_status.write(
                         f"UniProt：已归档 {completed}/{len(uniprot_accessions)} 项。"
@@ -2573,7 +2980,7 @@ with database_tab:
                     ),
                     sensitive_values=ncbi_sensitive,
                 )
-                successful_calls += completed
+                archived_calls += completed
                 if gene_identifiers:
                     query_status.write(
                         f"NCBI Gene：已归档 {completed}/{len(gene_identifiers)} 项。"
@@ -2606,7 +3013,7 @@ with database_tab:
                     ),
                     sensitive_values=ncbi_sensitive,
                 )
-                successful_calls += completed
+                archived_calls += completed
                 if genbank_accessions:
                     query_status.write(
                         f"GenBank：已归档 {completed}/{len(genbank_accessions)} 项。"
@@ -2617,27 +3024,49 @@ with database_tab:
                     state,
                     source="RCSB PDB",
                     connector_factory=RCSBConnector,
-                    operations=tuple(
-                        (
+                    operations=(
+                        tuple(
                             (
-                                "PDB ID; "
-                                f"input_sha256="
-                                f"{hashlib.sha256(pdb_id.encode('utf-8')).hexdigest()}"
-                            ),
-                            lambda connector, pdb_id=pdb_id: (
-                                connector.fetch_structure(
-                                    pdb_id,
-                                    download_mmcif=pdb_download_mmcif,
-                                )
-                            ),
+                                (
+                                    "PDB ID; "
+                                    f"input_sha256="
+                                    f"{hashlib.sha256(pdb_id.encode('utf-8')).hexdigest()}"
+                                ),
+                                lambda connector, pdb_id=pdb_id: (
+                                    connector.fetch_structure(
+                                        pdb_id,
+                                        download_mmcif=pdb_download_mmcif,
+                                    )
+                                ),
+                            )
+                            for pdb_id in pdb_ids
                         )
-                        for pdb_id in pdb_ids
+                        + tuple(
+                            (
+                                (
+                                    "UniProt→PDB; "
+                                    f"input_sha256="
+                                    f"{hashlib.sha256(accession.encode('utf-8')).hexdigest()}; "
+                                    f"TaxID={taxon_id}"
+                                ),
+                                lambda connector, accession=accession: (
+                                    connector.search_structures(
+                                        accession,
+                                        taxon_id=int(taxon_id),
+                                        experimental_only=rcsb_experimental_only,
+                                        max_results=rcsb_max_results,
+                                    )
+                                ),
+                            )
+                            for accession in rcsb_uniprot_accessions
+                        )
                     ),
                 )
-                successful_calls += completed
-                if pdb_ids:
+                archived_calls += completed
+                rcsb_call_count = len(pdb_ids) + len(rcsb_uniprot_accessions)
+                if rcsb_call_count:
                     query_status.write(
-                        f"RCSB PDB：已归档 {completed}/{len(pdb_ids)} 项。"
+                        f"RCSB PDB：已处理并归档 {completed}/{rcsb_call_count} 项。"
                     )
 
                 string_input_hash = hashlib.sha256(
@@ -2673,7 +3102,7 @@ with database_tab:
                     if string_identifiers
                     else (),
                 )
-                successful_calls += completed
+                archived_calls += completed
                 network_result_archived = network_result_archived or completed > 0
                 if string_identifiers:
                     query_status.write(f"STRING：已归档 {completed}/1 项。")
@@ -2720,7 +3149,7 @@ with database_tab:
                     else (),
                     sensitive_values=(david_email,),
                 )
-                successful_calls += completed
+                archived_calls += completed
                 network_result_archived = network_result_archived or completed > 0
                 if david_targets:
                     query_status.write(f"DAVID：已归档 {completed}/1 项。")
@@ -2729,14 +3158,36 @@ with database_tab:
                     snapshot = build_database_network(snapshot, state)
                     query_status.write("STRING + DAVID 证据网络已重建。")
 
-                failed_calls = planned_calls - successful_calls
+                updated_entries = state.get("entries")
+                new_results = [
+                    entry["result"]
+                    for entry in (
+                        updated_entries[entry_start:]
+                        if isinstance(updated_entries, list)
+                        else []
+                    )
+                    if isinstance(entry, dict)
+                    and isinstance(entry.get("result"), ConnectorResult)
+                ]
+                outcome = summarize_connector_results(new_results)
+                failed_calls = planned_calls - archived_calls
                 query_status.update(
                     label=(
-                        f"数据库查询完成：已归档 {successful_calls}/{planned_calls} 项；"
-                        f"失败 {failed_calls} 项。"
+                        "处理完成："
+                        f"联网有结果 {outcome.online_available}；"
+                        f"联网无结果 {outcome.no_results}；"
+                        f"未发送 {outcome.offline_export}；"
+                        f"已返回但有警告 {outcome.degraded}；"
+                        f"本地归档 {archived_calls}/{planned_calls}；"
+                        f"执行失败 {failed_calls}。"
                     ),
                     state="error" if failed_calls else "complete",
-                    expanded=bool(failed_calls),
+                    expanded=bool(
+                        failed_calls
+                        or outcome.degraded
+                        or outcome.offline_export
+                        or outcome.no_results
+                    ),
                 )
 
         try:

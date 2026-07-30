@@ -1,12 +1,18 @@
 from __future__ import annotations
 
-from vetevidence.experiment_analysis import analyze_fici_csv
+import pytest
+
+from vetevidence.experiment_analysis import (
+    analyze_fici_csv,
+    analyze_growth_curve_csv,
+)
 from vetevidence.journal_rankings import CsvJournalRankingProvider
 from vetevidence.literature_import import parse_literature_export
 from vetevidence.models import PubMedArticle
 from vetevidence.workbench import (
     EvidenceAdmissionStatus,
     EvidenceGap,
+    InteractionOutcome,
     LiteratureEvidenceGrade,
     ResearchQuestion,
     TaskStatus,
@@ -67,6 +73,20 @@ def direct_article() -> PubMedArticle:
         doi="10.3389/fmicb.2019.02430",
         abstract=DIRECT_ABSTRACT,
         source_url="https://pubmed.ncbi.nlm.nih.gov/31749775/",
+    )
+
+
+def out_of_scope_article() -> PubMedArticle:
+    return PubMedArticle(
+        pmid="999",
+        title="Vancomycin and rifampicin interaction against Escherichia coli",
+        journal="Unrelated Microbiology",
+        year=2024,
+        abstract=(
+            "Vancomycin and rifampicin showed antagonistic activity against "
+            "Escherichia coli."
+        ),
+        source_url="https://pubmed.ncbi.nlm.nih.gov/999/",
     )
 
 
@@ -202,6 +222,7 @@ def test_relevance_rule_admits_only_explicit_direct_interaction_evidence() -> No
     )
 
     assert direct.grade is LiteratureEvidenceGrade.DIRECT_INTERACTION
+    assert direct.interaction_outcome is InteractionOutcome.SYNERGY
     assert direct.supporting_quote is not None
     assert "synergistic" in direct.supporting_quote.casefold()
     assert contextual.grade is LiteratureEvidenceGrade.CONTEXTUAL
@@ -227,6 +248,194 @@ def test_relevance_rule_admits_only_explicit_direct_interaction_evidence() -> No
     )
 
 
+def test_non_result_sentences_cannot_be_admitted_as_direct_evidence() -> None:
+    non_result_abstracts = [
+        (
+            "The purpose of this study was to evaluate synergistic activity "
+            "of florfenicol and thiamphenicol against Pasteurella multocida."
+        ),
+        (
+            "We hypothesized that florfenicol and thiamphenicol would show "
+            "synergistic activity against Pasteurella multocida."
+        ),
+        (
+            "Checkerboard assays were performed to evaluate synergistic "
+            "activity of florfenicol and thiamphenicol against "
+            "Pasteurella multocida."
+        ),
+        (
+            "对于Pasteurella multocida，florfenicol与thiamphenicol的"
+            "协同作用定义为FICI≤0.5。"
+        ),
+        (
+            "Objective: To evaluate synergistic activity of florfenicol and "
+            "thiamphenicol against Pasteurella multocida."
+        ),
+        (
+            "This study evaluated synergistic activity of florfenicol and "
+            "thiamphenicol against Pasteurella multocida."
+        ),
+        (
+            "本研究评估了florfenicol与thiamphenicol对"
+            "Pasteurella multocida的协同作用。"
+        ),
+        (
+            "Synergy of florfenicol and thiamphenicol against "
+            "Pasteurella multocida was defined by FICI <= 0.5."
+        ),
+        (
+            "Florfenicol and thiamphenicol against Pasteurella multocida "
+            "were considered synergistic when FICI was <= 0.5."
+        ),
+        (
+            "Synergistic activity of florfenicol and thiamphenicol against "
+            "Pasteurella multocida."
+        ),
+    ]
+
+    qualifications = [
+        qualify_literature_evidence(
+            direct_question(),
+            title="Interaction study",
+            abstract=abstract,
+        )
+        for abstract in non_result_abstracts
+    ]
+
+    assert all(
+        item.grade is LiteratureEvidenceGrade.CONTEXTUAL
+        for item in qualifications
+    )
+    assert all(item.interaction_result_signal is None for item in qualifications)
+    assert all(item.interaction_outcome is None for item in qualifications)
+
+
+@pytest.mark.parametrize(
+    "abstract",
+    [
+        (
+            "Molecular docking predicted synergistic activity of florfenicol "
+            "and thiamphenicol against Pasteurella multocida."
+        ),
+        (
+            "In silico analysis predicts a synergistic effect of florfenicol "
+            "and thiamphenicol against Pasteurella multocida."
+        ),
+        (
+            "Florfenicol and thiamphenicol may show synergistic activity "
+            "against Pasteurella multocida."
+        ),
+        (
+            "Florfenicol and thiamphenicol might have potential synergistic "
+            "activity against Pasteurella multocida."
+        ),
+        (
+            "Florfenicol and thiamphenicol could possibly show synergistic "
+            "activity against Pasteurella multocida."
+        ),
+        (
+            "计算模拟预测florfenicol与thiamphenicol可能对"
+            "Pasteurella multocida具有潜在协同作用。"
+        ),
+        (
+            "分子对接预测florfenicol与thiamphenicol对"
+            "Pasteurella multocida的FICI可能为0.4。"
+        ),
+    ],
+)
+def test_predictive_or_modal_sentences_cannot_be_direct_evidence(
+    abstract: str,
+) -> None:
+    qualification = qualify_literature_evidence(
+        direct_question(),
+        title="Interaction prediction",
+        abstract=abstract,
+    )
+
+    assert qualification.grade is LiteratureEvidenceGrade.CONTEXTUAL
+    assert qualification.interaction_result_signal is None
+    assert qualification.interaction_outcome is None
+
+
+def test_explicit_experimental_result_overrides_separate_prediction_clause() -> None:
+    qualification = qualify_literature_evidence(
+        direct_question(),
+        title="Interaction study",
+        abstract=(
+            "In silico docking predicted binding; however, checkerboard assays "
+            "showed synergistic activity of florfenicol and thiamphenicol "
+            "against Pasteurella multocida."
+        ),
+    )
+
+    assert qualification.grade is LiteratureEvidenceGrade.DIRECT_INTERACTION
+    assert qualification.interaction_outcome is InteractionOutcome.SYNERGY
+    assert qualification.interaction_result_signal == "报告交互结果"
+
+
+def test_adjacent_result_anaphora_requires_explicit_combination_reference() -> None:
+    entity_sentence = (
+        "Pasteurella multocida isolates were exposed to florfenicol and "
+        "thiamphenicol."
+    )
+    admitted = qualify_literature_evidence(
+        direct_question(),
+        title="Interaction study",
+        abstract=(
+            f"{entity_sentence} "
+            "The combination showed synergistic activity."
+        ),
+    )
+    missing_reference = qualify_literature_evidence(
+        direct_question(),
+        title="Interaction study",
+        abstract=f"{entity_sentence} Synergistic activity was observed.",
+    )
+    non_adjacent = qualify_literature_evidence(
+        direct_question(),
+        title="Interaction study",
+        abstract=(
+            f"{entity_sentence} MIC values were recorded. "
+            "The combination showed synergistic activity."
+        ),
+    )
+
+    assert admitted.grade is LiteratureEvidenceGrade.DIRECT_INTERACTION
+    assert admitted.interaction_outcome is InteractionOutcome.SYNERGY
+    assert admitted.supporting_quote == (
+        f"{entity_sentence} The combination showed synergistic activity."
+    )
+    assert missing_reference.grade is LiteratureEvidenceGrade.CONTEXTUAL
+    assert non_adjacent.grade is LiteratureEvidenceGrade.CONTEXTUAL
+
+
+def test_chinese_terms_match_without_spaces_and_support_controlled_anaphora() -> None:
+    chinese_question = ResearchQuestion(
+        id="rq-chinese-interaction",
+        text="槲皮素与阿莫西林对无乳链球菌是否存在协同作用",
+        population="无乳链球菌",
+        intervention="槲皮素",
+        comparator="阿莫西林",
+    )
+
+    qualification = qualify_literature_evidence(
+        chinese_question,
+        title="联合用药研究",
+        abstract=(
+            "在无乳链球菌感染模型中，槲皮素与阿莫西林进行了联合处理。"
+            "该组合显示协同作用。"
+        ),
+    )
+
+    assert qualification.grade is LiteratureEvidenceGrade.DIRECT_INTERACTION
+    assert qualification.matched_population
+    assert qualification.matched_intervention
+    assert qualification.matched_comparator
+    assert qualification.interaction_outcome is InteractionOutcome.SYNERGY
+    assert qualification.supporting_quote is not None
+    assert "该组合显示协同作用" in qualification.supporting_quote
+
+
 def test_multi_query_research_deduplicates_pmids() -> None:
     client = StubClient()
     result = run_multi_query_research(
@@ -240,6 +449,21 @@ def test_multi_query_research_deduplicates_pmids() -> None:
     assert result.research.articles[0].pmid == "123"
     assert result.research.retrieval_request_count == 3
     assert result.research.estimated_llm_cost_usd == 0
+
+
+def test_out_of_scope_article_is_retained_for_audit_but_not_answered() -> None:
+    client = RankedStubClient([[out_of_scope_article()], [], []])
+
+    result = run_multi_query_research(
+        question(),
+        max_results=1,
+        client=client,
+        ranking_provider=CsvJournalRankingProvider.default(),
+    )
+
+    assert [record.pmid for record in result.research.evidence] == ["999"]
+    assert result.research.answer.citations == []
+    assert "没有返回可用文献" in result.research.answer.answer_markdown
 
 
 def test_multi_query_fusion_prevents_first_query_from_filling_the_limit() -> None:
@@ -419,6 +643,47 @@ def test_assessment_detects_explicit_conflict_and_missing_fields() -> None:
     assert any(gap.topic == "剂量" for gap in assessment.gaps)
 
 
+def test_assessment_detects_synergy_antagonism_literature_conflict() -> None:
+    conditions = [
+        ExperimentCondition(
+            source_id="PMID 701",
+            source_type="pubmed",
+            title="Synergy report",
+            abstract=(
+                "Florfenicol and thiamphenicol showed synergistic activity "
+                "against Pasteurella multocida."
+            ),
+            pathogen="Pasteurella multocida",
+            pmid="701",
+        ),
+        ExperimentCondition(
+            source_id="PMID 702",
+            source_type="pubmed",
+            title="Antagonism report",
+            abstract=(
+                "Florfenicol and thiamphenicol showed antagonistic activity "
+                "against Pasteurella multocida."
+            ),
+            pathogen="Pasteurella multocida",
+            pmid="702",
+        ),
+    ]
+
+    assessment = assess_evidence(conditions, question=direct_question())
+
+    conflict = next(
+        item
+        for item in assessment.conflicts
+        if item.id.startswith("conflict-literature-interaction-")
+    )
+    assert "协同与拮抗" in conflict.description
+    assert {claim.evidence[0].pmid for claim in conflict.claims} == {
+        "701",
+        "702",
+    }
+    assert all(claim.evidence[0].source_quote for claim in conflict.claims)
+
+
 def test_decision_report_links_literature_and_csv_sources() -> None:
     research = run_multi_query_research(
         question(),
@@ -428,8 +693,8 @@ def test_decision_report_links_literature_and_csv_sources() -> None:
     conditions = build_experiment_conditions(research, question=question())
     analysis = analyze_fici_csv(
         """\
-drug_a,drug_b,drug_a_mic_alone,drug_a_mic_combo,drug_b_mic_alone,drug_b_mic_combo
-quercetin,amoxicillin,8,2,4,1
+drug_a,drug_b,population_or_strain,drug_a_mic_alone,drug_a_mic_combo,drug_b_mic_alone,drug_b_mic_combo
+quercetin,amoxicillin,Streptococcus agalactiae,8,2,4,1
 """
     )
     events = [
@@ -522,6 +787,44 @@ def test_report_states_insufficient_evidence_when_only_contextual_articles_exist
     assert "blocked_no_direct_evidence" in markdown
 
 
+def test_out_of_scope_sources_do_not_support_report_or_recommendation() -> None:
+    client = RankedStubClient(
+        [[sample_article(), out_of_scope_article()], [], []]
+    )
+    research = run_multi_query_research(
+        question(),
+        max_results=2,
+        client=client,
+        ranking_provider=CsvJournalRankingProvider.default(),
+    ).research
+    conditions = build_experiment_conditions(research, question=question())
+
+    report = build_decision_report(
+        question(),
+        conditions=conditions,
+        task_events=[
+            build_task_event(
+                "run-filtered-sources",
+                TaskStatus.AWAITING_REVIEW,
+                "等待复核",
+            )
+        ],
+    )
+
+    literature_conclusion = next(
+        item
+        for item in report.conclusions
+        if item.id == "literature-direct-evidence-insufficient"
+    )
+    assert {
+        reference.pmid for reference in literature_conclusion.evidence
+    } == {"123"}
+    assert {
+        reference.pmid for reference in report.recommendation.evidence
+    } == {"123"}
+    assert report.evidence_admission.excluded_source_ids == ["PMID 999"]
+
+
 def test_direct_pubmed_evidence_is_admitted_with_verifiable_quote() -> None:
     client = RankedStubClient([[direct_article()], [], []])
     research = run_multi_query_research(
@@ -569,8 +872,8 @@ def test_fici_for_a_different_drug_pair_cannot_support_the_report() -> None:
     conditions = build_experiment_conditions(research, question=question())
     mismatched = analyze_fici_csv(
         """\
-drug_a,drug_b,drug_a_mic_alone,drug_a_mic_combo,drug_b_mic_alone,drug_b_mic_combo
-vancomycin,rifampicin,8,2,4,1
+drug_a,drug_b,population_or_strain,drug_a_mic_alone,drug_a_mic_combo,drug_b_mic_alone,drug_b_mic_combo
+vancomycin,rifampicin,Streptococcus agalactiae,8,2,4,1
 """
     )
     report = build_decision_report(
@@ -593,6 +896,79 @@ vancomycin,rifampicin,8,2,4,1
     assert "不能判断或宣称存在协同作用" in report.recommendation.statement
 
 
+def test_fici_for_a_different_population_cannot_support_the_report() -> None:
+    conditions = build_experiment_conditions(
+        run_multi_query_research(
+            question(),
+            client=StubClient(),
+            ranking_provider=CsvJournalRankingProvider.default(),
+        ).research,
+        question=question(),
+    )
+    mismatched = analyze_fici_csv(
+        """\
+drug_a,drug_b,population_or_strain,drug_a_mic_alone,drug_a_mic_combo,drug_b_mic_alone,drug_b_mic_combo
+quercetin,amoxicillin,Escherichia coli,8,2,4,1
+"""
+    )
+
+    report = build_decision_report(
+        question(),
+        conditions=conditions,
+        analysis=mismatched,
+        task_events=[
+            build_task_event(
+                "run-wrong-population",
+                TaskStatus.AWAITING_REVIEW,
+                "等待复核",
+            )
+        ],
+    )
+
+    assert not any(item.id == "analysis-fici" for item in report.conclusions)
+    assert "gap-fici-intervention-identity" in {
+        gap.id for gap in report.evidence_gaps
+    }
+
+
+def test_growth_curve_requires_current_question_scope() -> None:
+    conditions = build_experiment_conditions(
+        run_multi_query_research(
+            question(),
+            client=StubClient(),
+            ranking_provider=CsvJournalRankingProvider.default(),
+        ).research,
+        question=question(),
+    )
+    mismatched = analyze_growth_curve_csv(
+        """\
+population_or_strain,intervention,comparator,time,group,value
+Escherichia coli,quercetin,amoxicillin,0,control,0.1
+Escherichia coli,quercetin,amoxicillin,1,control,0.8
+"""
+    )
+
+    report = build_decision_report(
+        question(),
+        conditions=conditions,
+        analysis=mismatched,
+        task_events=[
+            build_task_event(
+                "run-wrong-growth-scope",
+                TaskStatus.AWAITING_REVIEW,
+                "等待复核",
+            )
+        ],
+    )
+
+    assert not any(
+        item.id == "analysis-growth-curve" for item in report.conclusions
+    )
+    assert "gap-growth-curve-scope-identity" in {
+        gap.id for gap in report.evidence_gaps
+    }
+
+
 def test_synthetic_demo_is_explicitly_excluded_or_labeled() -> None:
     demo_import = parse_literature_export(
         """\
@@ -610,8 +986,8 @@ ER  -
     )
     analysis = analyze_fici_csv(
         """\
-drug_a,drug_b,drug_a_mic_alone,drug_a_mic_combo,drug_b_mic_alone,drug_b_mic_combo,data_status
-quercetin,amoxicillin,8,2,4,1,synthetic_demo
+drug_a,drug_b,population_or_strain,drug_a_mic_alone,drug_a_mic_combo,drug_b_mic_alone,drug_b_mic_combo,data_status
+quercetin,amoxicillin,Streptococcus agalactiae,8,2,4,1,synthetic_demo
 """
     )
     events = [

@@ -1,1 +1,1 @@
-drug_a,drug_b,drug_a_mic_alone,drug_a_mic_combo,drug_b_mic_alone,drug_b_mic_combo,replicate
+drug_a,drug_b,population_or_strain,drug_a_mic_alone,drug_a_mic_combo,drug_b_mic_alone,drug_b_mic_combo,replicate

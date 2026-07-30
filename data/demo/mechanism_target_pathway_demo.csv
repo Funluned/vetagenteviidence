@@ -1,0 +1,4 @@
+organism,target,target_accession,pathway,pathway_accession,data_status
+Streptococcus agalactiae,DEMO_TARGET_1,SYNTHETIC:TARGET-1,DEMO_PATHWAY_1,SYNTHETIC:PATHWAY-1,synthetic_demo
+Streptococcus agalactiae,DEMO_TARGET_1,SYNTHETIC:TARGET-1,DEMO_PATHWAY_2,SYNTHETIC:PATHWAY-2,synthetic_demo
+Streptococcus agalactiae,DEMO_TARGET_2,SYNTHETIC:TARGET-2,DEMO_PATHWAY_1,SYNTHETIC:PATHWAY-1,synthetic_demo

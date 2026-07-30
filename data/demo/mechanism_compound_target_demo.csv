@@ -1,0 +1,4 @@
+compound,compound_accession,organism,target,target_accession,data_status
+quercetin,SYNTHETIC:COMPOUND-A,Streptococcus agalactiae,DEMO_TARGET_1,SYNTHETIC:TARGET-1,synthetic_demo
+amoxicillin,SYNTHETIC:COMPOUND-B,Streptococcus agalactiae,DEMO_TARGET_1,SYNTHETIC:TARGET-1,synthetic_demo
+quercetin,SYNTHETIC:COMPOUND-A,Streptococcus agalactiae,DEMO_TARGET_2,SYNTHETIC:TARGET-2,synthetic_demo

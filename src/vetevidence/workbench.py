@@ -11,6 +11,8 @@ from uuid import uuid4
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
+from vetevidence.mechanism_prediction import MechanismPredictionBundle
+
 
 def _utc_now() -> datetime:
     return datetime.now(timezone.utc)
@@ -94,16 +96,28 @@ class LiteratureEvidenceGrade(StrEnum):
     DIRECT_INTERACTION = "direct_interaction"
 
 
+class InteractionOutcome(StrEnum):
+    """Structured interaction result stated by one admitted literature source."""
+
+    SYNERGY = "synergy"
+    ANTAGONISM = "antagonism"
+    ADDITIVE = "additive"
+    INDIFFERENT = "indifferent"
+    QUANTITATIVE_UNCLASSIFIED = "quantitative_unclassified"
+    INTERACTION_UNCLASSIFIED = "interaction_unclassified"
+
+
 class EvidenceQualification(WorkbenchModel):
     """Transparent rule output deciding whether literature can answer the question."""
 
     grade: LiteratureEvidenceGrade = LiteratureEvidenceGrade.UNASSESSED
-    rule_id: str = "interaction-evidence-v1"
+    rule_id: str = "interaction-evidence-v2"
     matched_population: bool = False
     matched_intervention: bool = False
     matched_comparator: bool = False
     interaction_marker: str | None = None
     interaction_result_signal: str | None = None
+    interaction_outcome: InteractionOutcome | None = None
     supporting_quote: str | None = None
     reasons: list[str] = Field(default_factory=lambda: ["尚未按科研问题评估。"])
 
@@ -115,11 +129,12 @@ class EvidenceQualification(WorkbenchModel):
             and self.matched_comparator
             and self.interaction_marker
             and self.interaction_result_signal
+            and self.interaction_outcome
             and self.supporting_quote
         ):
             raise ValueError(
                 "直接交互证据必须同时命中研究对象、两种干预、明确交互结果"
-                "和可引用原句。"
+                "、结构化交互结局和可引用原句。"
             )
         return self
 
@@ -135,7 +150,7 @@ class EvidenceAdmission(WorkbenchModel):
     status: EvidenceAdmissionStatus = (
         EvidenceAdmissionStatus.BLOCKED_NO_DIRECT_EVIDENCE
     )
-    rule_id: str = "interaction-evidence-v1"
+    rule_id: str = "interaction-evidence-v2"
     direct_source_ids: list[str] = Field(default_factory=list)
     contextual_source_ids: list[str] = Field(default_factory=list)
     excluded_source_ids: list[str] = Field(default_factory=list)
@@ -352,6 +367,9 @@ class ResearchDecisionReport(WorkbenchModel):
     evidence_admission: EvidenceAdmission = Field(default_factory=EvidenceAdmission)
     conflicts: list[EvidenceConflict] = Field(default_factory=list)
     evidence_gaps: list[EvidenceGap] = Field(default_factory=list)
+    mechanism_prediction: MechanismPredictionBundle = Field(
+        default_factory=MechanismPredictionBundle
+    )
     task_status: TaskStatusSummary
     human_review: HumanReview
     generated_at: datetime = Field(default_factory=_utc_now)

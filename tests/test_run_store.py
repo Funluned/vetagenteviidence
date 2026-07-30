@@ -13,8 +13,87 @@ from vetevidence.run_store import (
     WorkbenchRunSnapshot,
     build_tool_call,
 )
-from vetevidence.workbench import ResearchQuestion, TaskStatus, build_task_event
+from vetevidence.workbench import (
+    LiteratureEvidenceGrade,
+    ResearchQuestion,
+    TaskStatus,
+    build_task_event,
+)
 from vetevidence.workbench_pipeline import generate_search_queries
+
+
+def _legacy_research_payload(
+    question: ResearchQuestion,
+    *,
+    include_contextual: bool,
+) -> dict[str, object]:
+    articles = [
+        {
+            "pmid": "OUT-1",
+            "title": "C and D interaction against other",
+            "abstract": (
+                "C and D showed synergistic activity against another target."
+            ),
+            "source_url": "https://pubmed.ncbi.nlm.nih.gov/OUT-1/",
+        }
+    ]
+    evidence = [
+        {
+            "pmid": "OUT-1",
+            "key_result": "C and D showed synergistic activity.",
+            "source_quote": "C and D showed synergistic activity.",
+            "source_url": "https://pubmed.ncbi.nlm.nih.gov/OUT-1/",
+        }
+    ]
+    citations = [
+        {
+            "pmid": "OUT-1",
+            "source_quote": "C and D showed synergistic activity.",
+            "source_url": "https://pubmed.ncbi.nlm.nih.gov/OUT-1/",
+        }
+    ]
+    if include_contextual:
+        articles.insert(
+            0,
+            {
+                "pmid": "CTX-1",
+                "title": "A activity against target",
+                "abstract": (
+                    "Target isolates were exposed to A in a single-drug assay."
+                ),
+                "source_url": "https://pubmed.ncbi.nlm.nih.gov/CTX-1/",
+            },
+        )
+        evidence.insert(
+            0,
+            {
+                "pmid": "CTX-1",
+                "key_result": "A was evaluated against target.",
+                "source_quote": "A was evaluated against target.",
+                "source_url": "https://pubmed.ncbi.nlm.nih.gov/CTX-1/",
+            },
+        )
+        citations.insert(
+            0,
+            {
+                "pmid": "CTX-1",
+                "source_quote": "A was evaluated against target.",
+                "source_url": "https://pubmed.ncbi.nlm.nih.gov/CTX-1/",
+            },
+        )
+    return {
+        "query": question.text,
+        "articles": articles,
+        "evidence": evidence,
+        "answer": {
+            "question": question.text,
+            "answer_markdown": (
+                "旧答案错误保留全部来源：PMID CTX-1、PMID OUT-1。"
+            ),
+            "citations": citations,
+        },
+        "provider_name": "legacy_rules",
+    }
 
 
 def test_run_store_round_trip_preserves_events_and_failures(tmp_path) -> None:
@@ -242,6 +321,164 @@ def test_schema_v3_snapshot_rebuilds_stale_direct_evidence_qualification() -> No
     assert restored.report is None
     assert restored.task_events[-1].actor == "migration"
     assert restored.task_events[-1].metadata["from_schema_version"] == 3
+
+
+@pytest.mark.parametrize("legacy_version", [1, 2, 3, 4])
+def test_legacy_snapshot_drops_out_of_scope_research_answer_citations(
+    legacy_version: int,
+) -> None:
+    question = ResearchQuestion(
+        id=f"rq-v{legacy_version}-answer",
+        text="A 与 B 对 target 是否协同？",
+        population="target",
+        intervention="A",
+        comparator="B",
+    )
+    legacy_payload = {
+        "schema_version": legacy_version,
+        "run_id": f"run-v{legacy_version}-answer",
+        "question": question.model_dump(mode="json"),
+        "query_plan": generate_search_queries(question).model_dump(mode="json"),
+        "task_events": [
+            build_task_event(
+                f"run-v{legacy_version}-answer",
+                TaskStatus.PENDING,
+                "任务已创建",
+            ).model_dump(mode="json")
+        ],
+        "research": _legacy_research_payload(
+            question,
+            include_contextual=False,
+        ),
+    }
+
+    restored = WorkbenchRunSnapshot.model_validate(legacy_payload)
+
+    assert restored.research is not None
+    assert restored.research.answer.citations == []
+    assert "不足以回答" in restored.research.answer.answer_markdown
+    assert "PMID OUT-1" not in restored.research.answer.answer_markdown
+    assert (
+        restored.conditions[0].qualification.grade
+        is LiteratureEvidenceGrade.OUT_OF_SCOPE
+    )
+    assert "检索答案" in restored.task_events[-1].message
+
+
+def test_legacy_snapshot_rebuilds_answer_with_only_admitted_evidence() -> None:
+    question = ResearchQuestion(
+        id="rq-v4-filtered-answer",
+        text="A 与 B 对 target 是否协同？",
+        population="target",
+        intervention="A",
+        comparator="B",
+    )
+    legacy_payload = {
+        "schema_version": 4,
+        "run_id": "run-v4-filtered-answer",
+        "question": question.model_dump(mode="json"),
+        "query_plan": generate_search_queries(question).model_dump(mode="json"),
+        "task_events": [
+            build_task_event(
+                "run-v4-filtered-answer",
+                TaskStatus.PENDING,
+                "任务已创建",
+            ).model_dump(mode="json")
+        ],
+        "research": _legacy_research_payload(
+            question,
+            include_contextual=True,
+        ),
+    }
+
+    restored = WorkbenchRunSnapshot.model_validate(legacy_payload)
+
+    assert restored.research is not None
+    assert [
+        citation.pmid for citation in restored.research.answer.citations
+    ] == ["CTX-1"]
+    assert "A was evaluated against target." in (
+        restored.research.answer.answer_markdown
+    )
+    assert "PMID OUT-1" not in restored.research.answer.answer_markdown
+    assert {
+        condition.source_id: condition.qualification.grade
+        for condition in restored.conditions
+    } == {
+        "PMID CTX-1": LiteratureEvidenceGrade.CONTEXTUAL,
+        "PMID OUT-1": LiteratureEvidenceGrade.OUT_OF_SCOPE,
+    }
+
+
+def test_schema_v3_snapshot_invalidates_hashed_analysis_without_scope() -> None:
+    question = ResearchQuestion(
+        id="rq-v3-analysis",
+        text="A 与 B 对 target 是否协同？",
+        population="target",
+        intervention="A",
+        comparator="B",
+    )
+    legacy_payload = {
+        "schema_version": 3,
+        "run_id": "run-v3-analysis",
+        "question": question.model_dump(mode="json"),
+        "query_plan": generate_search_queries(question).model_dump(mode="json"),
+        "task_events": [],
+        "analysis": {
+            "analysis_type": "fici",
+            "input_sha256": "0" * 64,
+            "headers": [],
+            "rows": [],
+            "valid": True,
+            "valid_row_count": 1,
+            "invalid_row_count": 0,
+            "errors": [],
+        },
+        "assessment": {"stale": True},
+        "report": {"stale": True},
+    }
+
+    restored = WorkbenchRunSnapshot.model_validate(legacy_payload)
+
+    assert restored.analysis is None
+    assert restored.assessment is None
+    assert restored.report is None
+    assert "缺少科研问题范围身份" in restored.task_events[-1].message
+
+
+def test_schema_v4_snapshot_adds_empty_mechanism_prediction_layer() -> None:
+    question = ResearchQuestion(
+        id="rq-v4",
+        text="A 与 B 对 target 是否协同？",
+        population="target",
+        intervention="A",
+        comparator="B",
+    )
+    event = build_task_event("run-v4", TaskStatus.PENDING, "任务已创建")
+    legacy_payload = {
+        "schema_version": 4,
+        "run_id": "run-v4",
+        "question": question.model_dump(mode="json"),
+        "query_plan": generate_search_queries(question).model_dump(mode="json"),
+        "task_events": [event.model_dump(mode="json")],
+        "conditions": [{"stale": True}],
+        "analysis": {"stale": True},
+        "assessment": {"stale": True},
+        "report": {"stale": True},
+    }
+
+    restored = WorkbenchRunSnapshot.model_validate(legacy_payload)
+
+    assert restored.schema_version == CURRENT_SNAPSHOT_SCHEMA_VERSION
+    assert restored.mechanism_prediction.network is None
+    assert restored.mechanism_prediction.docking_runs == []
+    assert restored.conditions == []
+    assert restored.analysis is None
+    assert restored.assessment is None
+    assert restored.report is None
+    assert restored.task_events[-1].actor == "migration"
+    assert "网络药理学与分子对接预测层" in restored.task_events[-1].message
+    assert "实验范围规则" in restored.task_events[-1].message
 
 
 def test_store_datetimes_must_be_timezone_aware() -> None:

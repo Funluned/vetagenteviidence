@@ -27,6 +27,12 @@ from vetevidence.literature_import import (
     ImportedLiterature,
     LiteratureImportResult,
 )
+from vetevidence.mechanism_prediction import (
+    MechanismPredictionBundle,
+    VinaTaskManifest,
+    require_docking_scope,
+    require_network_scope,
+)
 from vetevidence.models import (
     EvidenceRecord,
     PubMedArticle,
@@ -44,6 +50,7 @@ from vetevidence.workbench import (
     EvidenceQualification,
     EvidenceReference,
     HumanReview,
+    InteractionOutcome,
     LiteratureEvidenceGrade,
     ResearchDecisionReport,
     ResearchQuestion,
@@ -211,20 +218,11 @@ _INTERACTION_MARKERS = (
     ("indifferent interaction", "indifferent interaction"),
     ("协同", "协同"),
     ("拮抗", "拮抗"),
+    ("相加", "相加"),
+    ("无关", "无关"),
     ("棋盘", "棋盘法"),
 )
 _INTERACTION_RESULT_PATTERNS = (
-    (
-        r"\bsynerg(?:y|ism|istic)\s+"
-        r"(?:activity|effects?|interaction|combination|action)\b",
-        "明确协同结果",
-    ),
-    (
-        r"\bantagon(?:ism|istic)\s+(?:activity|effects?|interaction|action)\b",
-        "明确拮抗结果",
-    ),
-    (r"\badditive\s+(?:activity|effects?|interaction)\b", "明确相加结果"),
-    (r"\bindifferent\s+(?:activity|effects?|interaction)\b", "明确无关结果"),
     (
         r"\b(?:show(?:ed|s)?|demonstrat(?:ed|es)?|exhibit(?:ed|s)?|"
         r"indicat(?:ed|es)?|confirm(?:ed|s)?|observ(?:ed|es)?|found)\b"
@@ -245,11 +243,77 @@ _INTERACTION_RESULT_PATTERNS = (
         "量化 FICI 结果",
     ),
     (r"(?:显示|表明|观察到|证实).{0,40}(?:协同|拮抗|相加|无关)", "报告交互结果"),
-    (r"(?:协同|拮抗|相加|无关).{0,20}(?:作用|效应|结果)", "明确交互结果"),
 )
 _METHOD_DEFINITION_PATTERN = (
-    r"\b(?:defined|considered|classified|interpreted|threshold|cutoff|"
-    r"criterion|criteria|calculated|formula)\b"
+    r"(?:\b(?:defined|classified|interpreted)\s+(?:as|by)\b|"
+    r"\bconsidered(?:\s+\w+){0,5}\s+(?:as|when)\b|"
+    r"\b(?:threshold|cutoff|criterion|criteria|calculation|formula)\b|"
+    r"(?:定义为|界定为|判定为|归类为|解释为|阈值|临界值|"
+    r"定义依据|视为|当.{0,30}时判定为|"
+    r"判定标准|评价标准|计算公式|计算方法))"
+)
+_PURPOSE_HYPOTHESIS_PATTERN = (
+    r"(?:\b(?:(?:aim|objective|purpose)s?\s*:|"
+    r"(?:the\s+)?(?:aim|objective|purpose)s?\s+"
+    r"(?:was|were|is|are)\s+to|aim(?:ed|s)?\s+to|sought\s+to|"
+    r"(?:designed|undertaken)\s+to|we\s+hypothes(?:ized|ised)|"
+    r"(?:the|our)\s+hypothesis)\b|"
+    r"(?:旨在|研究目的|目的(?:是|为)|本研究拟|我们假设|研究假设))"
+)
+_METHOD_ONLY_PATTERN = (
+    r"(?:\b(?:was|were|is|are)\s+(?:used|performed|conducted|applied)\s+to\b|"
+    r"\b(?:we\s+)?(?:used|applied)\b.{0,50}\bto\s+"
+    r"(?:test|evaluate|assess|determine|measure)\b|"
+    r"\b(?:(?:this|the)\s+study|we)\s+"
+    r"(?:evaluat(?:ed|es)|assess(?:ed|es)|investigat(?:ed|es)|"
+    r"examin(?:ed|es))\b|"
+    r"\b(?:assays?|methods?)\b.{0,40}\b(?:used|performed|conducted|applied)\b|"
+    r"\b(?:methods?|materials\s+and\s+methods)\s*:|"
+    r"(?:本研究|我们).{0,10}(?:评估了?|评价了?|考察了?|研究了?)|"
+    r"(?:采用|使用|应用).{0,40}(?:检测|测定|评估|评价|判断|研究)"
+    r".{0,40}(?:协同|拮抗|相加|无关|交互|联合|fici)|"
+    r"(?:用于|以便).{0,30}(?:检测|测定|评估|评价|判断)"
+    r".{0,30}(?:协同|拮抗|相加|无关|交互|联合|fici))"
+)
+_PREDICTIVE_OR_UNCERTAIN_PATTERN = (
+    r"(?:\b(?:predict(?:s|ed|ing|ion|ions|ive|ively)?|"
+    r"may|might|could|potential(?:ly)?|possibl(?:e|y)|"
+    r"in[\s-]*silico|(?:molecular\s+)?docking|"
+    r"computational\s+(?:simulat(?:ion|ions|ed|ing)|"
+    r"model(?:s|ed|ing)?))\b|"
+    r"(?:预测|预计|推测|可能|潜在|或许|也许|理论上|"
+    r"分子对接|计算模拟|计算机模拟))"
+)
+_EXPLICIT_EXPERIMENTAL_METHOD_PATTERN = (
+    r"(?:\b(?:checkerboard|time[\s-]*kill|in\s+vitro|in\s+vivo|"
+    r"assays?|tests?|experiments?)\b|"
+    r"(?:棋盘(?:法|实验|试验)?|时间杀菌(?:实验|试验)?|"
+    r"体外(?:实验|试验)|体内(?:实验|试验)|实验|试验|测定))"
+)
+_ASSERTIVE_EXPERIMENTAL_RESULT_PATTERN = (
+    r"(?:\b(?:show(?:ed|s)?|demonstrat(?:ed|es)?|exhibit(?:ed|s)?|"
+    r"indicat(?:ed|es)?|confirm(?:ed|s)?|observ(?:ed|es)?|found|reported)\b"
+    r".{0,100}\b(?:synerg(?:y|ism|istic)|antagon(?:ism|istic)|"
+    r"additive|indifferent|interaction)\b|"
+    r"\b(?:synerg(?:y|ism|istic)|antagon(?:ism|istic)|additive|"
+    r"indifferent|interaction)\b.{0,100}\b"
+    r"(?:was|were|is|are)\s+(?:observed|found|confirmed|demonstrated|"
+    r"reported)\b|"
+    r"\b(?:fici|fic\s+index|fractional inhibitory concentration"
+    r"(?:\s+index)?)\b\s*(?:was|were|is|are|of|=|:|≤|>=|<=|<|>)\s*"
+    r"(?:≤|>=|<=|<|>)?\s*\d+(?:\.\d+)?|"
+    r"(?:显示|表明|观察到|证实|测得|发现|报告).{0,60}"
+    r"(?:协同|拮抗|相加|无关|交互|fici))"
+)
+_RESULT_CLAUSE_SPLIT_PATTERN = (
+    r"(?:[;；]|,\s*(?=(?:and|but|whereas|while|however)\b)|"
+    r"，\s*(?=(?:并且|且|但|而|然而)))"
+)
+_COMBINATION_ANAPHORA_PATTERN = (
+    r"(?:\b(?:the|this|that|such)\s+(?:drug\s+)?combination\b|"
+    r"\bcombined\s+(?:treatment|therapy|regimen)\b|"
+    r"(?:该|此|上述)(?:药物)?组合|(?:两药|二者|两者)(?:联用|联合)|"
+    r"(?:该|此|上述)联合(?:用药|方案|处理))"
 )
 _SYNTHETIC_SOURCE_MARKERS = (
     "synthetic_demo",
@@ -259,14 +323,21 @@ _SYNTHETIC_SOURCE_MARKERS = (
 )
 _EVIDENCE_GRADE_LABELS = {
     LiteratureEvidenceGrade.UNASSESSED: "未评估",
-    LiteratureEvidenceGrade.OUT_OF_SCOPE: "无关",
+    LiteratureEvidenceGrade.OUT_OF_SCOPE: "主题不匹配",
     LiteratureEvidenceGrade.CONTEXTUAL: "间接背景",
     LiteratureEvidenceGrade.DIRECT_INTERACTION: "直接证据",
 }
 
 
 def _normalized_match_text(value: str | None) -> str:
-    return re.sub(r"[^\w]+", " ", (value or "").casefold()).strip()
+    casefolded = (value or "").casefold()
+    separated_scripts = re.sub(
+        r"(?<=[a-z0-9])(?=[\u3400-\u9fff])|"
+        r"(?<=[\u3400-\u9fff])(?=[a-z0-9])",
+        " ",
+        casefolded,
+    )
+    return re.sub(r"[^\w]+", " ", separated_scripts).strip()
 
 
 def _term_aliases(value: str | None) -> list[str]:
@@ -286,14 +357,25 @@ def _term_aliases(value: str | None) -> list[str]:
 
 def _matches_term(normalized_text: str, value: str | None) -> bool:
     padded = f" {normalized_text} "
-    return any(f" {alias} " in padded for alias in _term_aliases(value))
+    compact_text = normalized_text.replace(" ", "")
+    for alias in _term_aliases(value):
+        if re.search(r"[\u3400-\u9fff]", alias):
+            compact_alias = alias.replace(" ", "")
+            if len(compact_alias) >= 2 and compact_alias in compact_text:
+                return True
+        elif f" {alias} " in padded:
+            return True
+    return False
 
 
 def _source_sentences(title: str, abstract: str | None) -> list[str]:
     combined = "\n".join(part for part in (title, abstract or "") if part)
     return [
         sentence.strip()
-        for sentence in re.split(r"(?<=[.!?。！？])\s+|\n+", combined)
+        for sentence in re.split(
+            r"(?<=[.!?])\s+|(?<=[。！？])\s*|\n+",
+            combined,
+        )
         if sentence.strip()
     ]
 
@@ -310,18 +392,100 @@ def _interaction_marker(sentence: str) -> tuple[str, str] | None:
 
 def _interaction_result_signal(sentence: str) -> str | None:
     normalized = sentence.casefold()
-    has_method_definition = bool(
-        re.search(_METHOD_DEFINITION_PATTERN, normalized)
-    )
+    if any(
+        re.search(pattern, normalized)
+        for pattern in (
+            _METHOD_DEFINITION_PATTERN,
+            _PURPOSE_HYPOTHESIS_PATTERN,
+            _METHOD_ONLY_PATTERN,
+        )
+    ):
+        return None
+    if re.search(_PREDICTIVE_OR_UNCERTAIN_PATTERN, normalized):
+        explicit_experimental_result = False
+        for clause in re.split(_RESULT_CLAUSE_SPLIT_PATTERN, normalized):
+            if not re.search(_EXPLICIT_EXPERIMENTAL_METHOD_PATTERN, clause):
+                continue
+            for result_match in re.finditer(
+                _ASSERTIVE_EXPERIMENTAL_RESULT_PATTERN,
+                clause,
+            ):
+                context_through_result = clause[: result_match.end()]
+                if not re.search(
+                    _PREDICTIVE_OR_UNCERTAIN_PATTERN,
+                    context_through_result,
+                ):
+                    explicit_experimental_result = True
+                    break
+            if explicit_experimental_result:
+                break
+        if not explicit_experimental_result:
+            return None
     for pattern, label in _INTERACTION_RESULT_PATTERNS:
         if re.search(pattern, normalized):
-            if (
-                has_method_definition
-                and label != "报告交互结果"
-            ):
-                continue
             return label
     return None
+
+
+def _interaction_outcome(sentence: str) -> InteractionOutcome:
+    normalized = sentence.casefold()
+    outcomes: list[InteractionOutcome] = []
+    outcome_patterns = (
+        (
+            InteractionOutcome.SYNERGY,
+            r"(?:\bsynerg(?:y|ism|istic)\b|协同)",
+            r"(?:\b(?:no|not|without)\b.{0,20}\bsynerg|"
+            r"(?:未|无).{0,12}协同)",
+        ),
+        (
+            InteractionOutcome.ANTAGONISM,
+            r"(?:\bantagon(?:ism|istic)\b|拮抗)",
+            r"(?:\b(?:no|not|without)\b.{0,20}\bantagon|"
+            r"(?:未|无).{0,12}拮抗)",
+        ),
+        (
+            InteractionOutcome.ADDITIVE,
+            r"(?:\badditive\b|相加)",
+            r"(?:\b(?:no|not|without)\b.{0,20}\badditive|"
+            r"(?:未|无).{0,12}相加)",
+        ),
+        (
+            InteractionOutcome.INDIFFERENT,
+            r"(?:\bindifferent\b|无关)",
+            r"(?:\b(?:no|not|without)\b.{0,20}\bindifferent|"
+            r"未.{0,12}无关)",
+        ),
+    )
+    for outcome, positive_pattern, negative_pattern in outcome_patterns:
+        if re.search(positive_pattern, normalized) and not re.search(
+            negative_pattern,
+            normalized,
+        ):
+            outcomes.append(outcome)
+    if len(outcomes) == 1:
+        return outcomes[0]
+    if re.search(
+        r"\b(?:fici|fic\s+index|fractional inhibitory concentration"
+        r"(?:\s+index)?)\b.{0,20}\d",
+        normalized,
+    ):
+        return InteractionOutcome.QUANTITATIVE_UNCLASSIFIED
+    return InteractionOutcome.INTERACTION_UNCLASSIFIED
+
+
+def _matches_all_question_entities(
+    sentence: str,
+    *,
+    population: str | None,
+    intervention: str | None,
+    comparator: str | None,
+) -> bool:
+    normalized = _normalized_match_text(sentence)
+    return (
+        _matches_term(normalized, population)
+        and _matches_term(normalized, intervention)
+        and _matches_term(normalized, comparator)
+    )
 
 
 def _best_interaction_quote(
@@ -331,25 +495,66 @@ def _best_interaction_quote(
     population: str | None,
     intervention: str | None,
     comparator: str | None,
-) -> tuple[str | None, str | None, str | None]:
-    candidates: list[tuple[int, int, str, str | None, str]] = []
-    for index, sentence in enumerate(_source_sentences(title, abstract)):
-        normalized_sentence = _normalized_match_text(sentence)
-        if not (
-            _matches_term(normalized_sentence, population)
-            and _matches_term(normalized_sentence, intervention)
-            and _matches_term(normalized_sentence, comparator)
-        ):
-            continue
+) -> tuple[
+    str | None,
+    str | None,
+    InteractionOutcome | None,
+    str | None,
+]:
+    candidates: list[
+        tuple[int, int, str, str, InteractionOutcome, str]
+    ] = []
+    contextual_markers: list[tuple[int, int, str, str]] = []
+    sentences = _source_sentences(title, abstract)
+    for index, sentence in enumerate(sentences):
         hit = _interaction_marker(sentence)
         if hit is None:
             continue
-        marker, quote = hit
-        result_signal = _interaction_result_signal(quote)
-        normalized = _normalized_match_text(quote)
+        marker, result_sentence = hit
+        same_sentence_binding = _matches_all_question_entities(
+            result_sentence,
+            population=population,
+            intervention=intervention,
+            comparator=comparator,
+        )
+        result_signal = _interaction_result_signal(result_sentence)
+        if result_signal is None:
+            if same_sentence_binding:
+                contextual_markers.append(
+                    (1, -index, marker, result_sentence)
+                )
+            continue
+        adjacent_binding = False
+        context_sentence: str | None = None
+        if (
+            not same_sentence_binding
+            and index > 0
+            and re.search(
+                _COMBINATION_ANAPHORA_PATTERN,
+                result_sentence.casefold(),
+            )
+            and _matches_all_question_entities(
+                sentences[index - 1],
+                population=population,
+                intervention=intervention,
+                comparator=comparator,
+            )
+        ):
+            adjacent_binding = True
+            context_sentence = sentences[index - 1]
+        if not same_sentence_binding and not adjacent_binding:
+            continue
+        quote = (
+            f"{context_sentence} {result_sentence}"
+            if context_sentence
+            else result_sentence
+        )
+        outcome = _interaction_outcome(result_sentence)
+        normalized = _normalized_match_text(result_sentence)
         score = 1
-        if result_signal:
-            score += 8
+        score += 8
+        if same_sentence_binding:
+            score += 2
         if any(term in normalized for term in ("synerg", "antagon", "additive")):
             score += 4
         if any(term in normalized for term in ("fici", "fractional inhibitory")):
@@ -358,11 +563,16 @@ def _best_interaction_quote(
             score += 1
         if quote != title:
             score += 1
-        candidates.append((score, -index, marker, result_signal, quote))
+        candidates.append(
+            (score, -index, marker, result_signal, outcome, quote)
+        )
     if not candidates:
-        return None, None, None
-    _, _, marker, result_signal, quote = max(candidates)
-    return marker, result_signal, quote
+        if contextual_markers:
+            _, _, marker, quote = max(contextual_markers)
+            return marker, None, None, quote
+        return None, None, None, None
+    _, _, marker, result_signal, outcome, quote = max(candidates)
+    return marker, result_signal, outcome, quote
 
 
 def qualify_literature_evidence(
@@ -382,7 +592,7 @@ def qualify_literature_evidence(
     matched_population = _matches_term(normalized, scoped.population)
     matched_intervention = _matches_term(normalized, scoped.intervention)
     matched_comparator = _matches_term(normalized, scoped.comparator)
-    marker, result_signal, quote = _best_interaction_quote(
+    marker, result_signal, interaction_outcome, quote = _best_interaction_quote(
         title,
         abstract,
         population=scoped.population,
@@ -407,6 +617,7 @@ def qualify_literature_evidence(
             matched_comparator=matched_comparator,
             interaction_marker=marker,
             interaction_result_signal=result_signal,
+            interaction_outcome=interaction_outcome,
             supporting_quote=quote,
             reasons=["来源明确标记为合成演示数据，不能进入科研结论。"],
         )
@@ -418,6 +629,7 @@ def qualify_literature_evidence(
             matched_comparator=matched_comparator,
             interaction_marker=marker,
             interaction_result_signal=result_signal,
+            interaction_outcome=interaction_outcome,
             supporting_quote=quote,
             reasons=[
                 "科研问题缺少" + "、".join(missing_question_fields) + "，无法判定直接证据。"
@@ -429,6 +641,7 @@ def qualify_literature_evidence(
         and matched_comparator
         and marker
         and result_signal
+        and interaction_outcome
         and quote
     ):
         return EvidenceQualification(
@@ -438,6 +651,7 @@ def qualify_literature_evidence(
             matched_comparator=True,
             interaction_marker=marker,
             interaction_result_signal=result_signal,
+            interaction_outcome=interaction_outcome,
             supporting_quote=quote,
             reasons=[
                 f"同时命中研究对象、两种干预、交互指标“{marker}”和"
@@ -478,6 +692,7 @@ def qualify_literature_evidence(
         matched_comparator=matched_comparator,
         interaction_marker=marker,
         interaction_result_signal=result_signal,
+        interaction_outcome=interaction_outcome,
         supporting_quote=quote,
         reasons=reasons,
     )
@@ -679,11 +894,27 @@ def run_multi_query_research(
             for article, ranking in zip(raw_articles, rankings, strict=True)
         ]
         evidence = [active_provider.extract(article) for article in articles]
+        answer_evidence = [
+            record
+            for article, record in zip(articles, evidence, strict=True)
+            if qualify_literature_evidence(
+                plan.question,
+                title=article.title,
+                abstract=article.abstract,
+            ).grade
+            in {
+                LiteratureEvidenceGrade.DIRECT_INTERACTION,
+                LiteratureEvidenceGrade.CONTEXTUAL,
+            }
+        ]
         research = ResearchResult(
             query=plan.question.text,
             articles=articles,
             evidence=evidence,
-            answer=active_provider.answer(plan.question.text, evidence),
+            answer=active_provider.answer(
+                plan.question.text,
+                answer_evidence,
+            ),
             provider_name=active_provider.name,
             retrieval_request_count=getattr(active_client, "request_count", 0),
             estimated_llm_cost_usd=0.0,
@@ -946,6 +1177,8 @@ def assess_evidence(
             references = [
                 reference
                 for condition in qualified_conditions
+                if condition.qualification.grade
+                is LiteratureEvidenceGrade.CONTEXTUAL
                 if (reference := condition.reference()) is not None
             ]
             gaps.append(
@@ -977,14 +1210,39 @@ def assess_evidence(
         gaps.append(
             EvidenceGap(
                 id="gap-fici-intervention-identity",
-                topic="FICI 药物身份",
+                topic="FICI 科研问题范围",
                 missing_evidence=(
-                    "FICI CSV 的 drug_a/drug_b 未在每个有效数据行中明确匹配"
-                    "当前科研问题的两种干预，分析未纳入结论。"
+                    "FICI CSV 的 drug_a、drug_b 或 population_or_strain "
+                    "未在每个有效数据行中明确匹配当前科研问题，分析未纳入结论。"
                 ),
-                impact="无法确认该 FICI 结果回答的是当前药物组合。",
+                impact="无法确认该 FICI 结果回答的是当前药物组合和病原体/菌株。",
                 recommended_action=(
-                    "在 CSV 的 drug_a、drug_b 列填写当前两种干预名称后重新分析。"
+                    "在 CSV 中填写当前两种干预及病原体/菌株名称后重新分析。"
+                ),
+            )
+        )
+        analysis = None
+    if (
+        scoped_question is not None
+        and isinstance(analysis, GrowthCurveAnalysisResult)
+        and analysis.valid
+        and not _growth_curve_analysis_matches_question(
+            scoped_question,
+            analysis,
+        )
+    ):
+        gaps.append(
+            EvidenceGap(
+                id="gap-growth-curve-scope-identity",
+                topic="生长曲线科研问题范围",
+                missing_evidence=(
+                    "生长曲线 CSV 的 population_or_strain、intervention 或 "
+                    "comparator 未在每个有效数据行中匹配当前科研问题，"
+                    "分析未纳入结论。"
+                ),
+                impact="无法确认该生长曲线回答的是当前药物组合和病原体/菌株。",
+                recommended_action=(
+                    "在 CSV 中填写当前两种干预及病原体/菌株名称后重新分析。"
                 ),
             )
         )
@@ -1002,6 +1260,59 @@ def assess_evidence(
             )
         )
         analysis = None
+
+    if scoped_question is not None:
+        direct_interaction_conditions = [
+            condition
+            for condition in working_conditions
+            if condition.qualification.grade
+            is LiteratureEvidenceGrade.DIRECT_INTERACTION
+        ]
+        by_interaction_outcome: dict[
+            InteractionOutcome,
+            list[ExperimentCondition],
+        ] = {}
+        for condition in direct_interaction_conditions:
+            outcome = condition.qualification.interaction_outcome
+            if outcome is not None:
+                by_interaction_outcome.setdefault(outcome, []).append(condition)
+        if (
+            InteractionOutcome.SYNERGY in by_interaction_outcome
+            and InteractionOutcome.ANTAGONISM in by_interaction_outcome
+        ):
+            conflicting_conditions = [
+                *by_interaction_outcome[InteractionOutcome.SYNERGY],
+                *by_interaction_outcome[InteractionOutcome.ANTAGONISM],
+            ]
+            claims = [
+                claim
+                for condition in conflicting_conditions
+                if (claim := _claim_from_condition(condition)) is not None
+            ]
+            if len(claims) >= 2:
+                topic = (
+                    f"{scoped_question.intervention} + "
+                    f"{scoped_question.comparator} / "
+                    f"{scoped_question.population}"
+                )
+                conflicts.append(
+                    EvidenceConflict(
+                        id=(
+                            "conflict-literature-interaction-"
+                            f"{sha256(topic.encode('utf-8')).hexdigest()[:10]}"
+                        ),
+                        topic=topic,
+                        description=(
+                            "同一科研问题的直接文献分别报告协同与拮抗结果。"
+                        ),
+                        claims=claims,
+                        impact=(
+                            "交互方向相反，不能直接合并为单一结论；需核对菌株、"
+                            "剂量、时间、方法阈值和实验质量差异。"
+                        ),
+                        resolution_status=ConflictResolutionStatus.OPEN,
+                    )
+                )
 
     grouped: dict[str, list[ExperimentCondition]] = {}
     for condition in working_conditions:
@@ -1094,6 +1405,8 @@ def assess_evidence(
                 if row.valid and row.classification in {"synergy", "antagonism"}:
                     calculation = (
                         f"CSV row {row.row_number}: "
+                        f"{row.drug_a} + {row.drug_b} / "
+                        f"{row.population_or_strain}; "
                         f"({row.drug_a_mic_combo}/{row.drug_a_mic_alone}) + "
                         f"({row.drug_b_mic_combo}/{row.drug_b_mic_alone}) = "
                         f"FICI={row.fici:.4g}; classification={row.classification}"
@@ -1148,23 +1461,77 @@ def _fici_analysis_matches_question(
     question: ResearchQuestion,
     analysis: FICIAnalysisResult,
 ) -> bool:
-    expected = {
+    expected_drugs = {
         _normalized_match_text(question.intervention),
         _normalized_match_text(question.comparator),
     }
-    if "" in expected or len(expected) != 2:
+    expected_population = _normalized_match_text(question.population)
+    if (
+        "" in expected_drugs
+        or len(expected_drugs) != 2
+        or not expected_population
+    ):
         return False
     valid_rows = [row for row in analysis.rows if row.valid]
     if not valid_rows:
         return False
     for row in valid_rows:
-        actual = {
-            _normalized_match_text(row.raw_row.get("drug_a")),
-            _normalized_match_text(row.raw_row.get("drug_b")),
+        actual_drugs = {
+            _normalized_match_text(row.drug_a),
+            _normalized_match_text(row.drug_b),
         }
-        if actual != expected:
+        actual_population = _normalized_match_text(row.population_or_strain)
+        if (
+            actual_drugs != expected_drugs
+            or actual_population != expected_population
+        ):
             return False
     return True
+
+
+def _growth_curve_analysis_matches_question(
+    question: ResearchQuestion,
+    analysis: GrowthCurveAnalysisResult,
+) -> bool:
+    expected_drugs = {
+        _normalized_match_text(question.intervention),
+        _normalized_match_text(question.comparator),
+    }
+    expected_population = _normalized_match_text(question.population)
+    if (
+        "" in expected_drugs
+        or len(expected_drugs) != 2
+        or not expected_population
+    ):
+        return False
+    valid_rows = [row for row in analysis.rows if row.valid]
+    if not valid_rows:
+        return False
+    return all(
+        {
+            _normalized_match_text(row.intervention),
+            _normalized_match_text(row.comparator),
+        }
+        == expected_drugs
+        and _normalized_match_text(row.population_or_strain)
+        == expected_population
+        for row in valid_rows
+    )
+
+
+def experiment_analysis_matches_question(
+    question: ResearchQuestion,
+    analysis: ExperimentAnalysisResult,
+) -> bool:
+    """Return whether a valid CSV analysis belongs to the current question."""
+
+    if not analysis.valid:
+        return False
+    if isinstance(analysis, FICIAnalysisResult):
+        return _fici_analysis_matches_question(question, analysis)
+    if isinstance(analysis, GrowthCurveAnalysisResult):
+        return _growth_curve_analysis_matches_question(question, analysis)
+    return False
 
 
 def _analysis_conclusion(
@@ -1192,6 +1559,8 @@ def _analysis_conclusion(
             counts[classification] = counts.get(classification, 0) + 1
             calculation = (
                 f"CSV row {row.row_number}: "
+                f"{row.drug_a} + {row.drug_b} / "
+                f"{row.population_or_strain}; "
                 f"({row.drug_a_mic_combo}/{row.drug_a_mic_alone}) + "
                 f"({row.drug_b_mic_combo}/{row.drug_b_mic_alone}) = "
                 f"FICI={row.fici:.4g}; classification={classification}"
@@ -1223,6 +1592,14 @@ def _analysis_conclusion(
 
     if isinstance(analysis, GrowthCurveAnalysisResult) and analysis.auc_by_group:
         references = []
+        valid_rows = [row for row in analysis.rows if row.valid]
+        scope_text = ""
+        if valid_rows:
+            first_scope = valid_rows[0]
+            scope_text = (
+                f"{first_scope.intervention} + {first_scope.comparator} / "
+                f"{first_scope.population_or_strain}；"
+            )
         for row in analysis.auc_by_group:
             timepoints = [
                 point
@@ -1260,7 +1637,8 @@ def _analysis_conclusion(
         return TraceableConclusion(
             id="analysis-growth-curve",
             statement=(
-                f"{demo_prefix}生长曲线梯形积分的描述性结果为：{statement}。"
+                f"{demo_prefix}{scope_text}生长曲线梯形积分的描述性结果为："
+                f"{statement}。"
             ),
             confidence=ConclusionConfidence.MODERATE,
             evidence=references,
@@ -1272,6 +1650,58 @@ def _analysis_conclusion(
     return None
 
 
+def _mechanism_prediction_for_question(
+    question: ResearchQuestion,
+    prediction: MechanismPredictionBundle,
+) -> MechanismPredictionBundle:
+    """Fail closed when a prediction bundle belongs to another question."""
+
+    expected_compounds = [
+        question.intervention or "",
+        question.comparator or "",
+    ]
+    expected_organism = question.population or ""
+    network = prediction.network
+    if network is not None:
+        try:
+            require_network_scope(
+                network,
+                expected_compounds=expected_compounds,
+                expected_organism=expected_organism,
+            )
+        except ValueError:
+            network = None
+
+    def manifest_matches_question(manifest: VinaTaskManifest) -> bool:
+        try:
+            require_docking_scope(
+                manifest,
+                expected_compounds=expected_compounds,
+                expected_organism=expected_organism,
+            )
+        except (AttributeError, TypeError, ValueError):
+            return False
+        return True
+
+    prepared_manifests = [
+        manifest
+        for manifest in prediction.prepared_manifests
+        if manifest_matches_question(manifest)
+    ]
+    docking_runs = [
+        run
+        for run in prediction.docking_runs
+        if manifest_matches_question(run.manifest)
+    ]
+    return prediction.model_copy(
+        update={
+            "network": network,
+            "prepared_manifests": prepared_manifests,
+            "docking_runs": docking_runs,
+        }
+    )
+
+
 def build_decision_report(
     question: ResearchQuestion | str,
     *,
@@ -1279,6 +1709,7 @@ def build_decision_report(
     task_events: list[TaskEvent],
     analysis: ExperimentAnalysisResult | None = None,
     assessment: EvidenceAssessment | None = None,
+    mechanism_prediction: MechanismPredictionBundle | None = None,
     hypotheses: list[TestableHypothesis] | None = None,
     human_review: HumanReview | None = None,
 ) -> ResearchDecisionReport:
@@ -1293,8 +1724,8 @@ def build_decision_report(
         analysis if analysis is not None and analysis.valid else None
     )
     if (
-        isinstance(usable_analysis, FICIAnalysisResult)
-        and not _fici_analysis_matches_question(scoped, usable_analysis)
+        usable_analysis is not None
+        and not experiment_analysis_matches_question(scoped, usable_analysis)
     ):
         usable_analysis = None
     # Assessment is always recomputed from the same validated inputs as the
@@ -1321,6 +1752,8 @@ def build_decision_report(
         candidate_references = [
             reference
             for condition in qualified_conditions
+            if condition.qualification.grade
+            is LiteratureEvidenceGrade.CONTEXTUAL
             if (reference := condition.reference()) is not None
         ]
         if candidate_references:
@@ -1392,6 +1825,10 @@ def build_decision_report(
 
     generated_at = datetime.now(timezone.utc)
     report_id = f"report-{scoped.id}-{uuid4().hex[:12]}"
+    active_prediction = _mechanism_prediction_for_question(
+        scoped,
+        mechanism_prediction or MechanismPredictionBundle(),
+    )
     review = human_review or HumanReview(
         id=f"review-{report_id}",
         requested_at=generated_at,
@@ -1413,6 +1850,7 @@ def build_decision_report(
         evidence_admission=admission,
         conflicts=active_assessment.conflicts,
         evidence_gaps=active_assessment.gaps,
+        mechanism_prediction=active_prediction,
         task_status=summarize_task_status(task_events),
         human_review=review,
         generated_at=generated_at,
@@ -1503,6 +1941,113 @@ def decision_report_to_markdown(report: ResearchDecisionReport) -> str:
         if conclusion.limitations:
             lines.append(f"- 局限：{'；'.join(conclusion.limitations)}")
         lines.append("")
+
+    lines.extend(["## 计算预测（不等同于实验或直接文献证据）", ""])
+    prediction = report.mechanism_prediction
+    if (
+        prediction.network is None
+        and not prediction.prepared_manifests
+        and not prediction.docking_runs
+    ):
+        lines.append("- 当前未导入网络药理学或分子对接结果。")
+    if prediction.network is not None:
+        network = prediction.network
+        lines.extend(
+            [
+                "### 网络药理学",
+                "",
+                f"- 证据等级：{network.evidence_grade}",
+                f"- 算法：{network.parameters.algorithm_version}",
+                f"- 排名规则：{network.parameters.ranking_method}",
+                "- 研究对象：" + "、".join(network.organisms),
+                "- 化合物：" + "、".join(network.compounds),
+                (
+                    f"- 交集靶点：{network.summary.intersection_target_count}；"
+                    f"交集通路：{network.summary.intersection_pathway_count}"
+                ),
+            ]
+        )
+        for source in network.sources:
+            lines.append(
+                f"- 输入来源：{source.source_name}；accession={source.accession}；"
+                f"version={source.version}；SHA-256={source.sha256}"
+            )
+        for target in network.ranked_targets[:10]:
+            lines.append(
+                f"- 靶点排名 {target.rank}：{target.target} "
+                f"({target.target_accession})；organism={target.organism}；"
+                f"score={target.network_score}；"
+                f"compound_degree={target.compound_degree}；"
+                f"pathway_degree={target.pathway_degree}；compounds="
+                + "、".join(
+                    f"{link.compound} ({link.compound_accession})"
+                    for link in target.compounds
+                )
+            )
+        lines.append(
+            "- 局限：网络排名只反映用户导入关系的透明拓扑统计，"
+            "不能证明靶点有效、药物结合或协同作用。"
+        )
+        lines.append("")
+    completed_task_ids = {
+        run.manifest.task_id for run in prediction.docking_runs
+    }
+    for manifest in prediction.prepared_manifests:
+        if manifest.task_id in completed_task_ids:
+            continue
+        lines.extend(
+            [
+                f"### 待运行对接任务：{manifest.compound_name} × "
+                f"{manifest.receptor_name}",
+                "",
+                f"- 任务 ID：{manifest.task_id}",
+                f"- 任务清单 SHA-256：{manifest.manifest_sha256}",
+                f"- 引擎：{manifest.engine} {manifest.engine_version}",
+                f"- 研究对象：{manifest.receptor_organism}",
+                "- 状态：仅生成可复现任务清单，尚未导入任务哈希与版本"
+                "匹配的用户输出，因此没有对接分数。",
+                "",
+            ]
+        )
+    for run in prediction.docking_runs:
+        manifest = run.manifest
+        lines.extend(
+            [
+                f"### 分子对接：{manifest.compound_name} × "
+                f"{manifest.receptor_name}",
+                "",
+                f"- 证据等级：{run.evidence_grade}",
+                f"- 任务 ID：{manifest.task_id}",
+                f"- 任务清单 SHA-256：{manifest.manifest_sha256}",
+                f"- 引擎：{manifest.engine} {manifest.engine_version}",
+                f"- 配体：{manifest.ligand_accession}；"
+                f"SHA-256={manifest.ligand_source.sha256}",
+                f"- 受体：{manifest.receptor_accession}；"
+                f"研究对象={manifest.receptor_organism}；"
+                f"SHA-256={manifest.receptor_source.sha256}",
+                f"- 原始输出：{run.output_source.accession}；"
+                f"SHA-256={run.output_source.sha256}",
+                (
+                    f"- 搜索框中心：({manifest.parameters.center_x}, "
+                    f"{manifest.parameters.center_y}, "
+                    f"{manifest.parameters.center_z})；尺寸："
+                    f"({manifest.parameters.size_x}, "
+                    f"{manifest.parameters.size_y}, "
+                    f"{manifest.parameters.size_z})"
+                ),
+                f"- exhaustiveness={manifest.parameters.exhaustiveness}；"
+                f"num_modes={manifest.parameters.num_modes}；"
+                f"seed={manifest.parameters.seed}",
+                f"- 最佳解析得分：{run.best_affinity_kcal_mol} kcal/mol",
+                (
+                    "- 局限：对接得分只表示该结构、质子化状态、搜索框和"
+                    "评分函数下的计算结果，不能证明体内外活性或药物协同；"
+                    "系统只核验文件格式、任务哈希、版本与内容哈希，不能"
+                    "认证该文件确由 Vina 实际运行产生。"
+                ),
+                "",
+            ]
+        )
 
     lines.extend(
         [

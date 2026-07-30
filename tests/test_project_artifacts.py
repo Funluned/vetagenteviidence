@@ -21,13 +21,18 @@ def test_required_delivery_artifacts_exist() -> None:
         "src/vetevidence/experiment_analysis.py",
         "src/vetevidence/imported_extraction.py",
         "src/vetevidence/literature_import.py",
+        "src/vetevidence/mechanism_prediction.py",
         "src/vetevidence/run_store.py",
         "src/vetevidence/workbench.py",
         "src/vetevidence/workbench_pipeline.py",
         "data/templates/fici_template.csv",
         "data/templates/growth_curve_template.csv",
+        "data/templates/compound_target_template.csv",
+        "data/templates/target_pathway_template.csv",
         "data/demo/fici_demo.csv",
         "data/demo/growth_curve_demo.csv",
+        "data/demo/mechanism_compound_target_demo.csv",
+        "data/demo/mechanism_target_pathway_demo.csv",
         "data/demo/cnki_export_demo.ris",
     ]
 
@@ -61,8 +66,10 @@ def test_workbench_release_metadata_and_readme_contract() -> None:
     pyproject = (PROJECT_ROOT / "pyproject.toml").read_text(encoding="utf-8")
     readme = (PROJECT_ROOT / "README.md").read_text(encoding="utf-8")
 
-    assert 'version = "0.2.0"' in pyproject
+    assert 'version = "0.3.0"' in pyproject
     assert "VetResearch Workbench" in readme
     assert "FICI" in readme
     assert "生长曲线" in readme
     assert "RIS" in readme
+    assert "网络药理学" in readme
+    assert "AutoDock Vina" in readme

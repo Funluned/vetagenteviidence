@@ -1,6 +1,8 @@
-# VetResearch Workbench v0.2
+# VetResearch Workbench v0.3
 
-VetResearch Workbench 基于 VetEvidence AI v0.1，把科研问题、可核查文献、实验条件与 CSV 数据串成一个可审计的科研决策闭环。当前首个垂直场景聚焦：
+VetResearch Workbench 基于 VetEvidence AI v0.1，把科研问题、可核查文献、
+实验条件、CSV 数据、网络药理学和分子对接串成一个可审计的科研决策闭环。
+当前首个垂直场景聚焦：
 
 > 候选药物与抗生素对目标病原菌是否存在值得进一步验证的协同作用？
 
@@ -8,20 +10,24 @@ VetResearch Workbench 基于 VetEvidence AI v0.1，把科研问题、可核查�
 
 ## 当前已实现
 
-### VetResearch Workbench v0.2
+### VetResearch Workbench v0.3
 
 - 把科研问题拆成 2—4 条可检验假设，并允许人工修改；
 - 自动生成并执行最多 3 轮可见 PubMed 检索式，扩大候选池后按轮公平合并、PMID 去重，再优先保留能回答当前问题的文献；
-- 按题名和摘要把文献分为“直接文献证据、间接背景、无关”，逐篇显示命中理由和判定原句；
-- 只有同一句同时命中研究对象、两种干预、明确交互指标和结果的文献才能进入协同文献结论；直接文献证据为 0 时固定输出文献证据不足，而不是强行回答；
+- 按题名和摘要把文献分为“直接文献证据、间接背景、主题不匹配”，逐篇显示命中理由和判定原句；
+- 排除目的、假设、方法定义和阈值说明的误判，并允许“完整实体句 + 紧邻明确组合结果句”的受控回指；直接文献证据为 0 时固定输出文献证据不足；
+- 结构化记录协同、拮抗、相加和无相互作用等交互结局；同一问题出现协同与拮抗直接文献时明确显示冲突；
 - 导入 RIS、EndNote、RefWorks 题录文件，按 DOI 或标题与年份去重；
 - 把 PubMed 与用户导入文献整理为同一实验条件矩阵，缺失字段保持为空；
 - 比较物种、模型、样本量、干预、剂量、时间、对照和指标，显示一致性、显式冲突与证据空白；
-- 分析 FICI 与生长曲线 CSV，逐行保留原始值、校验错误和来源行号；FICI 的 `drug_a`、`drug_b` 必须匹配当前研究问题；
+- 分析 FICI 与生长曲线 CSV，逐行保留原始值、校验错误和来源行号；两类 CSV 都必须显式填写研究对象与干预范围，并与当前研究问题匹配；
+- 导入带来源 accession、版本和 SHA-256 的化合物—靶点、靶点—通路 CSV，按透明网络拓扑规则生成靶点排名；
+- 保存 AutoDock Vina 配体/受体 PDBQT 哈希、来源、搜索框、随机种子和软件版本，生成可下载任务清单，并只从任务哈希与版本匹配的用户导入标准输出解析对接模式；
+- 在报告中单列“计算预测”，不允许网络排名或对接得分冒充直接文献证据、实验结果或协同证明；
 - 生成带文献引用，以及 CSV 文件名、SHA-256、原始行号与计算过程的 Markdown/JSON 决策报告；
 - 要求人工选择“通过、要求修改、拒绝”后再结束任务；
 - 把任务事件、工具调用、失败、重试关系和人工复核保存到本地 `.workbench/runs/*.json`，可凭完整运行 ID 恢复；
-- 通过五步 Streamlit 界面完成完整闭环，无需 LLM API Key。
+- 通过六步 Streamlit 界面完成完整闭环，无需 LLM API Key。
 
 ### 继承自 VetEvidence AI v0.1
 
@@ -44,13 +50,14 @@ python -m venv .venv
 
 终端显示地址后，在浏览器打开 `http://localhost:8501`。
 
-## 五步工作流
+## 六步工作流
 
 1. `问题与假设`：填写研究对象、候选干预、联合药物和预设指标，检查并修改透明规则生成的假设；
 2. `文献证据`：执行最多 3 轮 PubMed 检索，查看逐篇证据等级、准入理由和判定原句，或上传 RIS、EndNote、RefWorks 导出文件；
 3. `实验数据`：核查实验条件矩阵、冲突和空白，再上传 FICI 或生长曲线 CSV；
-4. `决策报告`：生成带来源、风险和下一步的报告，完成人工复核；
-5. `运行记录`：查看事件、工具调用和失败记录，下载快照或凭完整运行 ID 恢复。
+4. `机制预测`：导入可追溯的网络关系，生成 Vina 任务清单并导入带任务哈希的标准输出；
+5. `决策报告`：生成带来源、风险、计算预测边界和下一步的报告，完成人工复核；
+6. `运行记录`：查看事件、工具调用和失败记录，下载快照或凭完整运行 ID 恢复。
 
 页面提供合成 RIS、FICI 和生长曲线演示数据。这些文件只用于验证工作流，页面与报告会明确标记，不能作为科研事实。
 
@@ -66,11 +73,15 @@ python -m venv .venv
 
 ### FICI CSV
 
-必须包含以下四列，其他列可作为原始记录一并保留：
+必须包含研究对象、两种药物身份和四个 MIC 数值列，其他列可作为原始记录一并保留：
 
 ```text
-drug_a_mic_alone,drug_a_mic_combo,drug_b_mic_alone,drug_b_mic_combo
+drug_a,drug_b,population_or_strain,drug_a_mic_alone,drug_a_mic_combo,drug_b_mic_alone,drug_b_mic_combo
 ```
+
+`drug_a`、`drug_b` 必须对应当前科研问题中的两种干预，
+`population_or_strain` 必须填写当前研究对象、病原体或包含该对象名称的菌株标识；
+缺少或不匹配的范围信息不能进入当前问题的报告结论。
 
 计算公式为：
 
@@ -79,17 +90,61 @@ FICI = drug_a_mic_combo / drug_a_mic_alone
      + drug_b_mic_combo / drug_b_mic_alone
 ```
 
-当前透明分类阈值为：`≤ 0.5` 协同、`≤ 1` 相加、`≤ 4` 无关、`> 4` 拮抗。该结果是描述性分类，不能替代独立重复与 time-kill 等正交验证。
+当前透明分类阈值为：`≤ 0.5` 协同、`≤ 1` 相加、`≤ 4`
+无相互作用（indifferent）、`> 4` 拮抗。该结果是描述性分类，不能替代
+独立重复与 time-kill 等正交验证。
 
 ### 生长曲线 CSV
 
-必须包含：
+必须包含研究范围、时间、组别和测量值：
 
 ```text
-time,group,value
+population_or_strain,intervention,comparator,time,group,value
 ```
 
-系统按组和时间点汇总重复值的均值、标准差与样本数，并用梯形法计算各组 AUC；不自动进行显著性检验或模型比较。可直接下载 `data/templates/` 中的 CSV 模板。
+`population_or_strain`、`intervention`、`comparator` 必须与当前科研问题一致。
+系统按组和时间点汇总重复值的均值、标准差与样本数；每个组至少需要
+2 个不同时间点，且所有输入与计算结果必须为有限数值，才能用梯形法计算
+该组 AUC。系统不自动进行显著性检验或模型比较。可直接下载
+`data/templates/` 中的 CSV 模板。
+
+### 网络药理学 CSV
+
+化合物—靶点表必须包含：
+
+```text
+compound,compound_accession,organism,target,target_accession
+```
+
+靶点—通路表必须包含：
+
+```text
+organism,target,target_accession,pathway,pathway_accession
+```
+
+两个文件都必须记录来源名称、数据集 accession 和版本，系统会保存输入
+SHA-256。当前透明排名为 `compound_degree × pathway_degree`，仅反映导入关系
+的网络拓扑，不代表靶点已验证。当前垂直流程只接受科研问题中的两种干预和
+一个研究对象；两种干预都必须实际参与该研究对象的靶点—通路交集，混入其他
+化合物或物种会被拒绝。
+
+### AutoDock Vina
+
+页面要求上传配体和受体 PDBQT，填写各自来源 accession、版本、受体研究对象、
+搜索框、`exhaustiveness`、`num_modes`、随机种子和 Vina 版本。系统先生成
+不含任何分数的任务清单；只有导入包含匹配任务清单哈希、软件版本、
+`mode/affinity` 表头和合规模式行的 Vina 文本输出后才保存得分。系统只能
+核验格式、关联关系和内容哈希，不能认证文件确由 Vina 实际运行产生。官方
+的结构准备与运行步骤见
+[AutoDock Vina 基础对接文档](https://autodock-vina.readthedocs.io/en/stable/docking_basic.html)。
+
+配体 PDBQT 至少要有 `ATOM/HETATM`、`ROOT` 和 `TORSDOF` 记录，受体至少
+要有 `ATOM/HETATM`。外部运行时应把任务清单页面显示的
+`VetEvidence-Manifest-SHA256: <digest>` 标记与 Vina 日志一起保存；导入时
+该标记、Vina 版本、模式编号和 `num_modes` 必须同时通过校验。
+
+项目不捆绑 AutoDock Vina、Meeko 或结构数据库，也不自动执行未经核查的外部
+二进制程序。对接得分不能单独证明结合、抗菌活性或药物协同。
 
 ## 配置与期刊分区
 
@@ -112,7 +167,8 @@ $env:NCBI_API_KEY = "your_api_key"
 .\.venv\Scripts\python.exe -m pytest
 ```
 
-当前回归结果为 `78 passed`。继承自 v0.1 的定向评测仍为 `30/30`，这是受控工程检查，不代表通用模型准确率。
+当前回归结果为 `131 passed`。继承自 v0.1 的定向评测仍为 `30/30`，
+这是受控工程检查，不代表通用模型准确率。
 
 真实负例使用 `quercetin + amoxicillin / Streptococcus agalactiae`：候选分级后保留 8 篇文献，但直接文献证据为 0，报告状态为 `blocked_no_direct_evidence`。真实正例使用 `florfenicol + thiamphenicol / Pasteurella multocida`：本次（2026-07-29）实时复跑保留 8 篇文献，只有 PMID `31749775` 通过严格直接文献证据准入。PubMed 是实时外部数据源，未来复跑的数量和排序可能变化。
 
@@ -128,9 +184,9 @@ $env:NCBI_API_KEY = "your_api_key"
 
 - PubMed 题录和摘要来自 [NCBI Entrez Programming Utilities](https://www.ncbi.nlm.nih.gov/books/NBK25501/)；
 - 期刊分区参考 [LetPub](https://www.letpub.com.cn/index.php?page=journalapp)，正式评价或投稿前仍需复核；
-- 用户导入题录和实验 CSV 只在本机处理；
+- 用户导入题录、实验 CSV、机制关系和结构文件只在本机处理；
 - 每次运行保存为 `.workbench/runs/<run_id>.json`，该目录已被 Git 忽略；
-- 报告中的文献结论关联 PMID、DOI、来源 URL 或原文片段；实验分析关联 CSV 文件名、SHA-256、原始行号和可复算过程。
+- 报告中的文献结论关联 PMID、DOI、来源 URL 或原文片段；实验分析关联 CSV 文件名、SHA-256、原始行号和可复算过程；计算预测独立记录关系数据、结构和 Vina 输出的 accession、版本、参数及 SHA-256。
 
 ## 项目文档
 
@@ -161,6 +217,8 @@ docker run --rm -p 8501:8501 vetevidence-ai
 - 当前只解析 PubMed 摘要和 RIS、EndNote、RefWorks 题录导出，不读取未授权全文，也不支持扫描 PDF/OCR；
 - 用户导入记录的正确性仍需人工核查，系统不会把缺失信息补造为事实；
 - FICI 和生长曲线只做透明、可追溯的描述性分析；
+- 网络药理学和分子对接只属于计算预测层，不进入直接文献或实验协同证据；
+- 当前不自动下载化合物、靶点或结构，也不在本机执行 Vina；用户必须合法取得输入并核查结构准备、质子化状态和搜索框；
 - 直接文献证据规则宁可漏报也不误报：要求同一题名或摘要句明确出现研究对象、两种干预、交互指标和结果；仅描述 checkerboard、time-kill 或 FICI 方法与阈值不构成结果证据，缩写、同义词或跨句表达可能需要人工复核；
 - 合成演示数据只用于验证计算和页面流程，不得进入科研结论；
 - 规则提取无法覆盖所有摘要表达方式，冲突检测也只识别显式方向差异；

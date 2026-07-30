@@ -14,12 +14,28 @@ from pydantic import BaseModel, Field
 
 
 FICI_REQUIRED_COLUMNS = (
+    "drug_a",
+    "drug_b",
+    "population_or_strain",
     "drug_a_mic_alone",
     "drug_a_mic_combo",
     "drug_b_mic_alone",
     "drug_b_mic_combo",
 )
-GROWTH_CURVE_REQUIRED_COLUMNS = ("time", "group", "value")
+GROWTH_CURVE_REQUIRED_COLUMNS = (
+    "population_or_strain",
+    "intervention",
+    "comparator",
+    "time",
+    "group",
+    "value",
+)
+FICI_NUMERIC_COLUMNS = (
+    "drug_a_mic_alone",
+    "drug_a_mic_combo",
+    "drug_b_mic_alone",
+    "drug_b_mic_combo",
+)
 
 FICIClassification = Literal[
     "synergy",
@@ -45,6 +61,9 @@ class CSVRowAudit(BaseModel):
 
 
 class FICIRowResult(CSVRowAudit):
+    drug_a: str | None = None
+    drug_b: str | None = None
+    population_or_strain: str | None = None
     drug_a_mic_alone: float | None = None
     drug_a_mic_combo: float | None = None
     drug_b_mic_alone: float | None = None
@@ -68,6 +87,9 @@ class FICIAnalysisResult(BaseModel):
 
 
 class GrowthCurveObservation(CSVRowAudit):
+    population_or_strain: str | None = None
+    intervention: str | None = None
+    comparator: str | None = None
     time: float | None = None
     group: str | None = None
     value: float | None = None
@@ -238,6 +260,16 @@ def _parse_number(
     return value, None
 
 
+def _parse_required_text(
+    raw_value: str | None,
+    *,
+    column: str,
+) -> tuple[str | None, str | None]:
+    if raw_value is None or not raw_value.strip():
+        return None, f"{column} is required."
+    return raw_value.strip(), None
+
+
 def _classify_fici(fici: float) -> FICIClassification:
     if fici <= 0.5:
         return "synergy"
@@ -281,16 +313,28 @@ def analyze_fici_csv(
     results: list[FICIRowResult] = []
     for raw_row in parsed.rows:
         row_errors = list(raw_row.errors)
-        values: dict[str, float | None] = {
-            column: None for column in FICI_REQUIRED_COLUMNS
+        numeric_values: dict[str, float | None] = {
+            column: None for column in FICI_NUMERIC_COLUMNS
+        }
+        text_values: dict[str, str | None] = {
+            column: None
+            for column in ("drug_a", "drug_b", "population_or_strain")
         }
         if can_calculate:
-            for column in FICI_REQUIRED_COLUMNS:
+            for column in text_values:
+                value, error = _parse_required_text(
+                    raw_row.mapping.get(column),
+                    column=column,
+                )
+                text_values[column] = value
+                if error:
+                    row_errors.append(error)
+            for column in FICI_NUMERIC_COLUMNS:
                 value, error = _parse_number(
                     raw_row.mapping.get(column),
                     column=column,
                 )
-                values[column] = value
+                numeric_values[column] = value
                 if error:
                     row_errors.append(error)
                 elif value is not None and value <= 0:
@@ -303,20 +347,39 @@ def analyze_fici_csv(
         fici: float | None = None
         classification: FICIClassification | None = None
         if not row_errors and can_calculate:
-            drug_a_alone = values["drug_a_mic_alone"]
-            drug_a_combo = values["drug_a_mic_combo"]
-            drug_b_alone = values["drug_b_mic_alone"]
-            drug_b_combo = values["drug_b_mic_combo"]
+            drug_a_alone = numeric_values["drug_a_mic_alone"]
+            drug_a_combo = numeric_values["drug_a_mic_combo"]
+            drug_b_alone = numeric_values["drug_b_mic_alone"]
+            drug_b_combo = numeric_values["drug_b_mic_combo"]
             if (
                 drug_a_alone is not None
                 and drug_a_combo is not None
                 and drug_b_alone is not None
                 and drug_b_combo is not None
             ):
-                fic_a = drug_a_combo / drug_a_alone
-                fic_b = drug_b_combo / drug_b_alone
-                fici = fic_a + fic_b
-                classification = _classify_fici(fici)
+                try:
+                    calculated_fic_a = drug_a_combo / drug_a_alone
+                    calculated_fic_b = drug_b_combo / drug_b_alone
+                    calculated_fici = calculated_fic_a + calculated_fic_b
+                except OverflowError:
+                    row_errors.append("FICI calculation overflowed.")
+                else:
+                    if not all(
+                        math.isfinite(value)
+                        for value in (
+                            calculated_fic_a,
+                            calculated_fic_b,
+                            calculated_fici,
+                        )
+                    ):
+                        row_errors.append(
+                            "FICI calculation produced a non-finite result."
+                        )
+                    else:
+                        fic_a = calculated_fic_a
+                        fic_b = calculated_fic_b
+                        fici = calculated_fici
+                        classification = _classify_fici(fici)
 
         valid = not row_errors and can_calculate
         results.append(
@@ -326,7 +389,8 @@ def analyze_fici_csv(
                 raw_row=raw_row.mapping,
                 valid=valid,
                 errors=row_errors,
-                **values,
+                **text_values,
+                **numeric_values,
                 fic_a=fic_a,
                 fic_b=fic_b,
                 fici=fici,
@@ -369,10 +433,25 @@ def analyze_growth_curve_csv(
     observations: list[GrowthCurveObservation] = []
     for raw_row in parsed.rows:
         row_errors = list(raw_row.errors)
+        population_or_strain: str | None = None
+        intervention: str | None = None
+        comparator: str | None = None
         time: float | None = None
         value: float | None = None
         group: str | None = None
         if can_calculate:
+            population_or_strain, population_error = _parse_required_text(
+                raw_row.mapping.get("population_or_strain"),
+                column="population_or_strain",
+            )
+            intervention, intervention_error = _parse_required_text(
+                raw_row.mapping.get("intervention"),
+                column="intervention",
+            )
+            comparator, comparator_error = _parse_required_text(
+                raw_row.mapping.get("comparator"),
+                column="comparator",
+            )
             time, time_error = _parse_number(
                 raw_row.mapping.get("time"),
                 column="time",
@@ -385,6 +464,13 @@ def analyze_growth_curve_csv(
                 row_errors.append(time_error)
             if value_error:
                 row_errors.append(value_error)
+            for error in (
+                population_error,
+                intervention_error,
+                comparator_error,
+            ):
+                if error:
+                    row_errors.append(error)
 
             raw_group = raw_row.mapping.get("group")
             if raw_group is None or not raw_group.strip():
@@ -400,6 +486,9 @@ def analyze_growth_curve_csv(
                 raw_row=raw_row.mapping,
                 valid=valid,
                 errors=row_errors,
+                population_or_strain=population_or_strain,
+                intervention=intervention,
+                comparator=comparator,
                 time=time,
                 group=group,
                 value=value,
@@ -420,6 +509,7 @@ def analyze_growth_curve_csv(
             grouped[observation.group][observation.time].append(observation)
 
     timepoints: list[GrowthTimepointSummary] = []
+    calculation_errors: list[str] = []
     for group in sorted(grouped):
         for time in sorted(grouped[group]):
             source_rows = grouped[group][time]
@@ -428,12 +518,29 @@ def analyze_growth_curve_csv(
                 for observation in source_rows
                 if observation.value is not None
             ]
+            try:
+                mean = fmean(values)
+                sd = stdev(values) if len(values) > 1 else None
+            except (OverflowError, ValueError) as exc:
+                calculation_errors.append(
+                    f"group {group!r} at time {time:g} could not be "
+                    f"summarized: {exc}"
+                )
+                continue
+            if not math.isfinite(mean) or (
+                sd is not None and not math.isfinite(sd)
+            ):
+                calculation_errors.append(
+                    f"group {group!r} at time {time:g} produced a "
+                    "non-finite summary."
+                )
+                continue
             timepoints.append(
                 GrowthTimepointSummary(
                     group=group,
                     time=time,
-                    mean=fmean(values),
-                    sd=stdev(values) if len(values) > 1 else None,
+                    mean=mean,
+                    sd=sd,
                     n=len(values),
                     source_row_numbers=[
                         observation.row_number for observation in source_rows
@@ -449,10 +556,26 @@ def analyze_growth_curve_csv(
         summaries_by_group[summary.group].append(summary)
     for group in sorted(summaries_by_group):
         summaries = summaries_by_group[group]
-        auc = sum(
-            (right.time - left.time) * (left.mean + right.mean) / 2
-            for left, right in zip(summaries, summaries[1:])
-        )
+        if len(summaries) < 2:
+            calculation_errors.append(
+                f"group {group!r} requires at least 2 distinct time points."
+            )
+            continue
+        try:
+            auc = sum(
+                (right.time - left.time) * (left.mean + right.mean) / 2
+                for left, right in zip(summaries, summaries[1:])
+            )
+        except OverflowError:
+            calculation_errors.append(
+                f"group {group!r} AUC calculation overflowed."
+            )
+            continue
+        if not math.isfinite(auc):
+            calculation_errors.append(
+                f"group {group!r} AUC calculation produced a non-finite result."
+            )
+            continue
         auc_by_group.append(
             GrowthCurveAUC(
                 group=group,
@@ -463,7 +586,10 @@ def analyze_growth_curve_csv(
             )
         )
 
-    errors = _collect_result_errors(file_errors, observations)
+    errors = _collect_result_errors(
+        [*file_errors, *calculation_errors],
+        observations,
+    )
     valid_count = sum(row.valid for row in observations)
     return GrowthCurveAnalysisResult(
         headers=parsed.headers,

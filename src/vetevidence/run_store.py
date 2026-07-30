@@ -18,10 +18,13 @@ from pydantic import (
     model_validator,
 )
 
+from vetevidence.answering import build_cited_answer
 from vetevidence.experiment_analysis import ExperimentAnalysisResult
 from vetevidence.literature_import import LiteratureImportResult
+from vetevidence.mechanism_prediction import MechanismPredictionBundle
 from vetevidence.models import ResearchResult
 from vetevidence.workbench import (
+    LiteratureEvidenceGrade,
     ResearchDecisionReport,
     ResearchQuestion,
     TaskEvent,
@@ -38,11 +41,41 @@ from vetevidence.workbench_pipeline import (
 )
 
 
-CURRENT_SNAPSHOT_SCHEMA_VERSION = 4
+CURRENT_SNAPSHOT_SCHEMA_VERSION = 5
 
 
 def _utc_now() -> datetime:
     return datetime.now(timezone.utc)
+
+
+def _rebuild_legacy_research_answer(
+    research: ResearchResult,
+    conditions: list[ExperimentCondition],
+    question: ResearchQuestion,
+) -> ResearchResult:
+    admitted_pmids = {
+        condition.pmid
+        for condition in conditions
+        if condition.pmid
+        and condition.qualification.grade
+        in {
+            LiteratureEvidenceGrade.DIRECT_INTERACTION,
+            LiteratureEvidenceGrade.CONTEXTUAL,
+        }
+    }
+    answer_evidence = [
+        record
+        for record in research.evidence
+        if record.pmid in admitted_pmids
+    ]
+    return research.model_copy(
+        update={
+            "answer": build_cited_answer(
+                question.text,
+                answer_evidence,
+            )
+        }
+    )
 
 
 class StoreModel(BaseModel):
@@ -96,6 +129,9 @@ class WorkbenchRunSnapshot(StoreModel):
     conditions: list[ExperimentCondition] = Field(default_factory=list)
     assessment: EvidenceAssessment | None = None
     analysis: ExperimentAnalysisResult | None = None
+    mechanism_prediction: MechanismPredictionBundle = Field(
+        default_factory=MechanismPredictionBundle
+    )
     report: ResearchDecisionReport | None = None
     updated_at: datetime = Field(default_factory=_utc_now)
 
@@ -132,6 +168,13 @@ class WorkbenchRunSnapshot(StoreModel):
             payload["assessment"] = None
             payload["report"] = None
             migration_notes.append("排除缺少原始输入哈希的旧分析和派生报告")
+        elif version < 5 and analysis is not None:
+            payload["analysis"] = None
+            payload["assessment"] = None
+            payload["report"] = None
+            migration_notes.append(
+                "排除缺少科研问题范围身份的旧实验分析和派生报告"
+            )
 
         if version < 4:
             research_payload = payload.get("research")
@@ -146,19 +189,65 @@ class WorkbenchRunSnapshot(StoreModel):
                 if import_payload is not None
                 else None
             )
+            conditions = build_experiment_conditions(
+                research,
+                imported,
+                question=question,
+            )
             payload["conditions"] = [
                 condition.model_dump(mode="python")
-                for condition in build_experiment_conditions(
-                    research,
-                    imported,
-                    question=question,
-                )
+                for condition in conditions
             ]
+            if research is not None:
+                payload["research"] = _rebuild_legacy_research_answer(
+                    research,
+                    conditions,
+                    question,
+                ).model_dump(mode="python")
             payload["assessment"] = None
             payload["report"] = None
             migration_notes.append(
-                "按直接证据准入规则重建文献条件，并使旧评估和报告安全失效"
+                "按直接证据准入规则重建文献条件和检索答案，"
+                "并使旧评估和报告安全失效"
             )
+        if version == 4:
+            research_payload = payload.get("research")
+            import_payload = payload.get("literature_import")
+            research = (
+                ResearchResult.model_validate(research_payload)
+                if research_payload is not None
+                else None
+            )
+            imported = (
+                LiteratureImportResult.model_validate(import_payload)
+                if import_payload is not None
+                else None
+            )
+            conditions = build_experiment_conditions(
+                research,
+                imported,
+                question=question,
+            )
+            payload["conditions"] = [
+                condition.model_dump(mode="python")
+                for condition in conditions
+            ]
+            if research is not None:
+                payload["research"] = _rebuild_legacy_research_answer(
+                    research,
+                    conditions,
+                    question,
+                ).model_dump(mode="python")
+            payload["analysis"] = None
+            payload["assessment"] = None
+            payload["report"] = None
+            migration_notes.append(
+                "按交互结局 v2 与实验范围规则重建证据和检索答案，"
+                "并排除缺少范围身份的旧分析"
+            )
+        if version < 5:
+            payload.setdefault("mechanism_prediction", {})
+            migration_notes.append("新增独立的网络药理学与分子对接预测层")
 
         events = list(payload.get("task_events") or [])
         if not events:

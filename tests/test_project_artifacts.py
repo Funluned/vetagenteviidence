@@ -15,6 +15,7 @@ def test_required_delivery_artifacts_exist() -> None:
         "docs/ARCHITECTURE.md",
         "docs/DATABASE_CONNECTORS.md",
         "docs/DOCKING_WORKFLOW.md",
+        "docs/MOLECULAR_DYNAMICS.md",
         "docs/EVALUATION.md",
         "docs/DEMO_SCRIPT.md",
         "docs/RESUME_EVIDENCE.md",
@@ -31,6 +32,10 @@ def test_required_delivery_artifacts_exist() -> None:
         "src/vetevidence/evidence_network.py",
         "src/vetevidence/imported_extraction.py",
         "src/vetevidence/literature_import.py",
+        "src/vetevidence/md_ui.py",
+        "src/vetevidence/md_ui_support.py",
+        "src/vetevidence/md_worker.py",
+        "src/vetevidence/md_workflow.py",
         "src/vetevidence/mechanism_prediction.py",
         "src/vetevidence/openbabel_execution.py",
         "src/vetevidence/run_store.py",
@@ -45,7 +50,13 @@ def test_required_delivery_artifacts_exist() -> None:
         "tests/test_docking_artifacts.py",
         "tests/test_docking_ui_support.py",
         "tests/test_structure_viewer.py",
+        "tests/test_md_smoke_script.py",
+        "tests/test_md_ui.py",
+        "tests/test_md_ui_support.py",
+        "tests/test_md_worker.py",
+        "tests/test_md_workflow.py",
         "scripts/run_docking_smoke.py",
+        "scripts/run_md_smoke.py",
         "data/templates/fici_template.csv",
         "data/templates/growth_curve_template.csv",
         "data/templates/compound_target_template.csv",
@@ -87,7 +98,7 @@ def test_workbench_release_metadata_and_readme_contract() -> None:
     pyproject = (PROJECT_ROOT / "pyproject.toml").read_text(encoding="utf-8")
     readme = (PROJECT_ROOT / "README.md").read_text(encoding="utf-8")
 
-    assert 'version = "0.5.0"' in pyproject
+    assert 'version = "0.6.0"' in pyproject
     assert "VetResearch Workbench" in readme
     assert "FICI" in readme
     assert "生长曲线" in readme
@@ -100,6 +111,11 @@ def test_workbench_release_metadata_and_readme_contract() -> None:
     assert "AutoDock Vina" in readme
     assert "3Dmol.js" in readme
     assert "PML" in readme
+    assert "OpenMM" in readme
+    assert "technical_smoke" in readme
+    assert "30 步" in readme
     assert "computational_prediction" in readme
     assert 'molecular-docking = [' in pyproject
     assert '"openbabel==3.2.1"' in pyproject
+    assert 'molecular-dynamics = [' in pyproject
+    assert '"openmm==8.5.2"' in pyproject

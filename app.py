@@ -48,6 +48,7 @@ from vetevidence.literature_import import (
     LiteratureImportResult,
     parse_literature_export,
 )
+from vetevidence.md_ui import render_md_workbench
 from vetevidence.mechanism_prediction import (
     MechanismPredictionBundle,
     SourceProvenance,
@@ -395,7 +396,7 @@ def append_tool_call(
     )
 
 
-def record_docking_audit(
+def record_computational_audit(
     *,
     tool_name: str,
     input_summary: str,
@@ -404,10 +405,17 @@ def record_docking_audit(
     error: str | None = None,
     metadata: dict[str, object] | None = None,
 ) -> None:
-    """Persist v0.5 docking actions in the active Agent audit trail."""
+    """Persist docking and MD actions in the active Agent audit trail."""
 
     snapshot = current_snapshot()
     if snapshot is None:
+        return
+    event_id = str((metadata or {}).get("event_id", "")).strip()
+    if event_id and any(
+        call.tool_name == tool_name
+        and str(call.metadata.get("event_id", "")).strip() == event_id
+        for call in snapshot.tool_calls
+    ):
         return
     snapshot = append_tool_call(
         snapshot,
@@ -1571,8 +1579,8 @@ st.set_page_config(
 
 st.title("VetResearch Workbench")
 st.caption(
-    "VetResearch Workbench v0.5 · 文献、实验、数据库证据、网络药理学、"
-    "科研级分子对接、可编辑三维可视化与人工复核闭环"
+    "VetResearch Workbench v0.6 · 文献、实验、数据库证据、网络药理学、"
+    "科研级分子对接、可编辑三维可视化、OpenMM 技术烟测与人工复核闭环"
 )
 st.warning(
     "仅用于科研证据整理与实验设计支持，不构成医疗、兽医诊断、处方或临床建议。"
@@ -1602,6 +1610,7 @@ with st.sidebar:
     database_tab,
     mechanism_tab,
     docking_tab,
+    md_tab,
     report_tab,
     audit_tab,
 ) = st.tabs(
@@ -1612,8 +1621,9 @@ with st.sidebar:
         "4 数据库证据",
         "5 网络药理",
         "6 分子对接",
-        "7 决策报告",
-        "8 运行记录",
+        "7 分子动力学",
+        "8 决策报告",
+        "9 运行记录",
     ]
 )
 
@@ -3871,7 +3881,17 @@ with docking_tab:
     else:
         render_docking_workbench(
             run_id=snapshot.run_id,
-            audit_callback=record_docking_audit,
+            audit_callback=record_computational_audit,
+        )
+
+with md_tab:
+    snapshot = current_snapshot()
+    if snapshot is None:
+        st.info("请先在“问题与假设”中创建科研任务，再建立 MD 技术烟测任务。")
+    else:
+        render_md_workbench(
+            run_id=snapshot.run_id,
+            audit_callback=record_computational_audit,
         )
 
 with report_tab:

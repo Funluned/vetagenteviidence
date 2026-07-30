@@ -1,12 +1,14 @@
-# VetResearch Workbench v0.5 架构说明
+# VetResearch Workbench v0.6 架构说明
 
 ## 版本关系
 
-VetResearch Workbench v0.5 复用 VetEvidence AI v0.1 的 PubMed、期刊分区、
+VetResearch Workbench v0.6 复用 VetEvidence AI v0.1 的 PubMed、期刊分区、
 规则提取、引用和评测能力，在 v0.2 的问题、实验和审计闭环上增加严格的
 证据结果判定、问题范围绑定、网络药理学、Open Babel 配体准备和 AutoDock
 Vina 预测层和带原始响应归档的公开数据库证据层；v0.5 再增加受体人工门禁、
-类型化结构身份、批量多 seed 对接、强绑定产物和本地三维可视化层。
+类型化结构身份、批量多 seed 对接、强绑定产物和本地三维可视化层。v0.6
+增加与主界面解耦的 OpenMM 后台任务层，但严格限制为单重复 30 步
+`technical_smoke`。
 
 包名继续使用 `vetevidence`，以避免为产品升级进行无收益的代码重命名。
 
@@ -14,7 +16,7 @@ Vina 预测层和带原始响应归档的公开数据库证据层；v0.5 再增�
 
 ```mermaid
 flowchart TD
-    U["用户科研问题"] --> UI["Streamlit 七步界面"]
+    U["用户科研问题"] --> UI["Streamlit 九个顶层入口"]
     UI --> Q["ResearchQuestion"]
     Q --> H["2—4 条可检验假设"]
     Q --> P["最多 3 轮 PubMed 检索式"]
@@ -63,6 +65,13 @@ flowchart TD
     VZ --> TD["固定本地 3Dmol.js"]
     VZ --> PM["可编辑 PML"]
     VZ --> EX["再次确认后可选 PyMOL / PLIP"]
+    UI --> MI["原始受体/配体 + 已参数化 System/topology + source mapping"]
+    MI --> MM["MD manifest + 化学确认 + System/topology 复核"]
+    MM --> MJ[".workbench/md 后台任务 + 文件锁/CAS"]
+    MJ --> MW["独立 OpenMM worker：单重复 30 步 technical_smoke"]
+    MW --> MC["分块取消 + checkpoint/resume"]
+    MW --> MA["真实温度/势能健康检查 + 产物 SHA-256"]
+    MA -. "仅写终态审计摘要，不形成结合证据" .-> S
     A --> R["ResearchDecisionReport"]
     AD --> R
     X --> R
@@ -130,8 +139,12 @@ v0.2 的多轮检索保留每个查询内部的 PubMed 相关性顺序，以轮�
 | `docking_workflow.py` | v0.5 | 类型化结构身份、受体人工审批、批量配体/多 seed 任务与强绑定结果汇总 |
 | `docking_visualization.py` | v0.5 | 从已验证对接尝试生成复合物、可编辑 PML、可选 PyMOL/PLIP 产物与状态校验 |
 | `structure_viewer.py` | v0.5 | 从固定本地 ES module 加载 3Dmol.js，并用链与残基唯一选择器展示复合物 |
+| `md_workflow.py` | v0.6 | MD 来源、化学门禁、协议、manifest、分析保留字段与执行审计模型 |
+| `md_worker.py` | v0.6 | OpenMM 预检、参数化输入复核、后台任务状态、取消/checkpoint/resume、30 步执行和产物校验 |
+| `md_ui_support.py` | v0.6 | MD 表单输入规范化、原子映射证据、任务进度和下载前哈希复核 |
+| `md_ui.py` | v0.6 | 只提交/轮询独立 worker 的 Streamlit MD 入口，不在页面请求内执行 OpenMM |
 | `run_store.py` | v0.3 | 每个运行一个 JSON 快照的原子保存、schema v6 迁移与按 ID 恢复 |
-| `app.py` | v0.5 | 七步 Streamlit UI、数据库查询表单、科研级对接门禁与会话状态 |
+| `app.py` | v0.6 | 九个顶层 Streamlit 入口、数据库查询、科研级对接门禁、MD 任务入口与会话状态 |
 
 ## 关键数据契约
 
@@ -200,6 +213,42 @@ PyMOL 渲染、PSE 和 PLIP 分析要求用户再次确认。PNG 需完整解码
 `generated_unverified`。PDBQT→PDB 会损失部分键级、电荷和原子类型，因此
 PLIP 与三维相互作用解释只能作启发式辅助。
 
+### 分子动力学技术烟测
+
+`MDTaskManifest` 只允许 `md-manifest-v0.6` 与 `technical_smoke`，固定单重复、
+单 seed、30 个积分步，并把原始受体/配体来源、化学确认、检测到的金属/共价/
+未知残基风险、温度/积分器参数、硬件请求和用户批准绑定到 manifest
+SHA-256。PDBQT 不能作为受体或配体的唯一 MD 化学来源；未解决的金属、共价
+连接或未知残基风险阻断真实执行。
+
+`MDPreparedSystemReference` 绑定实际 `System XML`、topology PDB、两份原始
+来源、力场/参数文件、准备工具/版本、准确参数数组和逐原子 canonical
+source→topology 映射证据。受体行核对链、残基、编号、插入码、原子名、
+altloc 与元素；配体行核对源原子索引与元素。System XML 拒绝
+DOCTYPE/外部实体；保存前反序列化并复核实际粒子数、force/constraint 类型
+与数量及 topology 原子数，不能信任用户填写摘要。v0.6 拒绝周期 System 和
+带 `CRYST1` 的 topology，直到盒向量可双向绑定。
+
+`MDJobStore` 把 job JSON、原始输入、准备输入、`attempt-XXXX`、checkpoint
+和结果清单隔离到 `.workbench/md/`。状态更新在跨进程文件锁内执行 revision
+compare-and-swap；每次 attempt 使用新目录且拒绝覆盖。启动恢复会把没有存活
+worker PID 的遗留 `running/cancel_requested` 状态转为明确失败或取消。UI
+只能启动独立 `md_worker` 并轮询文件状态，不能直接调用 OpenMM 执行函数。
+
+worker 分块执行最小化与 30 步积分，每块检查取消请求并发布
+`MDCheckpointReference`。checkpoint 同时绑定 manifest、System、topology、
+replica、seed、step、OpenMM 版本，以及实际 Context 的平台、设备、精度和
+基础硬件组合指纹；恢复前复核内容、路径边界与
+SHA-256。实际执行审计记录平台、设备、精度、随机源、包版本、力场哈希和
+执行环境指纹；驱动只在 OpenMM 后端报告该属性时记录。`gpu_required=true`
+时没有 GPU 平台会失败，不静默降级。
+
+`MDAnalysisResult.produced_metrics` 只允许真实 `temperature_kelvin` 与
+`potential_energy_kj_mol`。RMSD、RMSF、回转半径、接触、氢键、压力和密度
+保留在 `reserved_metrics_not_produced`，`free_energy_computed` 固定为
+`false`。`technical_smoke_passed` 只代表最小数值执行和规定产物通过，不是
+NVT/NPT、production、收敛、稳定结合或药效结论。
+
 ### 审计快照
 
 `WorkbenchRunSnapshot` 聚合：
@@ -209,6 +258,8 @@ PLIP 与三维相互作用解释只能作启发式辅助。
 - 实验条件、冲突、空白和 CSV 分析；
 - 网络药理学结果、Vina 待运行清单、已解析对接输出及本机执行审计；
 - 数据库查询标识、状态、连接器归档位置、原始响应哈希和证据网络摘要；
+- MD 任务创建、终态和错误的审计摘要；完整 MD job 与大体积产物仍留在
+  `.workbench/md/`，不嵌入主快照；
 - 任务事件、工具调用、失败和重试关系；
 - 决策报告与人工复核。
 
@@ -284,6 +335,30 @@ Streamlit 重跑都启动版本检查；已有本机执行审计的任务不能�
 
 这两类分析都只提供描述性结果，不自动执行显著性推断、模型比较或因果判断。
 
+### 分子动力学技术烟测
+
+v0.6 不从对接 PDBQT 自动生成 MD 体系。真实执行只接受已裁剪为所选链、
+无 altloc 的单模型受体 PDB、单记录 V2000 配体 SDF、已经参数化的
+`System XML`、匹配非周期 topology、实际力场/参数文件、准备工具/命令和
+逐原子 canonical 映射。预检先核对格式、来源哈希、化学风险、
+System/topology 摘要、粒子/force/constraint 和资源上限；周期体系安全拒绝。
+
+worker 只执行单重复 30 步 `technical_smoke`。分块步进用于取消与 checkpoint，
+不是 NVT/NPT 分阶段协议。成功要求真实温度和势能序列存在、非空、有限且落在
+宽松数值安全边界内，并要求 manifest、trajectory、state、checkpoint、
+portable state、代表结构、分析 JSON 和 PML 等规定产物全部通过清单与
+SHA-256 复核。没有真实序列时失败，不用占位数据填充。
+
+当前不运行或计算科研级平衡/生产模拟、RMSD、RMSF、回转半径、配体 RMSD、
+接触、氢键、压力、密度、收敛、不确定性或任何自由能方法。MD 势能也不是
+结合自由能；GPU 成功运行不提高证据等级，也不保证逐位确定性。
+
+正式 `scripts/run_md_smoke.py` 用完全公开的合成两原子 N+C fixture 经上述
+同一 job/worker/工件链分别强制 CPU、CUDA 验收；两者均为 30 steps，各记录
+6 个真实温度和 6 个真实势能样本并通过 QC。CUDA 审计确认
+`NVIDIA GeForce RTX 5070 Laptop GPU`、`DeviceIndex=0`、`mixed`；CPU
+审计确认实际平台 `CPU`。这些信息是执行链证据，不是生物分子科研结果。
+
 ### 公开数据库证据
 
 六类连接器共用有界重试、限流、请求规范化和敏感字段脱敏。每次 HTTP 响应
@@ -302,15 +377,18 @@ P 值和上游报告的 BH 校正后 P 值；上游缺失时标记为未报告�
 
 ## 关键取舍
 
-### 顺序工作流而非多 Agent 框架
+### 顺序主工作流与专用 MD worker
 
 当前所谓 Agent 能力体现在可见检索计划、显式工具调用、受控本机 Vina 执行、
-任务状态、失败、重试和人工复核，而不是并发角色数量。单进程顺序编排更容易
-验证来源和恢复运行。
+任务状态、失败、重试和人工复核，而不是并发角色数量。证据主流程保持顺序
+编排；只有 OpenMM 因运行时间、取消和 checkpoint 需求进入专用子进程，并用
+文件锁、CAS 与内容寻址工件隔离。它不是通用多 Agent 调度框架。
 
 ### 单体 Streamlit 而非 FastAPI
 
-当前只有一个本地客户端，Streamlit 会话状态与本地 JSON 快照已满足六步闭环。增加独立 API 服务会扩大部署和跨进程状态范围，但不会提高当前证据质量。
+当前只有一个本地客户端，Streamlit 会话状态、主流程 JSON 快照和 MD 文件型
+后台任务已满足当前九个入口。增加独立 API 服务会扩大部署和权限边界，但不会
+提高当前证据质量。
 
 ### 不使用向量数据库
 
@@ -340,6 +418,14 @@ P 值和上游报告的 BH 校正后 P 值；上游缺失时标记为未报告�
   产物都不能进入统计或可视化；
 - 3Dmol.js 使用固定本地资产及上游元数据/许可证；PNG 做完整图像解码，PSE
   未经同一核验 PyMOL 重开时降级，外部 PyMOL/PLIP 无用户确认时不执行；
+- MD 原始输入、参数化输入、mapping、checkpoint 和结果均限制在 job/attempt
+  专属目录；System XML 拒绝外部实体，任务与工件读取时重新计算 SHA-256；
+- MD job 更新使用跨进程文件锁与 revision CAS；worker 失联会被启动校正明确
+  标记，取消先协作检查步块，页面持有进程句柄时可超时终止，CLI worker 另有
+  300 秒硬截止；恢复必须复核 manifest/System/topology/seed/OpenMM 和实际
+  Context 执行环境绑定；
+- OpenMM 的粒子数、force/constraint、积分步数、运行时间和输出大小均有硬
+  上限；GPU 被要求但不可用时不静默回退，实际平台/设备/精度/驱动写入审计；
 - 本机 Vina 探测结果在 UI 中短期缓存；已含本机执行审计的任务拒绝被用户导入日志覆盖，产物临时不可读时只降级下载区而不击穿页面；
 - 没有证据时拒绝生成结论；
 - 任务状态从追加式事件序列推导，失败信息不会因后续成功而消失；
@@ -357,13 +443,15 @@ P 值和上游报告的 BH 校正后 P 值；上游缺失时标记为未报告�
 - RIS、EndNote、RefWorks 与实验 CSV 由用户主动上传并在本机处理；
 - 不自动抓取知网，不读取未授权全文，不支持扫描 PDF/OCR；
 - `.env`、API Key、用户数据和 `.workbench` 运行记录不进入仓库；
-- 不自动下载 Vina、Open Babel、Open-Source PyMOL 或 PLIP，也不执行未核验
-  或未经用户确认的二进制程序；仓库只捆绑固定本地 3Dmol.js 资产及许可证/
-  上游元数据；默认 Docker 镜像不包含这些外部科研程序；
+- 不自动下载 Vina、Open Babel、Open-Source PyMOL、PLIP 或 OpenMM，也不执行
+  未核验或未经用户确认的二进制程序；仓库只捆绑固定本地 3Dmol.js 资产及
+  许可证/上游元数据；默认 Docker 镜像不包含这些可选科研程序；
 - Open Babel 3.2.1 是 `GPL-2.0-only` 的可选本机依赖；仓库不捆绑 wheel 或二进制，二次分发须单独完成许可证合规；
 - Open Babel 只做配体格式与基础结构准备，不自动准备受体；结构准备和对接都属于计算预测，不能证明结合、抗菌活性或药物协同；
 - Vina 评分、3Dmol.js/PyMOL 图像、PML/PSE 和 PLIP 相互作用均固定为
   `computational_prediction`；PDBQT→PDB 的化学语义损失必须随产物展示；
+- MD technical smoke 同样不进入直接文献或实验结论。30 步温度/势能健康
+  检查不能被表述为 NVT/NPT/production、稳定性、收敛、结合或自由能证据；
 - 页面和报告持续显示非诊断声明；
 - 用户导入来源不伪造 PMID，未报告字段不补造；
 - 合成演示数据不能成为科研事实；

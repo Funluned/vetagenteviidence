@@ -2,10 +2,11 @@
 
 ## 当前阶段
 
-VetResearch Workbench v0.5 分子对接科研链正在实现：v0.4 公开数据库证据层
-已形成独立提交；当前正在收紧受体人工门禁、类型化结构身份、批量配体/多
-seed、Vina 产物强绑定和三维可视化契约。v0.5 最终测试数字与浏览器验收尚待
-实现完成后填写，本检查点不提前宣称阶段完成。
+VetResearch Workbench v0.6 已完成受控 OpenMM 技术烟测：v0.5 分子对接科研
+链已提交并推送；当前 MD 范围严格固定为 OpenMM 8.5.2 单重复 30 步
+`technical_smoke`，只验证已参数化体系、后台任务、checkpoint/resume 和
+真实温度/势能健康检查，不宣称科研级 NVT/NPT、production、轨迹稳定性或
+自由能。
 
 ## 已确认环境
 
@@ -199,11 +200,54 @@ seed、Vina 产物强绑定和三维可视化契约。v0.5 最终测试数字与
   PyMOL/3Dmol 生成。
 - 同步页面任务限制为最多 24 次 Vina 尝试、384 工作单位和 100 MB 配体
   总量；全失败、部分成功和完整成功分别写入不同审计状态。
-- v0.5 专项回归：`40 passed`；排除尚在开发的 v0.6 MD 文件后，既有能力
-  回归为 `287 passed`。
+- v0.5 阶段专项回归：`40 passed`；当时排除尚在开发的 v0.6 MD 文件后，
+  既有能力回归为 `287 passed`。
 - Streamlit AppTest 启动异常为 0；浏览器实测八个顶层标签、受体门禁、
   配体模板、多 seed 参数、Vina/Open Babel 身份与分子对接页面状态。
 - 上述公开案例只证明工程与产物绑定链可运行，不作为兽医科研证据或结合结论。
+
+## VetResearch Workbench v0.6 OpenMM 技术烟测（已完成）
+
+### 本阶段交付契约
+
+- [x] 协议固定为 OpenMM 8.5.2、单重复、单 seed、30 步
+  `technical_smoke`；`scientific_interpretation_allowed=false`
+- [x] 已选链、无 altloc 的单模型受体 PDB、单记录 V2000 配体 SDF、
+  `System XML`、topology、实际力场文件、准备工具/命令和逐原子 canonical
+  source→topology 映射均强绑定 SHA-256
+- [x] OpenMM 反序列化后复核实际粒子数、force/constraint 类型与数量、
+  topology 原子数；周期 System 或带 CRYST1 的 topology 在 v0.6 阻断
+- [x] Streamlit 只提交和轮询独立 worker；job 状态用跨进程文件锁与 revision
+  CAS，支持分块取消、进程句柄超时终止、300 秒 CLI 硬截止、checkpoint、
+  恢复和遗留 worker 状态校正
+- [x] checkpoint 绑定 manifest、System、topology、replica、seed、step、
+  OpenMM 版本和实际 Context 平台/设备/精度指纹；成功结果与下载前均复核
+  路径及工件 SHA-256
+- [x] 记录实际 OpenMM 平台、设备、精度、平台属性、随机种子和力场哈希；
+  驱动仅在后端报告时记录，`gpu_required=true` 时不允许静默回退 CPU
+- [x] 只把真实温度与势能序列列入 `produced_metrics`；RMSD、RMSF、Rg、
+  contact、Hbond、pressure、density 和自由能明确标为未生成
+
+### 真实环境与执行验收
+
+- VetEvidence 完成 Windows CUDA 依赖预加载后运行 OpenMM 8.5.2 官方
+  `testInstallation`，Reference、CPU、CUDA 与 OpenCL 均通过 force 差异容差。
+- 正式 `scripts/run_md_smoke.py` 使用完全公开的合成两原子 N+C 数值 fixture，
+  通过与产品相同的 job store、准备输入、worker、QC 与工件复核链分别强制
+  CPU 和 CUDA 执行。
+- CPU：实际平台 `CPU`，30 steps，真实温度 6 个样本、势能 6 个样本，
+  QC passed；不可变结果目录为
+  `C:\Users\sunqi\AppData\Local\VetEvidence\md-smoke-results\v06-final-cpu-20260730T185000`。
+- CUDA：实际平台 `CUDA`，设备
+  `NVIDIA GeForce RTX 5070 Laptop GPU`，`DeviceIndex=0`、`mixed` 精度，
+  30 steps，真实温度 6 个样本、势能 6 个样本，QC passed；不可变结果目录为
+  `C:\Users\sunqi\AppData\Local\VetEvidence\md-smoke-results\v06-final-cuda-20260730T185000`。
+- v0.6 文档、代码、测试与 smoke 脚本的项目制品契约：
+  `tests/test_project_artifacts.py` 为 `4 passed`。
+- 最终全量自动回归：`341 passed`；`pip check` 无依赖冲突，
+  `git diff --check` 通过。
+- 上述 fixture 不是蛋白—配体科研体系；通过只表示技术完整性和最小数值
+  健康，不能解释构象稳定性、结合、抗菌活性、协同或自由能。
 
 ## 阻塞
 
@@ -212,6 +256,9 @@ seed、Vina 产物强绑定和三维可视化契约。v0.5 最终测试数字与
 - Open Babel 真实转换只证明配体准备执行链可运行；尚未由研究者完成与当前科研问题对应的互变异构体、立体化学、质子化、构象和受体准备复核，不能把生成结构或后续对接当作结合、抗菌或协同证明。
 - v0.5 尚无与当前兽医科研问题匹配、来源许可明确且经研究者逐项审批的
   受体/配体案例；官方 `1IEP` 只能用于技术烟测，不能填补该科研案例空白。
+- v0.6 尚无经研究者完成体系准备和参数化的真实兽医蛋白—配体 MD 案例；
+  合成两原子 smoke 不能填补该空白。科研级 NVT/NPT、production、多重复、
+  收敛/不确定性与轨迹分析仍不在当前实现范围。
 - NCBI Gene/GenBank 和 DAVID 的在线路径仍需由研究者提供合规联系邮箱或已
   注册机构邮箱后做真实服务验收；当前离线门禁与导出已验证。
 - 尚未录制演示视频，也未获准进行公开部署。

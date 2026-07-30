@@ -306,3 +306,51 @@ python -m venv .venv
 - 页面内 Vina 仍是同步执行，因此加入配体总量、尝试数和
   `尝试数 × exhaustiveness` 硬上限；更大批次应在后续改为逐尝试持久化的
   后台队列。
+
+## 2026-07-30：v0.6 OpenMM 技术烟测收口
+
+### 本阶段关键取舍
+
+- 分子对接 pose 不是可直接运行 MD 的完整化学体系。v0.6 拒绝用 PDBQT 或
+  SMILES 猜测参数，真实执行收窄为已选链单模型 PDB 与单记录 V2000 SDF，
+  并同时保存已参数化 `System XML`、非周期 topology、实际力场文件、准备
+  工具/命令和逐原子 canonical source→topology 映射。
+- “OpenMM 能跑 30 步”只回答安装和最小执行链是否完整，不能回答蛋白—配体
+  是否稳定。协议因此在 schema 中固定为单重复、单 seed、30 步
+  `technical_smoke`，并固定禁止科学解释。
+- 页面请求不适合承担 OpenMM 执行。MD 改用独立 worker、job 专属目录、文件
+  锁和 revision CAS；取消先在有限步块协作检查，页面保留句柄时可超时终止，
+  CLI worker 另有 300 秒硬截止。checkpoint 绑定 manifest、System、
+  topology、seed、OpenMM，以及实际 Context 平台、设备与精度，恢复前全部
+  复核。
+- 用户填写的 System 摘要不能作为执行事实。worker 反序列化 XML 后重新计算
+  粒子、force 和 constraint 摘要，并核对 topology 原子数；不一致时阻断。
+  周期盒仍缺 System/topology 双向向量绑定，因此 v0.6 直接拒绝周期体系，
+  不能把布尔值相同冒充盒参数已核验。
+- GPU 可见不等于实际使用，更不等于科研有效。执行审计必须记录实际平台、
+  设备、DeviceIndex、精度、平台属性与随机源；驱动只在后端报告时记录，
+  明确要求 GPU 时不允许静默回退。
+- 分析 schema 可以为以后保留字段，但未计算字段不能变成空图或默认零。
+  v0.6 只把真实温度和势能列入 `produced_metrics`；RMSD、RMSF、Rg、接触、
+  氢键、压力、密度和自由能都明确保持未生成。
+
+### 真实验证
+
+- VetEvidence 完成 Windows CUDA 依赖预加载后运行 OpenMM 8.5.2 官方
+  `testInstallation`，Reference、CPU、CUDA 与 OpenCL 均通过。
+- `scripts/run_md_smoke.py` 使用完全公开的合成两原子 N+C fixture，经正式
+  job store、准备输入、worker、QC 与工件复核链分别强制 CPU、CUDA 运行。
+- CPU 和 CUDA 均完成 30 steps，各生成 6 个真实温度样本和 6 个真实势能
+  样本并通过 QC。CUDA 实际设备为
+  `NVIDIA GeForce RTX 5070 Laptop GPU`，`DeviceIndex=0`、`mixed` 精度；
+  CPU 执行审计的实际平台为 `CPU`。
+- 最终全量自动回归为 `341 passed`，依赖检查与 Git 差异检查通过。
+- 两次 smoke 均只证明技术完整性。合成两原子体系不是生物分子科研案例，
+  不能支持稳定性、收敛、结合、抗菌作用、协同或自由能结论。
+
+### 下一步边界
+
+科研级 MD 必须另行定义并验收体系准备、力场与小分子参数、阶段化 NVT/NPT、
+长时间 production、多重复和对照、RMSD/RMSF/接触等分析、收敛判据与
+不确定性。完成这些前，v0.6 保持 technical smoke，不通过延长 30 步或增加
+漂亮轨迹图冒充科研升级。

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "vetevidence-ai"
-version = "0.5.0"
+version = "0.6.0"
 description = "Traceable veterinary research evidence retrieval"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -25,6 +25,14 @@ molecular-docking = [
 docking-preparation = [
     "meeko==0.7.1",
     "rdkit==2026.3.4",
+]
+
+molecular-dynamics = [
+    "openmm==8.5.2",
+]
+
+molecular-dynamics-cuda12 = [
+    "openmm[cuda12]==8.5.2",
 ]
 
 [tool.setuptools.packages.find]

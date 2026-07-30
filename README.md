@@ -1,8 +1,8 @@
-# VetResearch Workbench v0.5
+# VetResearch Workbench v0.6
 
 VetResearch Workbench 基于 VetEvidence AI v0.1，把科研问题、可核查文献、
-实验条件、实验数据、公开数据库、网络药理学和分子对接串成一个可审计的
-科研决策闭环。
+实验条件、实验数据、公开数据库、网络药理学、分子对接和受控的分子动力学
+技术烟测串成一个可审计的科研决策闭环。
 当前首个垂直场景聚焦：
 
 > 候选药物与抗生素对目标病原菌是否存在值得进一步验证的协同作用？
@@ -10,6 +10,24 @@ VetResearch Workbench 基于 VetEvidence AI v0.1，把科研问题、可核查�
 系统仅用于科研证据整理与实验设计支持，不构成医疗、兽医诊断、处方或临床建议。
 
 ## 当前已实现
+
+### VetResearch Workbench v0.6
+
+- 只提供 OpenMM 8.5.2 的单重复、30 步 `technical_smoke`：核验已参数化
+  `System XML` 与 topology 能否完成最小化和极短积分，不把它称为 NVT、
+  NPT、production 或科研级 MD；
+- 保存已裁剪为所选链、无 altloc 的单模型受体 PDB、单记录 V2000 配体 SDF、
+  准备后 topology、`System XML`、实际力场文件、参数化工具/命令和逐原子
+  source→topology canonical 映射，并用 SHA-256 绑定；
+- 在独立后台子进程中分块执行；任务状态使用文件锁和 revision
+  compare-and-swap，支持取消、checkpoint、恢复及启动时遗留任务校正；
+- 复核实际 System 的粒子数、force/constraint 类型与数量、topology 原子数、
+  资源上限、OpenMM 平台、设备、精度、平台属性和随机种子；驱动仅在后端
+  报告时记录。v0.6 在盒向量双向
+  绑定完成前拒绝所有周期体系；
+- 当前只生成真实温度与势能时间序列的数值健康检查。RMSD、RMSF、回转半径、
+  接触、氢键、压力、密度和自由能均不计算、不展示为结果，也不允许据此解释
+  稳定结合、抗菌作用或协同。
 
 ### VetResearch Workbench v0.5
 
@@ -54,7 +72,7 @@ VetResearch Workbench 基于 VetEvidence AI v0.1，把科研问题、可核查�
 - 生成带文献引用，以及 CSV 文件名、SHA-256、原始行号与计算过程的 Markdown/JSON 决策报告；
 - 要求人工选择“通过、要求修改、拒绝”后再结束任务；
 - 把任务事件、工具调用、失败、重试关系和人工复核保存到本地 `.workbench/runs/*.json`，可凭完整运行 ID 恢复；
-- 通过七步 Streamlit 界面完成完整闭环，无需 LLM API Key。
+- 通过本地 Streamlit 界面完成完整闭环，无需 LLM API Key。
 
 ### 继承自 VetEvidence AI v0.1
 
@@ -89,19 +107,36 @@ python -m venv .venv
 其他平台请按 [Open Babel 官方安装文档](https://openbabel.org/docs/Installation/install.html)
 准备兼容环境。
 
-## 七步工作流
+如需运行 v0.6 OpenMM 技术烟测，可安装 CPU/OpenCL 通用包；CUDA 12 环境可
+改用单独的 CUDA 12 可选依赖：
+
+```powershell
+.\.venv\Scripts\python.exe -m pip install -e ".[molecular-dynamics]"
+# 或
+.\.venv\Scripts\python.exe -m pip install -e ".[molecular-dynamics-cuda12]"
+.\.venv\Scripts\python.exe -m openmm.testInstallation
+```
+
+Windows 下直接运行官方命令可能在项目预加载 CUDA wheel DLL 前只列出
+CPU/OpenCL；CUDA 的产品级验收应再运行下文
+`scripts/run_md_smoke.py --platform CUDA`，并以结果中的 `actual_platform`
+与 `DeviceName` 为准。
+
+## 九步工作流
 
 1. `问题与假设`：填写研究对象、候选干预、联合药物和预设指标，检查并修改透明规则生成的假设；
 2. `文献证据`：执行最多 3 轮 PubMed 检索，查看逐篇证据等级、准入理由和判定原句，或上传 RIS、EndNote、RefWorks 导出文件；
 3. `实验数据`：核查实验条件矩阵、冲突和空白，再上传 FICI 或生长曲线 CSV；
 4. `数据库证据`：按 TaxID 查询六类公开数据库，审阅标识映射、版本、来源
    和原始响应归档，并把 STRING/DAVID 结果组织为分层证据网络；
-5. `机制预测`：导入可追溯的 CSV/XLSX/DOCX 网络关系并导出 XLSX/DOCX 结果；
-   审批受体模型、链、替代构象、水和异源原子处理后，批量导入带类型化身份的
-   配体并按多个 seed 运行已核验 Vina；审阅强绑定产物、3Dmol.js 三维视图、
-   可编辑 PML，以及经用户确认后生成的 PyMOL/PLIP 产物；
-6. `决策报告`：生成带来源、风险、计算预测边界和下一步的报告，完成人工复核；
-7. `运行记录`：查看事件、工具调用和失败记录，下载快照或凭完整运行 ID 恢复。
+5. `网络药理`：导入可追溯的 CSV/XLSX/DOCX 网络关系并导出 XLSX/DOCX 结果；
+6. `分子对接`：审批受体模型、链、替代构象、水和异源原子处理后，批量导入
+   带类型化身份的配体并按多个 seed 运行已核验 Vina；审阅强绑定产物、
+   3Dmol.js 三维视图、可编辑 PML，以及经用户确认后生成的 PyMOL/PLIP 产物；
+7. `分子动力学`：提交已参数化且已审核的 OpenMM 输入，后台运行单重复
+   30 步技术烟测，并查看取消、checkpoint、恢复、平台与产物校验状态；
+8. `决策报告`：生成带来源、风险、计算预测边界和下一步的报告，完成人工复核；
+9. `运行记录`：查看事件、工具调用和失败记录，下载快照或凭完整运行 ID 恢复。
 
 页面提供合成 RIS、FICI 和生长曲线演示数据。这些文件只用于验证工作流，页面与报告会明确标记，不能作为科研事实。
 
@@ -265,6 +300,30 @@ PDBQT 转回 PDB 会丢失部分键级、电荷和原子类型语义，因此 3D
 准备，也不能替代实验。详细输入、审批、执行与产物契约见
 [科研级分子对接工作流](docs/DOCKING_WORKFLOW.md)。
 
+### OpenMM 分子动力学技术烟测
+
+v0.6 只接受经研究者审核的参数化输入，不会从 PDBQT 或 SMILES 猜测 MD
+化学体系。真实执行必须提供已裁剪为所选链、无 altloc 的单模型受体 PDB、
+恰好一个 V2000 记录的配体 SDF、匹配的非周期 topology PDB、OpenMM
+`System XML`、实际力场/参数文件、参数化工具与版本、准确命令参数，以及
+包含链、残基、原子名、altloc、元素和源/拓扑索引的 canonical 原子映射。
+缺失残基、质子化、互变异构、立体化学、形式电荷、金属、共价连接和非标准
+残基仍由研究者负责；存在未解决的金属、共价连接或未知残基风险时阻断执行。
+
+OpenMM 由独立 worker 执行最小化和 30 步短积分。每个有限步块检查取消状态，
+页面保留进程句柄时还会在协作取消超时后终止 worker；CLI worker 另有 300 秒
+硬截止。checkpoint 绑定 manifest、System、topology、seed、OpenMM 版本及
+实际 Context 的平台、设备和精度指纹。恢复前重新核验所有绑定和 SHA-256；
+成功结果重新加载时也会
+校验产物清单。二进制 checkpoint 只保证在兼容 OpenMM、平台与硬件环境下
+尝试恢复，portable state 不代表跨平台逐位可重复。
+
+当前唯一分析输出是实际记录的温度和势能时间序列及其宽松数值健康检查；
+`technical_smoke_passed` 只表示最小执行和规定产物通过。v0.6 不提供科研级
+NVT/NPT、production、多重复、收敛、RMSD/RMSF、回转半径、接触、氢键、
+压力、密度、MM/GBSA、MM/PBSA、FEP、ABFE 或任何结合自由能。详细边界见
+[分子动力学 technical smoke](docs/MOLECULAR_DYNAMICS.md)。
+
 ## 配置与期刊分区
 
 如需填写 NCBI 联系邮箱、API Key、STRING 调用方身份或 DAVID 注册邮箱，
@@ -298,11 +357,21 @@ $env:PLIP_BABEL_DATADIR = "C:\path\to\OpenBabel\share\openbabel\3.1.0"
 自动化测试覆盖文献证据准入、实验分析、网络文件适配与导出、Open Babel
 单配体准备、受体审批、类型化结构身份、批量多 seed Vina 任务与强绑定产物、
 3Dmol.js/PyMOL/PLIP 降级路径，以及数据库请求脱敏、真实字段解析、TaxID
-门禁、证据分层、原始响应归档和审计留痕。定向评测是受控工程检查，不代表
-通用模型准确率。
+门禁、证据分层、原始响应归档和审计留痕。MD 测试另覆盖输入与 manifest
+绑定、System/topology/source mapping 复核、后台任务状态、取消、
+checkpoint/resume、资源与平台门禁、产物哈希和只允许真实温度/势能健康
+检查的分析边界。定向评测是受控工程检查，不代表通用模型准确率。
 
 官方 AutoDock Vina `1IEP` 示例只用于技术烟测：核对真实进程、日志、构象、
 预测评分和哈希能否贯通，不能把示例结构或分数写入本项目的兽医科研结论。
+
+本机在 VetEvidence Windows CUDA 依赖预加载后运行 OpenMM 8.5.2 官方
+`testInstallation`，Reference、CPU、CUDA 与 OpenCL 均通过 force 差异容差。
+完全公开的合成两原子 N+C fixture 已分别强制 CPU 与 CUDA 完成
+单重复 30 步真实技术烟测，两者各产生 6 个真实温度样本和 6 个真实势能样本
+并通过 QC；CUDA 实际使用 RTX 5070 Laptop GPU 的 `DeviceIndex=0` 与
+`mixed` 精度。该 fixture 不是生物分子科研体系，这些结果只验证运行环境和
+最小执行链，不代表体系稳定、采样收敛或存在结合。
 
 真实负例使用 `quercetin + amoxicillin / Streptococcus agalactiae`：候选分级后保留 8 篇文献，但直接文献证据为 0，报告状态为 `blocked_no_direct_evidence`。真实正例使用 `florfenicol + thiamphenicol / Pasteurella multocida`：本次（2026-07-29）实时复跑保留 8 篇文献，只有 PMID `31749775` 通过严格直接文献证据准入。PubMed 是实时外部数据源，未来复跑的数量和排序可能变化。
 
@@ -320,6 +389,8 @@ $env:PLIP_BABEL_DATADIR = "C:\path\to\OpenBabel\share\openbabel\3.1.0"
 - 期刊分区参考 [LetPub](https://www.letpub.com.cn/index.php?page=journalapp)，正式评价或投稿前仍需复核；
 - 用户导入题录、实验 CSV、机制关系文件和结构文件只在本机处理；
 - 每次运行保存为 `.workbench/runs/<run_id>.json`，该目录已被 Git 忽略；
+- MD 任务、原始输入、参数化输入、attempt、checkpoint 和结果清单保存在
+  `.workbench/md/`，读取时复核路径边界、清单和 SHA-256；
 - 报告中的文献结论关联 PMID、DOI、来源 URL 或原文片段；实验分析关联 CSV
   文件名、SHA-256、原始行号和可复算过程；计算预测独立记录关系数据、类型化
   配体/受体身份、受体人工审批、结构和 Vina 输出的版本、seed、参数、日志、
@@ -334,6 +405,7 @@ $env:PLIP_BABEL_DATADIR = "C:\path\to\OpenBabel\share\openbabel\3.1.0"
 - [架构说明](docs/ARCHITECTURE.md)
 - [数据库连接与证据网络](docs/DATABASE_CONNECTORS.md)
 - [科研级分子对接工作流](docs/DOCKING_WORKFLOW.md)
+- [分子动力学 technical smoke](docs/MOLECULAR_DYNAMICS.md)
 - [期刊分区数据说明](docs/JOURNAL_RANKINGS.md)
 - [真实正负验收案例](docs/REAL_CASES.md)
 - [评测报告](docs/EVALUATION.md)
@@ -352,11 +424,12 @@ docker run --rm -p 8501:8501 vetevidence-ai
 ```
 
 本机当前未安装 Docker，因此 Dockerfile 尚未完成实际镜像构建验证。
-默认 Docker 镜像不包含 AutoDock Vina、Open Babel、Open-Source PyMOL 或
-PLIP；如需使用这些可选外部程序，必须另行合法安装或挂载并显式配置。仓库
-只捆绑固定版本的 3Dmol.js 前端资产及其许可证/上游元数据。未提供 Vina 时
-仍可生成任务清单；未提供 PyMOL/PLIP 时仍可下载 PML、复合物和查看本地
-3Dmol.js 视图。
+默认 Docker 镜像不包含 AutoDock Vina、Open Babel、Open-Source PyMOL、
+PLIP 或 OpenMM 可选环境；如需使用这些程序，必须另行合法安装或挂载并显式
+配置。仓库只捆绑固定版本的 3Dmol.js 前端资产及其许可证/上游元数据。未提供
+Vina 时仍可生成任务清单；未提供 PyMOL/PLIP 时仍可下载 PML、复合物和查看
+本地 3Dmol.js 视图；未提供 OpenMM 或经过审核的参数化输入时，MD 页面只报告
+依赖/输入缺口，不伪造轨迹或分析结果。
 
 ## 当前边界
 
@@ -367,6 +440,10 @@ PLIP；如需使用这些可选外部程序，必须另行合法安装或挂载�
 - 数据库关联、STRING 网络和 DAVID 富集不等于靶点或通路已经实验验证；
   零结果也不等于生物学关系不存在；
 - 网络药理学和分子对接只属于计算预测层，不进入直接文献或实验协同证据；
+- v0.6 分子动力学仅为单重复 30 步 OpenMM 技术烟测，只检查真实温度和势能
+  序列是否满足最小数值安全条件；它不是 NVT/NPT/production，不生成
+  RMSD/RMSF、回转半径、接触、氢键、压力、密度或自由能，也不能证明稳定
+  结合、抗菌活性或协同；
 - Vina 的预测评分不是实验结合能；多个 seed 只形成描述性评分稳定性，不提供
   当前尚未计算的跨 seed RMSD 或构象簇；
 - PDBQT→PDB 会损失部分化学语义，PLIP 和三维图因此只能作启发式解释；生成

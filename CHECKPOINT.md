@@ -2,9 +2,10 @@
 
 ## 当前阶段
 
-VetResearch Workbench v0.3 增量阶段：首批科研正确性优化、网络药理学多格式
-文件闭环、Open Babel 配体准备与 Agent 本机 Vina 执行闭环已完成本地实现；
-Open Babel 真实转换与全量自动回归均已验收。
+VetResearch Workbench v0.5 分子对接科研链正在实现：v0.4 公开数据库证据层
+已形成独立提交；当前正在收紧受体人工门禁、类型化结构身份、批量配体/多
+seed、Vina 产物强绑定和三维可视化契约。v0.5 最终测试数字与浏览器验收尚待
+实现完成后填写，本检查点不提前宣称阶段完成。
 
 ## 已确认环境
 
@@ -165,11 +166,52 @@ Open Babel 真实转换与全量自动回归均已验收。
 - 浏览器实测七个顶层标签；创建任务后完成真实 PubChem 查询、原始归档与
   JSON/ZIP 下载入口，并完成 NCBI 无邮箱离线请求与下载；控制台无错误。
 
+## VetResearch Workbench v0.5 分子对接科研链（已完成）
+
+### 本阶段交付契约
+
+- [x] 受体审批绑定原始结构与准备后 PDBQT 哈希、RCSB PDB ID/UniProt
+  accession、NCBI TaxID、模型/链、altloc、水、辅因子/金属、异源原子、
+  准备工具与口袋依据；任一绑定字段改变即拒绝复用审批
+- [x] 配体使用 PubChem CID + InChIKey，或带来源哈希的显式用户命名空间；
+  名称不能代替稳定身份
+- [x] 对多个配体和多个 seed 建立独立尝试；Vina manifest、二进制身份、
+  seed、日志、pose、预测评分与 SHA-256 必须强绑定后才能汇总
+- [x] 固定本地 3Dmol.js ES module、许可证和上游元数据；三维复合物只包含
+  已选择受体内容与唯一配体 chain/resid，并可下载编辑 PML
+- [x] Open-Source PyMOL 与 PLIP 仅在用户再次确认且任务/脚本/复合物哈希
+  匹配后调用；PNG 完整解码验证，PSE 未经同一核验 PyMOL 重开时降级为
+  `generated_unverified`
+- [x] 所有 Vina 表、评分、三维图与 PLIP 结果固定标记为
+  `computational_prediction`；不声称当前未计算的跨 seed RMSD 或构象簇
+- [x] 明示 PDBQT→PDB 会损失部分键级、电荷和原子类型，PLIP/三维图只作
+  启发式解释
+- [x] 仓库不捆绑 Vina、Open Babel、Open-Source PyMOL 或 PLIP；只捆绑固定
+  本地 3Dmol.js 资产及其许可证/上游元数据
+
+### 阶段验证状态
+
+- 官方 AutoDock Vina `1IEP` 公开示例已通过 v0.5 完整强绑定链：Vina 1.2.7、
+  seed 42、最佳预测评分 `-8.663 kcal/mol`；PyMOL PNG 为 `available`，
+  PSE 为 `generated_unverified`，PLIP XML/TXT 为 `available`。
+- PLIP 3.0.0 使用已审计的 Open Babel runtime，XML 明确绑定
+  `LIG:Z:9999`；首版不调用 PLIP 自带图片路径，图片由已验证的
+  PyMOL/3Dmol 生成。
+- 同步页面任务限制为最多 24 次 Vina 尝试、384 工作单位和 100 MB 配体
+  总量；全失败、部分成功和完整成功分别写入不同审计状态。
+- v0.5 专项回归：`40 passed`；排除尚在开发的 v0.6 MD 文件后，既有能力
+  回归为 `287 passed`。
+- Streamlit AppTest 启动异常为 0；浏览器实测八个顶层标签、受体门禁、
+  配体模板、多 seed 参数、Vina/Open Babel 身份与分子对接页面状态。
+- 上述公开案例只证明工程与产物绑定链可运行，不作为兽医科研证据或结合结论。
+
 ## 阻塞
 
 - 本机未安装 Docker：Dockerfile 已写，镜像构建未验证。
 - 本机已安装并核验 AutoDock Vina 1.2.7，Agent 执行链已用官方公开样例验收；尚未提供与当前兽医科研问题对应、来源许可清楚且人工完成结构准备的真实配体/受体，因此不能把冒烟结果当作科研机制证据。
 - Open Babel 真实转换只证明配体准备执行链可运行；尚未由研究者完成与当前科研问题对应的互变异构体、立体化学、质子化、构象和受体准备复核，不能把生成结构或后续对接当作结合、抗菌或协同证明。
+- v0.5 尚无与当前兽医科研问题匹配、来源许可明确且经研究者逐项审批的
+  受体/配体案例；官方 `1IEP` 只能用于技术烟测，不能填补该科研案例空白。
 - NCBI Gene/GenBank 和 DAVID 的在线路径仍需由研究者提供合规联系邮箱或已
   注册机构邮箱后做真实服务验收；当前离线门禁与导出已验证。
 - 尚未录制演示视频，也未获准进行公开部署。

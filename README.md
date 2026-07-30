@@ -1,4 +1,4 @@
-# VetResearch Workbench v0.4
+# VetResearch Workbench v0.5
 
 VetResearch Workbench 基于 VetEvidence AI v0.1，把科研问题、可核查文献、
 实验条件、实验数据、公开数据库、网络药理学和分子对接串成一个可审计的
@@ -10,6 +10,22 @@ VetResearch Workbench 基于 VetEvidence AI v0.1，把科研问题、可核查�
 系统仅用于科研证据整理与实验设计支持，不构成医疗、兽医诊断、处方或临床建议。
 
 ## 当前已实现
+
+### VetResearch Workbench v0.5
+
+- 在生成科研级对接任务前设置受体人工门禁：研究者必须确认模型、链、替代构象、
+  水、辅因子/金属与其他异源原子的处理，并把原始结构、已准备 PDBQT、口袋依据、
+  工具版本和各自 SHA-256 绑定到同一审批记录；
+- 用类型化身份区分 RCSB PDB ID、UniProt accession、NCBI TaxID、
+  PubChem CID/InChIKey 与用户自有命名空间；名称不能代替稳定标识；
+- 支持批量配体和多个随机种子；每次 Vina 尝试把任务清单、引擎身份、seed、
+  日志、输出构象、预测评分和 SHA-256 强绑定，失败或错配产物不进入汇总；
+- 提供固定版本、随仓库分发并记录上游信息和许可证的本地 3Dmol.js 查看器，
+  以及可编辑 PML；只有用户再次确认后才调用本机 Open-Source PyMOL 或 PLIP；
+- PNG 必须能被图像解码器完整校验后才标为可用；PSE 只有经同一已核验 PyMOL
+  重新打开验证后才标为已验证，否则明确降级为 `generated_unverified`；
+- 对接表、图和相互作用解释始终标记为 `computational_prediction`。不同 seed
+  之间只比较预测评分的描述性稳定性，不声称已计算跨 seed RMSD 或构象簇。
 
 ### VetResearch Workbench v0.4
 
@@ -80,7 +96,10 @@ python -m venv .venv
 3. `实验数据`：核查实验条件矩阵、冲突和空白，再上传 FICI 或生长曲线 CSV；
 4. `数据库证据`：按 TaxID 查询六类公开数据库，审阅标识映射、版本、来源
    和原始响应归档，并把 STRING/DAVID 结果组织为分层证据网络；
-5. `机制预测`：导入可追溯的 CSV/XLSX/DOCX 网络关系并导出 XLSX/DOCX 结果；上传已准备的配体 PDBQT，或用 Open Babel 准备单个配体，再生成 Vina 任务清单，由 Agent 运行已核验的本机 Vina，或导入带任务哈希的外部输出；
+5. `机制预测`：导入可追溯的 CSV/XLSX/DOCX 网络关系并导出 XLSX/DOCX 结果；
+   审批受体模型、链、替代构象、水和异源原子处理后，批量导入带类型化身份的
+   配体并按多个 seed 运行已核验 Vina；审阅强绑定产物、3Dmol.js 三维视图、
+   可编辑 PML，以及经用户确认后生成的 PyMOL/PLIP 产物；
 6. `决策报告`：生成带来源、风险、计算预测边界和下一步的报告，完成人工复核；
 7. `运行记录`：查看事件、工具调用和失败记录，下载快照或凭完整运行 ID 恢复。
 
@@ -218,6 +237,34 @@ PDBQT SHA-256，并在 `.workbench/vina/<run_id>/<task_id>/` 保存绑定任务�
 预测，不能单独证明结合、抗菌活性或药物协同。默认 Docker 镜像也不安装
 `molecular-docking` 可选依赖。
 
+### 科研级批量对接与可视化
+
+v0.5 在原有单任务执行链之上增加一层不可绕过的科研门禁。受体审批记录必须
+同时绑定原始结构与已准备 PDBQT 的 SHA-256，并明确选择模型和链、替代构象
+策略、是否移除水、保留或移除哪些辅因子/金属/异源原子、受体研究对象与
+NCBI TaxID、RCSB PDB ID/UniProt accession，以及搜索口袋的证据依据。审批
+后任一输入、准备策略或搜索框发生变化，必须重新审批。
+
+配体使用 PubChem CID + InChIKey，或显式的用户自有命名空间与来源文件哈希。
+批处理按“一个配体 × 一个 seed”生成独立任务；只有任务清单哈希、Vina
+可执行文件哈希与版本、seed、绑定日志、输出 PDBQT、解析模式和预测评分全部
+一致时，才进入稳定性汇总。汇总只报告每个 seed 的 Vina 预测评分及其均值、
+标准差、极差等描述性统计；当前不计算、也不声称跨 seed RMSD 或构象聚类。
+
+每个已验证任务可生成只包含所选受体链与明确保留异源原子的复合物、可编辑
+PML 和本地 3Dmol.js 三维视图。3Dmol.js 的固定 ES module、许可证与上游
+元数据随仓库分发，不依赖运行时 CDN。Open-Source PyMOL 和 PLIP 都是用户
+另行合法安装的可选外部程序，只有再次明确确认且任务/脚本/复合物哈希匹配
+后才执行。PLIP 首版只固定生成 XML/TXT；对接图由已验证的 PyMOL 和本地
+3Dmol.js 生成，避免 PLIP 图片工具失败拖垮相互作用报告。PNG 通过完整图像
+解码校验后才标为可用；PSE 若未由同一已核验 PyMOL 重新打开验证，就只标为
+`generated_unverified`，不伪装成已验证会话。
+
+PDBQT 转回 PDB 会丢失部分键级、电荷和原子类型语义，因此 3D 展示与 PLIP
+相互作用识别只作启发式解释；它们不能修复错误的质子化、配体化学状态或受体
+准备，也不能替代实验。详细输入、审批、执行与产物契约见
+[科研级分子对接工作流](docs/DOCKING_WORKFLOW.md)。
+
 ## 配置与期刊分区
 
 如需填写 NCBI 联系邮箱、API Key、STRING 调用方身份或 DAVID 注册邮箱，
@@ -228,6 +275,12 @@ $env:NCBI_EMAIL = "your_email@example.com"
 $env:NCBI_API_KEY = "your_api_key"
 $env:STRING_CALLER_IDENTITY = "VetEvidenceAI"
 $env:DAVID_EMAIL = "registered_email@example.com"
+$env:VINA_EXECUTABLE = "C:\path\to\vina.exe"
+$env:OPENBABEL_EXECUTABLE = "C:\path\to\obabel.exe"
+$env:PYMOL_EXECUTABLE = "C:\path\to\pymol.exe"
+$env:PLIP_EXECUTABLE = "C:\path\to\plip.exe"
+$env:PLIP_BABEL_LIBDIR = "C:\path\to\OpenBabel\bin"
+$env:PLIP_BABEL_DATADIR = "C:\path\to\OpenBabel\share\openbabel\3.1.0"
 ```
 
 `.env.example` 仅说明变量名；不要提交真实 `.env` 或密钥。
@@ -243,9 +296,13 @@ $env:DAVID_EMAIL = "registered_email@example.com"
 ```
 
 自动化测试覆盖文献证据准入、实验分析、网络文件适配与导出、Open Babel
-单配体准备、Vina 任务绑定、本机受控执行，以及数据库请求脱敏、真实字段
-解析、TaxID 门禁、证据分层、原始响应归档和审计留痕。定向评测是受控工程
-检查，不代表通用模型准确率。
+单配体准备、受体审批、类型化结构身份、批量多 seed Vina 任务与强绑定产物、
+3Dmol.js/PyMOL/PLIP 降级路径，以及数据库请求脱敏、真实字段解析、TaxID
+门禁、证据分层、原始响应归档和审计留痕。定向评测是受控工程检查，不代表
+通用模型准确率。
+
+官方 AutoDock Vina `1IEP` 示例只用于技术烟测：核对真实进程、日志、构象、
+预测评分和哈希能否贯通，不能把示例结构或分数写入本项目的兽医科研结论。
 
 真实负例使用 `quercetin + amoxicillin / Streptococcus agalactiae`：候选分级后保留 8 篇文献，但直接文献证据为 0，报告状态为 `blocked_no_direct_evidence`。真实正例使用 `florfenicol + thiamphenicol / Pasteurella multocida`：本次（2026-07-29）实时复跑保留 8 篇文献，只有 PMID `31749775` 通过严格直接文献证据准入。PubMed 是实时外部数据源，未来复跑的数量和排序可能变化。
 
@@ -263,13 +320,20 @@ $env:DAVID_EMAIL = "registered_email@example.com"
 - 期刊分区参考 [LetPub](https://www.letpub.com.cn/index.php?page=journalapp)，正式评价或投稿前仍需复核；
 - 用户导入题录、实验 CSV、机制关系文件和结构文件只在本机处理；
 - 每次运行保存为 `.workbench/runs/<run_id>.json`，该目录已被 Git 忽略；
-- 报告中的文献结论关联 PMID、DOI、来源 URL 或原文片段；实验分析关联 CSV 文件名、SHA-256、原始行号和可复算过程；计算预测独立记录关系数据、结构和 Vina 输出的 accession、版本、参数及 SHA-256；Open Babel 配体准备另记录输入/输出哈希、版本、可执行文件哈希、参数、退出码和耗时，本机 Vina 成功执行还记录可执行文件哈希、退出码、日志和输出 PDBQT。
+- 报告中的文献结论关联 PMID、DOI、来源 URL 或原文片段；实验分析关联 CSV
+  文件名、SHA-256、原始行号和可复算过程；计算预测独立记录关系数据、类型化
+  配体/受体身份、受体人工审批、结构和 Vina 输出的版本、seed、参数、日志、
+  构象与 SHA-256；Open Babel 配体准备另记录输入/输出哈希、版本、可执行文件
+  哈希、参数、退出码和耗时。本机 Vina 成功执行还记录强绑定产物；可视化记录
+  PML、复合物、PNG/PSE/PLIP 状态及哈希，但证据等级仍为
+  `computational_prediction`。
 
 ## 项目文档
 
 - [产品需求](docs/PRD.md)
 - [架构说明](docs/ARCHITECTURE.md)
 - [数据库连接与证据网络](docs/DATABASE_CONNECTORS.md)
+- [科研级分子对接工作流](docs/DOCKING_WORKFLOW.md)
 - [期刊分区数据说明](docs/JOURNAL_RANKINGS.md)
 - [真实正负验收案例](docs/REAL_CASES.md)
 - [评测报告](docs/EVALUATION.md)
@@ -288,9 +352,11 @@ docker run --rm -p 8501:8501 vetevidence-ai
 ```
 
 本机当前未安装 Docker，因此 Dockerfile 尚未完成实际镜像构建验证。
-默认 Docker 镜像不包含 AutoDock Vina；如需在容器内使用 Agent 本机执行路径，
-必须另行安装或挂载兼容的 Vina 可执行文件，并通过 `VINA_EXECUTABLE` 或容器
-`PATH` 提供。未提供 Vina 时仍可生成任务清单并导入外部运行输出。
+默认 Docker 镜像不包含 AutoDock Vina、Open Babel、Open-Source PyMOL 或
+PLIP；如需使用这些可选外部程序，必须另行合法安装或挂载并显式配置。仓库
+只捆绑固定版本的 3Dmol.js 前端资产及其许可证/上游元数据。未提供 Vina 时
+仍可生成任务清单；未提供 PyMOL/PLIP 时仍可下载 PML、复合物和查看本地
+3Dmol.js 视图。
 
 ## 当前边界
 
@@ -301,6 +367,10 @@ docker run --rm -p 8501:8501 vetevidence-ai
 - 数据库关联、STRING 网络和 DAVID 富集不等于靶点或通路已经实验验证；
   零结果也不等于生物学关系不存在；
 - 网络药理学和分子对接只属于计算预测层，不进入直接文献或实验协同证据；
+- Vina 的预测评分不是实验结合能；多个 seed 只形成描述性评分稳定性，不提供
+  当前尚未计算的跨 seed RMSD 或构象簇；
+- PDBQT→PDB 会损失部分化学语义，PLIP 和三维图因此只能作启发式解释；生成
+  的 PNG/PSE 还必须按各自校验状态展示，不能用“有文件”冒充“已验证”；
 - 当前只在用户主动提交后从公开接口获取数据库记录，不自动运行未知在线
   预测服务或下载 Vina；Open Babel 只转换用户主动提供的单个配体，且不准备
   受体。Agent 只在用户明确选择后受控执行已发现且通过版本与哈希核验的本机

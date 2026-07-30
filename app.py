@@ -32,6 +32,7 @@ from vetevidence.database_connectors import (
     UniProtConnector,
     export_connector_result,
 )
+from vetevidence.docking_ui import render_docking_workbench
 from vetevidence.evidence_network import (
     EvidenceNetwork,
     build_evidence_network,
@@ -392,6 +393,43 @@ def append_tool_call(
     return snapshot.model_copy(
         update={"tool_calls": [*snapshot.tool_calls, call]}
     )
+
+
+def record_docking_audit(
+    *,
+    tool_name: str,
+    input_summary: str,
+    status: str,
+    output_summary: str | None = None,
+    error: str | None = None,
+    metadata: dict[str, object] | None = None,
+) -> None:
+    """Persist v0.5 docking actions in the active Agent audit trail."""
+
+    snapshot = current_snapshot()
+    if snapshot is None:
+        return
+    snapshot = append_tool_call(
+        snapshot,
+        tool_name,
+        input_summary,
+        status=status,
+        output_summary=output_summary,
+        error=error,
+        metadata=metadata,
+    )
+    snapshot = append_event(
+        snapshot,
+        TaskStatus.FAILED if status == "failed" else TaskStatus.RUNNING,
+        (
+            f"{tool_name} 失败：{error}"
+            if status == "failed"
+            else f"{tool_name} 完成：{output_summary or input_summary}"
+        ),
+        actor="agent",
+        metadata=metadata,
+    )
+    save_snapshot(snapshot)
 
 
 DATABASE_SOURCE_SLUGS = {
@@ -1533,8 +1571,8 @@ st.set_page_config(
 
 st.title("VetResearch Workbench")
 st.caption(
-    "VetResearch Workbench v0.4 · 文献、实验、数据库证据、网络药理学、"
-    "分子对接与人工复核的可审计科研决策闭环"
+    "VetResearch Workbench v0.5 · 文献、实验、数据库证据、网络药理学、"
+    "科研级分子对接、可编辑三维可视化与人工复核闭环"
 )
 st.warning(
     "仅用于科研证据整理与实验设计支持，不构成医疗、兽医诊断、处方或临床建议。"
@@ -1563,6 +1601,7 @@ with st.sidebar:
     experiment_tab,
     database_tab,
     mechanism_tab,
+    docking_tab,
     report_tab,
     audit_tab,
 ) = st.tabs(
@@ -1571,9 +1610,10 @@ with st.sidebar:
         "2 文献证据",
         "3 实验数据",
         "4 数据库证据",
-        "5 网络与对接",
-        "6 决策报告",
-        "7 运行记录",
+        "5 网络药理",
+        "6 分子对接",
+        "7 决策报告",
+        "8 运行记录",
     ]
 )
 
@@ -3822,6 +3862,16 @@ with mechanism_tab:
         render_mechanism_prediction(
             active_snapshot.mechanism_prediction,
             run_id=active_snapshot.run_id,
+        )
+
+with docking_tab:
+    snapshot = current_snapshot()
+    if snapshot is None:
+        st.info("请先在“问题与假设”中创建科研任务，再运行分子对接。")
+    else:
+        render_docking_workbench(
+            run_id=snapshot.run_id,
+            audit_callback=record_docking_audit,
         )
 
 with report_tab:

@@ -14,6 +14,7 @@ def test_required_delivery_artifacts_exist() -> None:
         "docs/PRD.md",
         "docs/ARCHITECTURE.md",
         "docs/DATABASE_CONNECTORS.md",
+        "docs/DOCKING_WORKFLOW.md",
         "docs/EVALUATION.md",
         "docs/DEMO_SCRIPT.md",
         "docs/RESUME_EVIDENCE.md",
@@ -22,14 +23,29 @@ def test_required_delivery_artifacts_exist() -> None:
         "src/vetevidence/experiment_analysis.py",
         "src/vetevidence/connector_artifacts.py",
         "src/vetevidence/database_connectors.py",
+        "src/vetevidence/docking_artifacts.py",
+        "src/vetevidence/docking_ui.py",
+        "src/vetevidence/docking_ui_support.py",
+        "src/vetevidence/docking_visualization.py",
+        "src/vetevidence/docking_workflow.py",
         "src/vetevidence/evidence_network.py",
         "src/vetevidence/imported_extraction.py",
         "src/vetevidence/literature_import.py",
         "src/vetevidence/mechanism_prediction.py",
         "src/vetevidence/openbabel_execution.py",
         "src/vetevidence/run_store.py",
+        "src/vetevidence/structure_viewer.py",
         "src/vetevidence/workbench.py",
         "src/vetevidence/workbench_pipeline.py",
+        "src/vetevidence/assets/vendor/3dmol/3Dmol.es6-min.js",
+        "src/vetevidence/assets/vendor/3dmol/LICENSE",
+        "src/vetevidence/assets/vendor/3dmol/UPSTREAM.json",
+        "tests/test_docking_visualization.py",
+        "tests/test_docking_workflow.py",
+        "tests/test_docking_artifacts.py",
+        "tests/test_docking_ui_support.py",
+        "tests/test_structure_viewer.py",
+        "scripts/run_docking_smoke.py",
         "data/templates/fici_template.csv",
         "data/templates/growth_curve_template.csv",
         "data/templates/compound_target_template.csv",
@@ -71,7 +87,7 @@ def test_workbench_release_metadata_and_readme_contract() -> None:
     pyproject = (PROJECT_ROOT / "pyproject.toml").read_text(encoding="utf-8")
     readme = (PROJECT_ROOT / "README.md").read_text(encoding="utf-8")
 
-    assert 'version = "0.4.0"' in pyproject
+    assert 'version = "0.5.0"' in pyproject
     assert "VetResearch Workbench" in readme
     assert "FICI" in readme
     assert "生长曲线" in readme
@@ -82,5 +98,8 @@ def test_workbench_release_metadata_and_readme_contract() -> None:
     assert "DAVID" in readme
     assert "Open Babel" in readme
     assert "AutoDock Vina" in readme
+    assert "3Dmol.js" in readme
+    assert "PML" in readme
+    assert "computational_prediction" in readme
     assert 'molecular-docking = [' in pyproject
     assert '"openbabel==3.2.1"' in pyproject

@@ -1,11 +1,12 @@
-# VetResearch Workbench v0.4 架构说明
+# VetResearch Workbench v0.5 架构说明
 
 ## 版本关系
 
-VetResearch Workbench v0.4 复用 VetEvidence AI v0.1 的 PubMed、期刊分区、
+VetResearch Workbench v0.5 复用 VetEvidence AI v0.1 的 PubMed、期刊分区、
 规则提取、引用和评测能力，在 v0.2 的问题、实验和审计闭环上增加严格的
 证据结果判定、问题范围绑定、网络药理学、Open Babel 配体准备和 AutoDock
-Vina 预测层，并增加带原始响应归档的公开数据库证据层。
+Vina 预测层和带原始响应归档的公开数据库证据层；v0.5 再增加受体人工门禁、
+类型化结构身份、批量多 seed 对接、强绑定产物和本地三维可视化层。
 
 包名继续使用 `vetevidence`，以避免为产品升级进行无收益的代码重命名。
 
@@ -42,18 +43,26 @@ flowchart TD
     NP --> NF["严格表格适配、来源与 SHA-256"]
     NF --> NX["可追溯网络排名"]
     NX --> NE["XLSX 结果 / DOCX 报告"]
-    UI --> LP["已准备的配体 PDBQT"]
-    UI --> LS["单个 SMI / SMILES / SDF / MOL / MOL2 / PDB 配体"]
+    UI --> LP["一个或多个已准备的配体 PDBQT"]
+    UI --> LS["SMI / SMILES / SDF / MOL / MOL2 / PDB 配体"]
     LS --> OB["受控 Open Babel 配体准备"]
     OB --> LP
-    LP --> DM["配体 PDBQT + 人工准备的受体 PDBQT + Vina 参数"]
-    DM --> VM["无分数任务清单"]
+    UI --> RI["类型化受体身份 + 原始结构 + 准备后 PDBQT"]
+    RI --> RA["模型 / 链 / altloc / 水 / 异源原子 / 口袋人工审批"]
+    LP --> DM["类型化配体 × 多 seed"]
+    RA --> DM
+    DM --> VM["逐尝试无分数任务清单"]
     VM --> LV["用户确认后 Agent 受控执行已核验的本机 Vina"]
-    LV --> VA["run.log / poses.pdbqt / metadata.json"]
+    LV --> VA["强绑定 manifest / run.log / poses.pdbqt / metadata"]
     UI --> VO["用户导入外部 Vina 文本输出"]
     VM --> VO
     LV --> DX
     VO --> DX["任务哈希 / 版本核对与模式解析"]
+    DX --> ST["多 seed 预测评分描述性稳定性"]
+    DX --> VZ["所选受体 + 唯一配体复合物"]
+    VZ --> TD["固定本地 3Dmol.js"]
+    VZ --> PM["可编辑 PML"]
+    VZ --> EX["再次确认后可选 PyMOL / PLIP"]
     A --> R["ResearchDecisionReport"]
     AD --> R
     X --> R
@@ -118,8 +127,11 @@ v0.2 的多轮检索保留每个查询内部的 PubMed 相关性顺序，以轮�
 | `openbabel_execution.py` | v0.3 | Open Babel 发现与身份核验、单配体受控准备、可解析非退化坐标与 PDBQT 校验、执行审计 |
 | `vina_execution.py` | v0.3 | 本机 Vina 发现、身份核验、受控参数执行、日志绑定和输出校验 |
 | `vina_artifacts.py` | v0.3 | 任务级 `run.log`、`poses.pdbqt`、`metadata.json` 原子保存与哈希复核 |
+| `docking_workflow.py` | v0.5 | 类型化结构身份、受体人工审批、批量配体/多 seed 任务与强绑定结果汇总 |
+| `docking_visualization.py` | v0.5 | 从已验证对接尝试生成复合物、可编辑 PML、可选 PyMOL/PLIP 产物与状态校验 |
+| `structure_viewer.py` | v0.5 | 从固定本地 ES module 加载 3Dmol.js，并用链与残基唯一选择器展示复合物 |
 | `run_store.py` | v0.3 | 每个运行一个 JSON 快照的原子保存、schema v6 迁移与按 ID 恢复 |
-| `app.py` | v0.4 | 七步 Streamlit UI、数据库查询表单与会话状态 |
+| `app.py` | v0.5 | 七步 Streamlit UI、数据库查询表单、科研级对接门禁与会话状态 |
 
 ## 关键数据契约
 
@@ -166,6 +178,27 @@ SHA-256、输出 PDBQT SHA-256、Open Babel 版本与可执行文件 SHA-256、�
 3D/pH/Gasteiger 选项、规范化参数数组、退出码、耗时和有界日志。成功产物以
 配体 PDBQT 的哈希进入原有 Vina 清单；失败路径不返回可用 PDBQT。受体不进入
 该转换链。
+
+v0.5 的 `ReceptorApproval` 同时绑定原始结构和已准备 PDBQT 的 SHA-256、
+类型化 `ReceptorIdentity`、选定模型/链、altloc 策略、水和每类异源原子决策、
+准备工具与版本、口袋依据/来源哈希以及用户确认。准备后文件必须只包含已选择
+的受体内容，并能证明来自该次原始结构；任一绑定字段改变即拒绝复用审批。
+
+`LigandIdentity` 只接受 PubChem CID + InChIKey，或带来源哈希的显式用户
+命名空间。批量层为每个“配体 × seed”生成独立、长度受限且带摘要后缀的任务
+ID。`DockingAttempt` 只从已复核的 Vina 任务清单、绑定日志和输出 PDBQT
+派生预测评分、模式、seed 与各文件哈希，避免把任意日志、pose 或评分拼接成
+结果。跨 seed 汇总只做预测评分的均值、标准差和极差等描述性统计，不提供
+当前没有计算的跨 seed RMSD 或构象簇。
+
+可视化层只接受已验证 `DockingAttempt`，从所选受体链和明确保留的异源原子
+生成复合物，并给新配体分配唯一 chain/resid。固定的
+`assets/vendor/3dmol/3Dmol.es6-min.js` 以 ES module 的具名 `createViewer`
+接口在 Streamlit CCv2 中加载，不请求 CDN。PML、复合物、脚本与任务哈希绑定；
+PyMOL 渲染、PSE 和 PLIP 分析要求用户再次确认。PNG 需完整解码校验；PSE
+只有经同一已核验 PyMOL 重开成功才标为已验证，否则为
+`generated_unverified`。PDBQT→PDB 会损失部分键级、电荷和原子类型，因此
+PLIP 与三维相互作用解释只能作启发式辅助。
 
 ### 审计快照
 
@@ -244,6 +277,11 @@ Vina 版本与清单一致，并检测标准 `mode/affinity` 表头和数值模�
 Streamlit 重跑都启动版本检查；已有本机执行审计的任务不能被未认证的外部
 日志覆盖。
 
+科研级批处理在这条既有执行链之外增加审批和产物所有权门槛：受体审批哈希、
+配体身份、seed、搜索框、Vina 二进制身份、日志哈希与 pose 哈希必须一致，
+才能进入批量汇总或可视化。官方 `1IEP` 示例只用于验证真实 Vina 进程和产物
+绑定，不进入兽医科研问题的证据层。
+
 这两类分析都只提供描述性结果，不自动执行显著性推断、模型比较或因果判断。
 
 ### 公开数据库证据
@@ -296,6 +334,12 @@ P 值和上游报告的 BH 校正后 P 值；上游缺失时标记为未报告�
 - Open Babel 只接受允许列表中的单个配体格式和最大 10 MB 输入，工具身份、数据目录、输入/输出哈希及参数均留痕；执行失败、超时、多分子、不可解析或退化坐标都不返回可用 PDBQT；
 - 本机 Vina 在执行前后复核可执行文件哈希与版本，非零退出、超时、日志或输出 PDBQT 异常都不会形成分数；
 - 成功的本机 Vina 任务以任务清单哈希绑定并原子保存日志、输出 PDBQT 和元数据，读取时再次校验哈希；
+- 受体模型、链、altloc、水、异源原子、准备文件或口袋依据变化后，旧审批
+  立即失效；名称相同不能绕过哈希和类型化身份复核；
+- 批量任务逐尝试隔离并绑定 manifest/log/pose/seed/score；错配的任何一个
+  产物都不能进入统计或可视化；
+- 3Dmol.js 使用固定本地资产及上游元数据/许可证；PNG 做完整图像解码，PSE
+  未经同一核验 PyMOL 重开时降级，外部 PyMOL/PLIP 无用户确认时不执行；
 - 本机 Vina 探测结果在 UI 中短期缓存；已含本机执行审计的任务拒绝被用户导入日志覆盖，产物临时不可读时只降级下载区而不击穿页面；
 - 没有证据时拒绝生成结论；
 - 任务状态从追加式事件序列推导，失败信息不会因后续成功而消失；
@@ -313,9 +357,13 @@ P 值和上游报告的 BH 校正后 P 值；上游缺失时标记为未报告�
 - RIS、EndNote、RefWorks 与实验 CSV 由用户主动上传并在本机处理；
 - 不自动抓取知网，不读取未授权全文，不支持扫描 PDF/OCR；
 - `.env`、API Key、用户数据和 `.workbench` 运行记录不进入仓库；
-- 不自动下载 Vina，也不执行未核验或未经用户选择的二进制程序；默认 Docker 镜像不包含 Vina，容器内执行须另行安装或挂载并通过 `VINA_EXECUTABLE` 或 `PATH` 提供；
+- 不自动下载 Vina、Open Babel、Open-Source PyMOL 或 PLIP，也不执行未核验
+  或未经用户确认的二进制程序；仓库只捆绑固定本地 3Dmol.js 资产及许可证/
+  上游元数据；默认 Docker 镜像不包含这些外部科研程序；
 - Open Babel 3.2.1 是 `GPL-2.0-only` 的可选本机依赖；仓库不捆绑 wheel 或二进制，二次分发须单独完成许可证合规；
 - Open Babel 只做配体格式与基础结构准备，不自动准备受体；结构准备和对接都属于计算预测，不能证明结合、抗菌活性或药物协同；
+- Vina 评分、3Dmol.js/PyMOL 图像、PML/PSE 和 PLIP 相互作用均固定为
+  `computational_prediction`；PDBQT→PDB 的化学语义损失必须随产物展示；
 - 页面和报告持续显示非诊断声明；
 - 用户导入来源不伪造 PMID，未报告字段不补造；
 - 合成演示数据不能成为科研事实；

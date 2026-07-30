@@ -499,6 +499,7 @@ def execute_vina(
         output_pdbqt_sha256 = validate_pdbqt_bytes(
             output_pdbqt,
             role="ligand",
+            require_single_ligand=False,
         )
         bound_log = _bound_log(manifest, stdout, stderr)
         parsed_run = parse_vina_output(

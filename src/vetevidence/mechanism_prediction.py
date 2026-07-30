@@ -705,8 +705,9 @@ def validate_pdbqt_bytes(
     payload: str | bytes,
     *,
     role: Literal["ligand", "receptor"],
+    require_single_ligand: bool = True,
 ) -> str:
-    """Validate minimal PDBQT structure records and return the content hash."""
+    """Validate PDBQT structure records and return the content hash."""
 
     raw = _csv_bytes(payload)
     if not raw.strip():
@@ -715,17 +716,36 @@ def validate_pdbqt_bytes(
         text = raw.decode("utf-8")
     except UnicodeDecodeError as exc:
         raise ValueError(f"{role} PDBQT 必须是 UTF-8 文本。") from exc
-    records = {
+    record_sequence = [
         line.strip().split(maxsplit=1)[0].upper()
         for line in text.splitlines()
         if line.strip()
-    }
+    ]
+    records = set(record_sequence)
     if not ({"ATOM", "HETATM"} & records):
         raise ValueError(f"{role} PDBQT 缺少 ATOM/HETATM 记录。")
     if role == "ligand":
         missing = sorted({"ROOT", "TORSDOF"} - records)
         if missing:
             raise ValueError("ligand PDBQT 缺少记录：" + "、".join(missing))
+        if require_single_ligand:
+            block_counts = {
+                record: record_sequence.count(record)
+                for record in ("ROOT", "ENDROOT", "TORSDOF")
+            }
+            if set(block_counts.values()) != {1}:
+                details = "、".join(
+                    f"{record}={count}"
+                    for record, count in block_counts.items()
+                )
+                raise ValueError(
+                    "ligand PDBQT 必须且只能包含一个完整配体块（"
+                    f"{details}）。"
+                )
+            if record_sequence.count("MODEL") > 1:
+                raise ValueError(
+                    "ligand PDBQT 包含多个 MODEL；一次只允许一个配体。"
+                )
     return hashlib.sha256(raw).hexdigest()
 
 

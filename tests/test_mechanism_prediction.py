@@ -318,6 +318,7 @@ TORSDOF 0
 """
     receptor = b"""ATOM      1  CA  ALA A   1       0.0 0.0 0.0  0.00  0.00    +0.0 C
 """
+    multiple_ligands = ligand + ligand
 
     assert validate_pdbqt_bytes(ligand, role="ligand") == hashlib.sha256(
         ligand
@@ -327,6 +328,13 @@ TORSDOF 0
     ).hexdigest()
     with pytest.raises(ValueError, match="ROOT.*TORSDOF"):
         validate_pdbqt_bytes(receptor, role="ligand")
+    with pytest.raises(ValueError, match="只能包含一个完整配体块"):
+        validate_pdbqt_bytes(multiple_ligands, role="ligand")
+    assert validate_pdbqt_bytes(
+        multiple_ligands,
+        role="ligand",
+        require_single_ligand=False,
+    ) == hashlib.sha256(multiple_ligands).hexdigest()
     with pytest.raises(ValueError, match="为空"):
         validate_pdbqt_bytes(b"", role="receptor")
 

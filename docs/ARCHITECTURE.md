@@ -4,7 +4,8 @@
 
 VetResearch Workbench v0.3 复用 VetEvidence AI v0.1 的 PubMed、期刊分区、
 规则提取、引用和评测能力，在 v0.2 的问题、实验和审计闭环上增加严格的
-证据结果判定、问题范围绑定、网络药理学和 AutoDock Vina 预测层。
+证据结果判定、问题范围绑定、网络药理学、Open Babel 配体准备和 AutoDock
+Vina 预测层。
 
 包名继续使用 `vetevidence`，以避免为产品升级进行无收益的代码重命名。
 
@@ -35,7 +36,11 @@ flowchart TD
     NP --> NF["严格表格适配、来源与 SHA-256"]
     NF --> NX["可追溯网络排名"]
     NX --> NE["XLSX 结果 / DOCX 报告"]
-    UI --> DM["PDBQT + Vina 参数"]
+    UI --> LP["已准备的配体 PDBQT"]
+    UI --> LS["单个 SMI / SMILES / SDF / MOL / MOL2 / PDB 配体"]
+    LS --> OB["受控 Open Babel 配体准备"]
+    OB --> LP
+    LP --> DM["配体 PDBQT + 人工准备的受体 PDBQT + Vina 参数"]
     DM --> VM["无分数任务清单"]
     VM --> LV["用户确认后 Agent 受控执行已核验的本机 Vina"]
     LV --> VA["run.log / poses.pdbqt / metadata.json"]
@@ -100,6 +105,7 @@ v0.2 的多轮检索保留每个查询内部的 PubMed 相关性顺序，以轮�
 | `experiment_analysis.py` | v0.3 | 带药物和病原体身份的 FICI 与生长曲线校验和描述性计算 |
 | `mechanism_prediction.py` | v0.3 | 可追溯网络关系分析、Vina 任务清单、绑定输出解析和问题范围门槛 |
 | `network_files.py` | v0.3 | CSV/XLSX/DOCX 网络表格适配、模板生成及 XLSX/DOCX 结果导出 |
+| `openbabel_execution.py` | v0.3 | Open Babel 发现与身份核验、单配体受控准备、可解析非退化坐标与 PDBQT 校验、执行审计 |
 | `vina_execution.py` | v0.3 | 本机 Vina 发现、身份核验、受控参数执行、日志绑定和输出校验 |
 | `vina_artifacts.py` | v0.3 | 任务级 `run.log`、`poses.pdbqt`、`metadata.json` 原子保存与哈希复核 |
 | `run_store.py` | v0.3 | 每个运行一个 JSON 快照的原子保存、schema v6 迁移与按 ID 恢复 |
@@ -144,6 +150,12 @@ SHA-256，以及 Vina 配体、受体、搜索框、随机种子、引擎版本�
 实际版本、受控参数、退出码、耗时和输出 PDBQT SHA-256；绑定日志、构象文件
 和元数据另存于 `.workbench/vina/<run_id>/<task_id>/`。报告单列该层，其内容
 不会成为协同结论或建议的证据引用。
+
+配体由 Open Babel 准备时，`OpenBabelLocalExecutionMetadata` 记录输入格式及
+SHA-256、输出 PDBQT SHA-256、Open Babel 版本与可执行文件 SHA-256、数据目录、
+3D/pH/Gasteiger 选项、规范化参数数组、退出码、耗时和有界日志。成功产物以
+配体 PDBQT 的哈希进入原有 Vina 清单；失败路径不返回可用 PDBQT。受体不进入
+该转换链。
 
 ### 审计快照
 
@@ -202,6 +214,14 @@ AUC 均为有限数值后，才对均值曲线使用梯形法计算分组 AUC。
 `target_accession` 只有在 organism 也一致时才能连接。分析结果可导出为
 XLSX 和 DOCX。
 
+配体入口分为两条：直接上传已准备的 PDBQT，或把单个、最大 10 MB 的
+SMI/SMILES、SDF、MOL、MOL2、PDB 交给本机 Open Babel 3.2.1。执行层按显式
+路径、`OPENBABEL_EXECUTABLE`、项目 `.venv` 和 `PATH` 的顺序发现工具，核验
+版本、可执行文件 SHA-256 和化学参数目录，再以固定参数数组、隔离临时目录、
+`shell=False` 和超时限制运行。仅允许开关 3D 生成、可选 pH 质子化；电荷模型
+固定为 Gasteiger。多分子、非零退出、超时、工具错误、无效 PDBQT、全零或
+完全重合坐标均失败且不产生可用配体。受体必须继续上传经人工核查的 PDBQT。
+
 Vina 清单本身不含分数。用户可选择导入外部输出，解析器要求其中的 AutoDock
 Vina 版本与清单一致，并检测标准 `mode/affinity` 表头和数值模式行；该路径
 不能认证外部程序确实被运行。若用户选择 Agent 本机执行，执行层会发现并核验
@@ -244,6 +264,7 @@ Streamlit 重跑都启动版本检查；已有本机执行审计的任务不能�
 - 导入记录按 DOI 优先、标题与年份兜底去重；
 - CSV 校验保留每一行的原始值和错误；
 - 网络 CSV/XLSX/DOCX 使用同一严格列契约并限制文件大小、表格结构、行列数和 OOXML 解压规模；
+- Open Babel 只接受允许列表中的单个配体格式和最大 10 MB 输入，工具身份、数据目录、输入/输出哈希及参数均留痕；执行失败、超时、多分子、不可解析或退化坐标都不返回可用 PDBQT；
 - 本机 Vina 在执行前后复核可执行文件哈希与版本，非零退出、超时、日志或输出 PDBQT 异常都不会形成分数；
 - 成功的本机 Vina 任务以任务清单哈希绑定并原子保存日志、输出 PDBQT 和元数据，读取时再次校验哈希；
 - 本机 Vina 探测结果在 UI 中短期缓存；已含本机执行审计的任务拒绝被用户导入日志覆盖，产物临时不可读时只降级下载区而不击穿页面；
@@ -262,6 +283,8 @@ Streamlit 重跑都启动版本检查；已有本机执行审计的任务不能�
 - 不自动抓取知网，不读取未授权全文，不支持扫描 PDF/OCR；
 - `.env`、API Key、用户数据和 `.workbench` 运行记录不进入仓库；
 - 不自动下载 Vina，也不执行未核验或未经用户选择的二进制程序；默认 Docker 镜像不包含 Vina，容器内执行须另行安装或挂载并通过 `VINA_EXECUTABLE` 或 `PATH` 提供；
+- Open Babel 3.2.1 是 `GPL-2.0-only` 的可选本机依赖；仓库不捆绑 wheel 或二进制，二次分发须单独完成许可证合规；
+- Open Babel 只做配体格式与基础结构准备，不自动准备受体；结构准备和对接都属于计算预测，不能证明结合、抗菌活性或药物协同；
 - 页面和报告持续显示非诊断声明；
 - 用户导入来源不伪造 PMID，未报告字段不补造；
 - 合成演示数据不能成为科研事实；

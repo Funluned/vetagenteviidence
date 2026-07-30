@@ -22,6 +22,7 @@ VetResearch Workbench 基于 VetEvidence AI v0.1，把科研问题、可核查�
 - 比较物种、模型、样本量、干预、剂量、时间、对照和指标，显示一致性、显式冲突与证据空白；
 - 分析 FICI 与生长曲线 CSV，逐行保留原始值、校验错误和来源行号；两类 CSV 都必须显式填写研究对象与干预范围，并与当前研究问题匹配；
 - 导入带来源 accession、版本和 SHA-256 的化合物—靶点、靶点—通路 CSV、XLSX 或 DOCX，按透明网络拓扑规则生成靶点排名，并导出 XLSX 结果和 DOCX 报告；
+- 可用项目隔离环境中的 Open Babel 3.2.1 把单个配体的 SMI/SMILES、SDF、MOL、MOL2 或 PDB 转为经校验的 PDBQT，并直接交给现有 Vina 任务；
 - 保存 AutoDock Vina 配体/受体 PDBQT 哈希、来源、搜索框、随机种子和软件版本；可只生成任务清单并导入匹配输出，也可由 Agent 受控执行已核验的本机 Vina；
 - 在报告中单列“计算预测”，不允许网络排名或对接得分冒充直接文献证据、实验结果或协同证明；
 - 生成带文献引用，以及 CSV 文件名、SHA-256、原始行号与计算过程的 Markdown/JSON 决策报告；
@@ -50,12 +51,24 @@ python -m venv .venv
 
 终端显示地址后，在浏览器打开 `http://localhost:8501`。
 
+如需使用 Open Babel 配体准备，在项目隔离环境中额外安装固定的可选依赖：
+
+```powershell
+.\.venv\Scripts\python.exe -m pip install -e ".[molecular-docking]"
+```
+
+本项目在 Python 3.11 x64 Windows 上核验的是官方 PyPI
+`openbabel==3.2.1` wheel（发布于 2026-07-11，下载文件 SHA-256：
+`04c64bd8db520046abdc01396ee122b3b32deb08bdd2fa136a16228ffad7bf8c`）。
+其他平台请按 [Open Babel 官方安装文档](https://openbabel.org/docs/Installation/install.html)
+准备兼容环境。
+
 ## 六步工作流
 
 1. `问题与假设`：填写研究对象、候选干预、联合药物和预设指标，检查并修改透明规则生成的假设；
 2. `文献证据`：执行最多 3 轮 PubMed 检索，查看逐篇证据等级、准入理由和判定原句，或上传 RIS、EndNote、RefWorks 导出文件；
 3. `实验数据`：核查实验条件矩阵、冲突和空白，再上传 FICI 或生长曲线 CSV；
-4. `机制预测`：导入可追溯的 CSV/XLSX/DOCX 网络关系并导出 XLSX/DOCX 结果；生成 Vina 任务清单后，可由 Agent 运行已核验的本机 Vina，或导入带任务哈希的外部输出；
+4. `机制预测`：导入可追溯的 CSV/XLSX/DOCX 网络关系并导出 XLSX/DOCX 结果；上传已准备的配体 PDBQT，或用 Open Babel 准备单个配体，再生成 Vina 任务清单，由 Agent 运行已核验的本机 Vina，或导入带任务哈希的外部输出；
 5. `决策报告`：生成带来源、风险、计算预测边界和下一步的报告，完成人工复核；
 6. `运行记录`：查看事件、工具调用和失败记录，下载快照或凭完整运行 ID 恢复。
 
@@ -132,11 +145,30 @@ organism,target,target_accession,pathway,pathway_accession
 分析完成后可下载包含来源、输入哈希、交集靶点和通路关系的 XLSX 结果或
 DOCX 报告；导出格式不会提升结果的证据等级。
 
+### Open Babel 配体准备
+
+配体可以直接上传已准备的 PDBQT，也可以在页面中选择“使用 Open Babel
+准备”。自动准备只接受单个、最大 10 MB 的 `.smi`、`.smiles`、`.sdf`、
+`.mol`、`.mol2` 或 `.pdb` 配体；不接收压缩包、多记录 SDF、多行 SMILES
+或多 `MODEL` PDB，也不自动转换受体。
+
+用户可选择是否生成三维坐标和是否按指定 pH 质子化；部分电荷固定使用
+Gasteiger。系统只以受控参数数组调用 Open Babel，记录输入与输出 SHA-256、
+Open Babel 版本与可执行文件 SHA-256、参数、退出码和耗时。非零退出、超时、
+错误输出、多个分子、无效 PDBQT、全零或完全重合坐标都不会形成可供 Vina
+使用的配体。成功输出可下载，并直接进入下方 Vina 任务清单。
+
+Open Babel 3.2.1 使用 `GPL-2.0-only` 许可证。仓库只声明可选依赖，不捆绑
+wheel 或二进制文件；如需把 Open Babel 与本项目一同再次分发，必须单独完成
+许可证合规审查。自动转换不能替代对互变异构体、立体化学、质子化状态、
+可旋转键和三维构象的人工核查。
+
 ### AutoDock Vina
 
-页面要求上传配体和受体 PDBQT，填写各自来源 accession、版本、受体研究对象、
-搜索框、`exhaustiveness`、`num_modes`、随机种子和 Vina 版本。系统先生成
-不含任何分数的任务清单，之后有两条执行路径：
+页面接受上述 Open Babel 成功准备的配体 PDBQT，或用户上传的配体 PDBQT；
+受体始终要求上传经人工核查的 PDBQT。用户还需填写配体与受体来源 accession、
+版本、受体研究对象、搜索框、`exhaustiveness`、`num_modes`、随机种子和
+Vina 版本。系统先生成不含任何分数的任务清单，之后有两条执行路径：
 
 - 如果发现显式配置、`VINA_EXECUTABLE`、本机标准安装目录或 `PATH` 中的
   Vina，用户可选择“由 Agent 运行本机 Vina”。系统会在执行前后核验版本和
@@ -153,14 +185,17 @@ PDBQT SHA-256，并在 `.workbench/vina/<run_id>/<task_id>/` 保存绑定任务�
 失败原因仍写入运行事件。官方的结构准备与运行步骤见
 [AutoDock Vina 基础对接文档](https://autodock-vina.readthedocs.io/en/stable/docking_basic.html)。
 
-配体 PDBQT 至少要有 `ATOM/HETATM`、`ROOT` 和 `TORSDOF` 记录，受体至少
-要有 `ATOM/HETATM`。外部运行时应把任务清单页面显示的
+配体 PDBQT 必须有 `ATOM/HETATM`，并且只能包含一组完整的
+`ROOT/ENDROOT/TORSDOF` 记录；受体至少要有 `ATOM/HETATM`。外部运行时应把
+任务清单页面显示的
 `VetEvidence-Manifest-SHA256: <digest>` 标记与 Vina 日志一起保存；导入时
 该标记、Vina 版本、模式编号和 `num_modes` 必须同时通过校验。
 
-项目不捆绑、下载 AutoDock Vina、Meeko 或结构数据库，也不会执行未通过身份
-核验或未经用户选择的外部二进制程序。对接得分仍是计算预测，不能单独证明
-结合、抗菌活性或药物协同。
+项目不捆绑或下载 AutoDock Vina、Meeko 或结构数据库，也不会执行未通过身份
+核验或未经用户选择的外部二进制程序。Open Babel 只作为固定版本的可选本机
+配体准备依赖，不改变 Vina 的独立安装政策。结构准备与对接得分都属于计算
+预测，不能单独证明结合、抗菌活性或药物协同。默认 Docker 镜像也不安装
+`molecular-docking` 可选依赖。
 
 ## 配置与期刊分区
 
@@ -183,8 +218,9 @@ $env:NCBI_API_KEY = "your_api_key"
 .\.venv\Scripts\python.exe -m pytest
 ```
 
-自动化测试覆盖文献证据准入、实验分析、网络文件适配与导出、Vina 任务绑定、
-本机受控执行和审计留痕。定向评测是受控工程检查，不代表通用模型准确率。
+自动化测试覆盖文献证据准入、实验分析、网络文件适配与导出、Open Babel
+单配体准备、Vina 任务绑定、本机受控执行和审计留痕。定向评测是受控工程检查，
+不代表通用模型准确率。
 
 真实负例使用 `quercetin + amoxicillin / Streptococcus agalactiae`：候选分级后保留 8 篇文献，但直接文献证据为 0，报告状态为 `blocked_no_direct_evidence`。真实正例使用 `florfenicol + thiamphenicol / Pasteurella multocida`：本次（2026-07-29）实时复跑保留 8 篇文献，只有 PMID `31749775` 通过严格直接文献证据准入。PubMed 是实时外部数据源，未来复跑的数量和排序可能变化。
 
@@ -202,7 +238,7 @@ $env:NCBI_API_KEY = "your_api_key"
 - 期刊分区参考 [LetPub](https://www.letpub.com.cn/index.php?page=journalapp)，正式评价或投稿前仍需复核；
 - 用户导入题录、实验 CSV、机制关系文件和结构文件只在本机处理；
 - 每次运行保存为 `.workbench/runs/<run_id>.json`，该目录已被 Git 忽略；
-- 报告中的文献结论关联 PMID、DOI、来源 URL 或原文片段；实验分析关联 CSV 文件名、SHA-256、原始行号和可复算过程；计算预测独立记录关系数据、结构和 Vina 输出的 accession、版本、参数及 SHA-256，本机 Vina 成功执行还记录可执行文件哈希、退出码、日志和输出 PDBQT。
+- 报告中的文献结论关联 PMID、DOI、来源 URL 或原文片段；实验分析关联 CSV 文件名、SHA-256、原始行号和可复算过程；计算预测独立记录关系数据、结构和 Vina 输出的 accession、版本、参数及 SHA-256；Open Babel 配体准备另记录输入/输出哈希、版本、可执行文件哈希、参数、退出码和耗时，本机 Vina 成功执行还记录可执行文件哈希、退出码、日志和输出 PDBQT。
 
 ## 项目文档
 
@@ -237,7 +273,7 @@ docker run --rm -p 8501:8501 vetevidence-ai
 - 用户导入记录的正确性仍需人工核查，系统不会把缺失信息补造为事实；
 - FICI 和生长曲线只做透明、可追溯的描述性分析；
 - 网络药理学和分子对接只属于计算预测层，不进入直接文献或实验协同证据；
-- 当前不自动下载化合物、靶点、结构或 Vina；Agent 只在用户明确选择后受控执行已发现且通过版本与哈希核验的本机 Vina。用户仍须合法取得输入并核查结构准备、质子化状态和搜索框；
+- 当前不自动下载化合物、靶点、结构或 Vina；Open Babel 只转换用户主动提供的单个配体，且不准备受体。Agent 只在用户明确选择后受控执行已发现且通过版本与哈希核验的本机工具。用户仍须合法取得输入并核查结构、互变异构体、立体化学、质子化状态和搜索框；
 - 直接文献证据规则宁可漏报也不误报：要求同一题名或摘要句明确出现研究对象、两种干预、交互指标和结果；仅描述 checkerboard、time-kill 或 FICI 方法与阈值不构成结果证据，缩写、同义词或跨句表达可能需要人工复核；
 - 合成演示数据只用于验证计算和页面流程，不得进入科研结论；
 - 规则提取无法覆盖所有摘要表达方式，冲突检测也只识别显式方向差异；

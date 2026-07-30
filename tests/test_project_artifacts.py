@@ -22,6 +22,7 @@ def test_required_delivery_artifacts_exist() -> None:
         "src/vetevidence/imported_extraction.py",
         "src/vetevidence/literature_import.py",
         "src/vetevidence/mechanism_prediction.py",
+        "src/vetevidence/openbabel_execution.py",
         "src/vetevidence/run_store.py",
         "src/vetevidence/workbench.py",
         "src/vetevidence/workbench_pipeline.py",
@@ -72,4 +73,7 @@ def test_workbench_release_metadata_and_readme_contract() -> None:
     assert "生长曲线" in readme
     assert "RIS" in readme
     assert "网络药理学" in readme
+    assert "Open Babel" in readme
     assert "AutoDock Vina" in readme
+    assert 'molecular-docking = [' in pyproject
+    assert '"openbabel==3.2.1"' in pyproject

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import csv
+import hashlib
 import io
 import json
 import os
@@ -42,6 +43,14 @@ from vetevidence.network_files import (
     network_result_to_xlsx,
     target_pathway_template_docx,
     target_pathway_template_xlsx,
+)
+from vetevidence.openbabel_execution import (
+    OpenBabelExecutableInfo,
+    OpenBabelExecutionError,
+    OpenBabelPreparationArtifacts,
+    OpenBabelPreparationOptions,
+    discover_openbabel,
+    prepare_ligand_pdbqt,
 )
 from vetevidence.models import PubMedArticle
 from vetevidence.pubmed import PubMedClient, PubMedError
@@ -85,6 +94,7 @@ from vetevidence.workbench_pipeline import (
 
 PROJECT_ROOT = Path(__file__).parent
 RUN_STATE_KEY = "vetresearch_run_snapshot"
+OPENBABEL_LIGAND_STATE_KEY = "openbabel_prepared_ligand"
 RUN_STORE = RunStore()
 VINA_ARTIFACT_STORE = VinaArtifactStore()
 
@@ -106,6 +116,80 @@ def discover_vina_for_ui(
         return discover_vina(environment=environment), None
     except VinaExecutionError as exc:
         return None, str(exc)
+
+
+@st.cache_data(ttl=300, show_spinner=False)
+def discover_openbabel_for_ui(
+    openbabel_executable: str,
+    path_value: str,
+) -> tuple[OpenBabelExecutableInfo | None, str | None]:
+    """Cache bounded Open Babel discovery without weakening execution checks."""
+
+    environment = {
+        "OPENBABEL_EXECUTABLE": openbabel_executable,
+        "PATH": path_value,
+    }
+    try:
+        return (
+            discover_openbabel(
+                environment=environment,
+                project_root=PROJECT_ROOT,
+            ),
+            None,
+        )
+    except OpenBabelExecutionError as exc:
+        return None, str(exc)
+
+
+def openbabel_preparation_fingerprint(
+    payload: bytes,
+    options: OpenBabelPreparationOptions,
+    executable: OpenBabelExecutableInfo,
+) -> str:
+    """Bind an ephemeral prepared ligand to input, controls and executable."""
+
+    digest = hashlib.sha256()
+    digest.update(payload)
+    digest.update(
+        json.dumps(
+            {
+                "options": options.model_dump(mode="json"),
+                "executable_sha256": executable.sha256,
+                "executable_version": executable.version,
+            },
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode("utf-8")
+    )
+    return digest.hexdigest()
+
+
+def load_openbabel_preparation(
+    run_id: str,
+    expected_fingerprint: str,
+) -> OpenBabelPreparationArtifacts | None:
+    payload = st.session_state.get(OPENBABEL_LIGAND_STATE_KEY)
+    if (
+        not isinstance(payload, dict)
+        or payload.get("run_id") != run_id
+        or payload.get("fingerprint") != expected_fingerprint
+    ):
+        return None
+    try:
+        artifacts = OpenBabelPreparationArtifacts.model_validate(
+            payload.get("artifacts")
+        )
+        output_sha256 = validate_pdbqt_bytes(
+            artifacts.output_pdbqt,
+            role="ligand",
+        )
+        if output_sha256 != artifacts.metadata.output_pdbqt_sha256:
+            raise ValueError("会话中的 Open Babel 输出哈希不一致。")
+        return artifacts
+    except (ValidationError, TypeError, ValueError):
+        st.session_state.pop(OPENBABEL_LIGAND_STATE_KEY, None)
+        return None
 
 
 EVIDENCE_GRADE_LABELS = {
@@ -263,7 +347,11 @@ def append_tool_call(
         (
             call.call_id
             for call in reversed(snapshot.tool_calls)
-            if call.tool_name == tool_name and call.status == "failed"
+            if (
+                call.tool_name == tool_name
+                and call.status == "failed"
+                and call.input_summary == input_summary
+            )
         ),
         None,
     )
@@ -607,6 +695,9 @@ def render_mechanism_prediction(
                     ),
                     "配体": manifest.compound_name,
                     "配体 accession": manifest.ligand_accession,
+                    "配体结构来源": manifest.ligand_source.source_name,
+                    "配体来源版本": manifest.ligand_source.version,
+                    "配体 PDBQT SHA-256": manifest.ligand_source.sha256,
                     "受体": manifest.receptor_name,
                     "受体 accession": manifest.receptor_accession,
                     "研究对象": manifest.receptor_organism,
@@ -1621,6 +1712,10 @@ with mechanism_tab:
                 f"可执行文件 SHA-256：{local_vina.sha256}。"
                 "执行前会再次核验版本和哈希。"
             )
+        local_openbabel, local_openbabel_error = discover_openbabel_for_ui(
+            os.environ.get("OPENBABEL_EXECUTABLE", ""),
+            os.environ.get("PATH", ""),
+        )
         current_bundle = current_snapshot().mechanism_prediction
         network_target = (
             current_bundle.network.ranked_targets[0]
@@ -1630,6 +1725,10 @@ with mechanism_tab:
             )
             else None
         )
+        ligand_payload: bytes | None = None
+        ligand_file_name = ""
+        ligand_source_name_for_manifest = ""
+        ligand_source_version_for_manifest = ""
         docking_columns = st.columns(2)
         with docking_columns[0]:
             docking_compound = st.selectbox(
@@ -1644,22 +1743,313 @@ with mechanism_tab:
                 "配体 accession（例如 PubChem CID）",
                 key=f"ligand-accession-{snapshot.run_id}",
             )
+            ligand_input_mode = st.radio(
+                "配体输入方式",
+                ["上传已准备的 PDBQT", "使用 Open Babel 准备"],
+                horizontal=True,
+                key=f"ligand-input-mode-{snapshot.run_id}",
+            )
             ligand_source_name = st.text_input(
-                "配体结构来源",
-                value="用户提供的 PDBQT",
+                "原始配体结构来源",
+                value="用户提供的结构文件",
                 key=f"ligand-source-name-{snapshot.run_id}",
             )
             ligand_source_version = st.text_input(
-                "配体结构来源版本",
+                "原始配体结构来源版本",
                 value="user-provided",
                 key=f"ligand-source-version-{snapshot.run_id}",
             )
-            ligand_file = st.file_uploader(
-                "上传配体 PDBQT",
-                type=["pdbqt"],
-                key=f"ligand-pdbqt-{snapshot.run_id}",
-                max_upload_size=25,
-            )
+            if ligand_input_mode == "上传已准备的 PDBQT":
+                ligand_file = st.file_uploader(
+                    "上传配体 PDBQT",
+                    type=["pdbqt"],
+                    key=f"ligand-pdbqt-{snapshot.run_id}",
+                    max_upload_size=25,
+                )
+                if ligand_file is not None:
+                    ligand_payload = ligand_file.getvalue()
+                    ligand_file_name = ligand_file.name
+                    ligand_source_name_for_manifest = (
+                        f"{ligand_source_name}；文件={ligand_file.name}"
+                    )
+                    ligand_source_version_for_manifest = ligand_source_version
+            else:
+                if local_openbabel is None:
+                    st.warning(
+                        "本机 Open Babel 当前不可用："
+                        f"{local_openbabel_error}"
+                    )
+                else:
+                    st.success(
+                        f"已连接 Open Babel {local_openbabel.version}"
+                    )
+                    st.caption(
+                        f"可执行文件 SHA-256：{local_openbabel.sha256}。"
+                        "仅准备配体；受体仍须上传经人工核查的 PDBQT。"
+                    )
+                raw_ligand_file = st.file_uploader(
+                    "上传单个原始配体结构",
+                    type=["smi", "smiles", "sdf", "mol", "mol2", "pdb"],
+                    key=f"openbabel-ligand-input-{snapshot.run_id}",
+                    max_upload_size=10,
+                    help=(
+                        "一次只允许一个配体；不接受压缩包、多记录 SDF、"
+                        "多行 SMILES 或含多个 MODEL 的 PDB。"
+                    ),
+                )
+                generate_3d = st.checkbox(
+                    "生成或重建三维坐标",
+                    value=True,
+                    key=f"openbabel-gen3d-{snapshot.run_id}",
+                )
+                protonate_ligand = st.checkbox(
+                    "按指定 pH 添加氢",
+                    value=True,
+                    key=f"openbabel-protonate-{snapshot.run_id}",
+                )
+                protonation_ph = st.number_input(
+                    "配体质子化 pH",
+                    min_value=0.0,
+                    max_value=14.0,
+                    value=7.4,
+                    step=0.1,
+                    disabled=not protonate_ligand,
+                    key=f"openbabel-ph-{snapshot.run_id}",
+                )
+                st.caption(
+                    "部分电荷固定使用 Gasteiger；自动准备结果仍需人工检查"
+                    "互变异构体、立体化学、质子化和可旋转键。"
+                )
+                preparation_options = OpenBabelPreparationOptions(
+                    input_format=(
+                        Path(raw_ligand_file.name).suffix
+                        if raw_ligand_file is not None
+                        else "smi"
+                    ),
+                    generate_3d=generate_3d,
+                    protonation_ph=(
+                        float(protonation_ph)
+                        if protonate_ligand
+                        else None
+                    ),
+                )
+                raw_ligand_payload = (
+                    raw_ligand_file.getvalue()
+                    if raw_ligand_file is not None
+                    else None
+                )
+                preparation_input_sha256 = (
+                    hashlib.sha256(raw_ligand_payload).hexdigest()
+                    if raw_ligand_payload is not None
+                    else None
+                )
+                preparation_fingerprint = (
+                    openbabel_preparation_fingerprint(
+                        raw_ligand_payload,
+                        preparation_options,
+                        local_openbabel,
+                    )
+                    if (
+                        raw_ligand_payload is not None
+                        and local_openbabel is not None
+                    )
+                    else None
+                )
+                preparation_input_summary = (
+                    f"{raw_ligand_file.name}；准备指纹="
+                    f"{preparation_fingerprint}"
+                    if (
+                        raw_ligand_file is not None
+                        and preparation_fingerprint is not None
+                    )
+                    else "未提供配体文件"
+                )
+                prepared_ligand = (
+                    load_openbabel_preparation(
+                        snapshot.run_id,
+                        preparation_fingerprint,
+                    )
+                    if preparation_fingerprint is not None
+                    else None
+                )
+                prepare_openbabel_ligand = st.button(
+                    "用 Open Babel 生成配体 PDBQT",
+                    type="primary",
+                    disabled=(
+                        raw_ligand_payload is None
+                        or local_openbabel is None
+                    ),
+                    width="stretch",
+                    key=f"prepare-openbabel-ligand-{snapshot.run_id}",
+                )
+                if prepare_openbabel_ligand:
+                    status_box = st.status(
+                        "正在由 VetEvidence Agent 准备配体…",
+                        expanded=True,
+                    )
+                    try:
+                        if (
+                            raw_ligand_file is None
+                            or raw_ligand_payload is None
+                            or local_openbabel is None
+                            or preparation_fingerprint is None
+                        ):
+                            raise OpenBabelExecutionError(
+                                "Open Babel 配体准备输入不完整。"
+                            )
+                        status_box.write(
+                            "正在复核 Open Babel 版本、二进制哈希和参数目录。"
+                        )
+                        prepared_ligand = prepare_ligand_pdbqt(
+                            raw_ligand_payload,
+                            options=preparation_options,
+                            executable=local_openbabel,
+                        )
+                        status_box.write(
+                            "正在校验单分子数量、可解析且非退化的坐标和 "
+                            "PDBQT 内容哈希。"
+                        )
+                    except (
+                        OSError,
+                        ValidationError,
+                        ValueError,
+                        OpenBabelExecutionError,
+                    ) as exc:
+                        prepared_ligand = None
+                        st.session_state.pop(
+                            OPENBABEL_LIGAND_STATE_KEY,
+                            None,
+                        )
+                        failed_snapshot = append_tool_call(
+                            current_snapshot(),
+                            "structure.openbabel_prepare",
+                            preparation_input_summary,
+                            status="failed",
+                            error=str(exc),
+                            metadata={
+                                "input_sha256": preparation_input_sha256 or "",
+                                "options": preparation_options.model_dump(
+                                    mode="json"
+                                ),
+                                "executable_version": (
+                                    local_openbabel.version
+                                    if local_openbabel is not None
+                                    else ""
+                                ),
+                                "executable_sha256": (
+                                    local_openbabel.sha256
+                                    if local_openbabel is not None
+                                    else ""
+                                ),
+                            },
+                        )
+                        failed_snapshot = append_event(
+                            failed_snapshot,
+                            TaskStatus.FAILED,
+                            f"Open Babel 配体准备失败：{exc}",
+                        )
+                        save_snapshot(failed_snapshot)
+                        status_box.update(
+                            label="Open Babel 配体准备失败",
+                            state="error",
+                            expanded=True,
+                        )
+                        st.error(
+                            "没有生成可交给 Vina 的配体 PDBQT："
+                            f"{exc}"
+                        )
+                    else:
+                        st.session_state[OPENBABEL_LIGAND_STATE_KEY] = {
+                            "run_id": snapshot.run_id,
+                            "fingerprint": preparation_fingerprint,
+                            "artifacts": prepared_ligand.model_dump(
+                                mode="python"
+                            ),
+                        }
+                        preparation_metadata = (
+                            prepared_ligand.metadata.model_dump(
+                                mode="json",
+                                exclude={
+                                    "executable_path",
+                                    "data_directory",
+                                    "stdout",
+                                    "stderr",
+                                },
+                            )
+                        )
+                        succeeded_snapshot = append_tool_call(
+                            current_snapshot(),
+                            "structure.openbabel_prepare",
+                            preparation_input_summary,
+                            status="succeeded",
+                            output_summary=(
+                                "生成配体 PDBQT；SHA-256 "
+                                f"{prepared_ligand.metadata.output_pdbqt_sha256}"
+                            ),
+                            metadata=preparation_metadata,
+                        )
+                        succeeded_snapshot = append_event(
+                            succeeded_snapshot,
+                            TaskStatus.RUNNING,
+                            (
+                                "Open Babel 已生成并校验单个配体 PDBQT，"
+                                "可直接用于当前 Vina 任务。"
+                            ),
+                            metadata={
+                                "input_sha256": (
+                                    prepared_ligand.metadata.input_sha256
+                                ),
+                                "output_pdbqt_sha256": (
+                                    prepared_ligand.metadata
+                                    .output_pdbqt_sha256
+                                ),
+                                "executable_version": (
+                                    prepared_ligand.metadata
+                                    .executable_version
+                                ),
+                                "executable_sha256": (
+                                    prepared_ligand.metadata
+                                    .executable_sha256
+                                ),
+                            },
+                        )
+                        save_snapshot(succeeded_snapshot)
+                        status_box.update(
+                            label="Open Babel 配体准备完成",
+                            state="complete",
+                            expanded=False,
+                        )
+                        st.success(
+                            "配体 PDBQT 已通过内容及可解析、非退化坐标校验；"
+                            "这不代表构象已通过科研人工复核。"
+                        )
+                if prepared_ligand is not None:
+                    ligand_payload = prepared_ligand.output_pdbqt
+                    ligand_file_name = (
+                        f"{Path(raw_ligand_file.name).stem}.pdbqt"
+                        if raw_ligand_file is not None
+                        else "ligand.pdbqt"
+                    )
+                    ligand_source_name_for_manifest = (
+                        f"{ligand_source_name}；Open Babel 配体准备；"
+                        f"原始文件={raw_ligand_file.name}"
+                    )
+                    ligand_source_version_for_manifest = (
+                        f"{ligand_source_version}；Open Babel "
+                        f"{prepared_ligand.metadata.executable_version}"
+                    )
+                    st.caption(
+                        "已准备输出 SHA-256："
+                        f"{prepared_ligand.metadata.output_pdbqt_sha256}"
+                    )
+                    st.download_button(
+                        "下载已准备的配体 PDBQT",
+                        prepared_ligand.output_pdbqt,
+                        file_name=ligand_file_name,
+                        mime="chemical/x-pdbqt",
+                        width="stretch",
+                        key=f"download-openbabel-ligand-{snapshot.run_id}",
+                    )
         with docking_columns[1]:
             receptor_name = st.text_input(
                 "受体名称",
@@ -1742,14 +2132,14 @@ with mechanism_tab:
         with st.container(horizontal=True):
             prepare_manifest = st.button(
                 "仅生成 Vina 任务清单",
-                disabled=ligand_file is None or receptor_file is None,
+                disabled=ligand_payload is None or receptor_file is None,
                 width="stretch",
             )
             execute_local_vina = st.button(
                 "由 Agent 运行本机 Vina",
                 type="primary",
                 disabled=(
-                    ligand_file is None
+                    ligand_payload is None
                     or receptor_file is None
                     or local_vina is None
                 ),
@@ -1757,7 +2147,7 @@ with mechanism_tab:
             )
         if (
             (prepare_manifest or execute_local_vina)
-            and ligand_file
+            and ligand_payload is not None
             and receptor_file
         ):
             operation_name = (
@@ -1766,7 +2156,6 @@ with mechanism_tab:
                 else "docking.prepare"
             )
             try:
-                ligand_payload = ligand_file.getvalue()
                 receptor_payload = receptor_file.getvalue()
                 ligand_sha256 = validate_pdbqt_bytes(
                     ligand_payload,
@@ -1784,11 +2173,9 @@ with mechanism_tab:
                     receptor_accession=receptor_accession,
                     receptor_organism=receptor_organism,
                     ligand_source=SourceProvenance(
-                        source_name=(
-                            f"{ligand_source_name}；文件={ligand_file.name}"
-                        ),
+                        source_name=ligand_source_name_for_manifest,
                         accession=ligand_accession,
-                        version=ligand_source_version,
+                        version=ligand_source_version_for_manifest,
                         sha256=ligand_sha256,
                     ),
                     receptor_source=SourceProvenance(
@@ -2374,6 +2761,11 @@ with audit_tab:
                     "输出摘要": call.output_summary or "",
                     "错误": call.error or "",
                     "重试自": call.retry_of or "",
+                    "详情": (
+                        json.dumps(call.metadata, ensure_ascii=False)
+                        if call.metadata
+                        else ""
+                    ),
                 }
                 for call in snapshot.tool_calls
             ],

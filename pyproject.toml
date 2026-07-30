@@ -16,6 +16,11 @@ dependencies = [
     "streamlit>=1.40",
 ]
 
+[project.optional-dependencies]
+molecular-docking = [
+    "openbabel==3.2.1",
+]
+
 [tool.setuptools.packages.find]
 where = ["src"]
 

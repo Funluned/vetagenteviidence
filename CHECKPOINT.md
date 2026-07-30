@@ -129,10 +129,48 @@ Open Babel 真实转换与全量自动回归均已验收。
 - 仓库不捆绑 Open Babel wheel 或二进制。Open Babel 为 `GPL-2.0-only`，二次分发须单独完成许可证合规。
 - 本轮全量自动测试：`215 passed`。
 
+## VetResearch Workbench v0.4 公开数据库证据层
+
+### 已完成能力
+
+- [x] 用户主动查询 PubChem、UniProt、NCBI Gene/GenBank、RCSB PDB、
+  STRING 和 DAVID，并统一记录 CID/InChIKey、UniProt accession、GeneID、
+  GenBank accession.version、PDB ID 与 NCBI TaxID
+- [x] NCBI 缺联系邮箱时不发请求；STRING/DAVID 未明确同意标识外发时只生成
+  带参数和 SHA-256 的离线请求
+- [x] 每个查询按运行 ID 和查询 ID 保存原始响应、规范化结果、解析器版本、
+  ETag/Last-Modified、来源时间、清单和 `SHA256SUMS.txt`，拒绝覆盖已有归档
+- [x] STRING 实验、人工整理、文本挖掘与计算预测通道分开显示，
+  `combined_score` 只用于排序
+- [x] DAVID 保留明确目标集与背景集、TaxID、映射比例、原始 P 值和上游
+  BH 校正值；缺失校正值时标记未报告，不在筛选后的不完整集合上补算
+- [x] 建立 DAVID 基因—条目注释边及 STRING 标识映射边；不同 TaxID、同层
+  混合 TaxID 或无法证明的跨库身份不会被合并
+- [x] 七步 Streamlit 工作台新增“数据库证据”，提供状态、记录、标识映射、
+  来源 URL、原始响应哈希、JSON/ZIP/离线请求下载和工具调用审计
+
+### 验证证据
+
+- v0.4 独立全量回归：`251 passed`；连同尚未提交的后续对接与 MD 核心测试
+  预跑为 `289 passed, 1 skipped`。
+- 真实 PubChem：`quercetin` 解析为 CID `5280343` 和 InChIKey
+  `REFJWTPEDVJJIY-UHFFFAOYSA-N`。
+- 真实 UniProt：`P69905` 返回 TaxID `9606`，release `2026_02`。
+- 真实 RCSB 搜索：`P00533 / TaxID 9606` 返回 `1IVO`、`1M14`；已修复旧字段
+  导致的 HTTP 400。
+- 真实 STRING：`P69905 + P68871 / TaxID 9606` 使用固定版本 `12.0`，
+  返回 1 条关系、7 条分层证据边和 1 条仅排序关系。
+- NCBI 与 DAVID 本轮未使用真实联系邮箱或注册邮箱；已实测安全离线导出，
+  不把未执行的网络请求写成在线成功。
+- 浏览器实测七个顶层标签；创建任务后完成真实 PubChem 查询、原始归档与
+  JSON/ZIP 下载入口，并完成 NCBI 无邮箱离线请求与下载；控制台无错误。
+
 ## 阻塞
 
 - 本机未安装 Docker：Dockerfile 已写，镜像构建未验证。
 - 本机已安装并核验 AutoDock Vina 1.2.7，Agent 执行链已用官方公开样例验收；尚未提供与当前兽医科研问题对应、来源许可清楚且人工完成结构准备的真实配体/受体，因此不能把冒烟结果当作科研机制证据。
 - Open Babel 真实转换只证明配体准备执行链可运行；尚未由研究者完成与当前科研问题对应的互变异构体、立体化学、质子化、构象和受体准备复核，不能把生成结构或后续对接当作结合、抗菌或协同证明。
+- NCBI Gene/GenBank 和 DAVID 的在线路径仍需由研究者提供合规联系邮箱或已
+  注册机构邮箱后做真实服务验收；当前离线门禁与导出已验证。
 - 尚未录制演示视频，也未获准进行公开部署。
 - 仍需孙奇亲自完成一次从零启动、完整垂直案例讲解和一次核心流程小修改。

@@ -226,3 +226,39 @@ python -m venv .venv
 
 由研究者选择一个来源许可清楚、与当前兽医科研问题匹配的配体和受体，人工
 复核配体化学状态、受体准备与搜索框后，再完成第一例科研案例级对接验收。
+
+## 2026-07-30：v0.4 公开数据库连接与证据网络
+
+### 本次完成
+
+- 接入 PubChem、UniProt、NCBI Gene/GenBank、RCSB PDB、STRING 与 DAVID，
+  统一使用稳定标识和 NCBI TaxID，并把每次原始响应与规范化结果分开归档。
+- STRING/DAVID 的标识列表只有在用户明确同意后才外发；NCBI 无联系邮箱时
+  不发送请求。离线路径仍保留参数、输入哈希与下载文件。
+- STRING 的 `experimental/database/text mining/prediction` 分数各自形成
+  证据边，combined score 只形成排序关系。
+- DAVID chart 中的稳定 term ID 从 `ID~名称` 拆出，内部行号单独保留；物种
+  选择先把 TaxID 映射到服务返回的科学名和零基索引，再回读确认，不能再把
+  TaxID 直接误传给 `setCurrentSpecies`。
+- PubChem 按当前接口使用 `SMILES/ConnectivitySMILES`，并兼容旧键；创建日期
+  不再冒充数据库版本，修改日期只作为明确的 record revision marker。
+- DAVID 未报告 BH 值时不再在已筛选 chart 上补算；不同 TaxID 的 STRING 与
+  DAVID 结果不能合并。只有相同输入标识可通过映射边连接，不猜跨库身份。
+
+### 实际验证
+
+- v0.4 独立测试：`251 passed`；`pip check` 无依赖冲突。
+- 真实服务复跑成功：PubChem CID `5280343`、UniProt release `2026_02`、
+  RCSB `1IVO/1M14`、STRING version `12.0`。
+- 浏览器完成真实 PubChem 查询和校验 ZIP 展示，并完成 NCBI 无邮箱离线请求；
+  七个顶层标签、状态和下载入口可见，控制台无错误。
+
+### 关键取舍
+
+- “能联网”不是验收标准。RCSB 不可搜索字段、DAVID 物种索引、PubChem 新旧
+  字段和 DAVID term ID 都曾被 mock 测试掩盖，必须用真实接口和语义断言同时
+  验证。
+- 数据库零结果不等于不存在生物学关系；数据库关联、PPI 与富集也不等于实验
+  验证、因果机制或药物协同。
+- DAVID SOAP 不提供可核验知识库 release 时就明确写未报告；用户填写的版本
+  只能标为 user-asserted，不能进入上游 provenance。

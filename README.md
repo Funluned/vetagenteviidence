@@ -1,7 +1,8 @@
-# VetResearch Workbench v0.3
+# VetResearch Workbench v0.4
 
 VetResearch Workbench 基于 VetEvidence AI v0.1，把科研问题、可核查文献、
-实验条件、实验数据、网络药理学和分子对接串成一个可审计的科研决策闭环。
+实验条件、实验数据、公开数据库、网络药理学和分子对接串成一个可审计的
+科研决策闭环。
 当前首个垂直场景聚焦：
 
 > 候选药物与抗生素对目标病原菌是否存在值得进一步验证的协同作用？
@@ -10,7 +11,7 @@ VetResearch Workbench 基于 VetEvidence AI v0.1，把科研问题、可核查�
 
 ## 当前已实现
 
-### VetResearch Workbench v0.3
+### VetResearch Workbench v0.4
 
 - 把科研问题拆成 2—4 条可检验假设，并允许人工修改；
 - 自动生成并执行最多 3 轮可见 PubMed 检索式，扩大候选池后按轮公平合并、PMID 去重，再优先保留能回答当前问题的文献；
@@ -21,6 +22,15 @@ VetResearch Workbench 基于 VetEvidence AI v0.1，把科研问题、可核查�
 - 把 PubMed 与用户导入文献整理为同一实验条件矩阵，缺失字段保持为空；
 - 比较物种、模型、样本量、干预、剂量、时间、对照和指标，显示一致性、显式冲突与证据空白；
 - 分析 FICI 与生长曲线 CSV，逐行保留原始值、校验错误和来源行号；两类 CSV 都必须显式填写研究对象与干预范围，并与当前研究问题匹配；
+- 由用户主动查询 PubChem、UniProt、NCBI Gene/GenBank、RCSB PDB、STRING
+  和 DAVID；统一保存 CID/InChIKey、UniProt accession、NCBI TaxID、
+  GeneID、GenBank accession.version 与 PDB ID；
+- 每次数据库查询保存脱敏参数、访问时间、数据库版本或发布日期、原始响应
+  SHA-256、规范化记录及可下载的完整校验归档；没有 NCBI 联系邮箱或未同意
+  向 STRING/DAVID 外发标识时只生成离线请求，不静默联网；
+- 将 STRING 的实验、人工整理、文本挖掘和模型预测通道分开显示；
+  `combined_score` 只用于排序；DAVID 富集保留目标集、背景集、TaxID、
+  原始 P 值和 BH 校正后 P 值；
 - 导入带来源 accession、版本和 SHA-256 的化合物—靶点、靶点—通路 CSV、XLSX 或 DOCX，按透明网络拓扑规则生成靶点排名，并导出 XLSX 结果和 DOCX 报告；
 - 可用项目隔离环境中的 Open Babel 3.2.1 把单个配体的 SMI/SMILES、SDF、MOL、MOL2 或 PDB 转为经校验的 PDBQT，并直接交给现有 Vina 任务；
 - 保存 AutoDock Vina 配体/受体 PDBQT 哈希、来源、搜索框、随机种子和软件版本；可只生成任务清单并导入匹配输出，也可由 Agent 受控执行已核验的本机 Vina；
@@ -28,7 +38,7 @@ VetResearch Workbench 基于 VetEvidence AI v0.1，把科研问题、可核查�
 - 生成带文献引用，以及 CSV 文件名、SHA-256、原始行号与计算过程的 Markdown/JSON 决策报告；
 - 要求人工选择“通过、要求修改、拒绝”后再结束任务；
 - 把任务事件、工具调用、失败、重试关系和人工复核保存到本地 `.workbench/runs/*.json`，可凭完整运行 ID 恢复；
-- 通过六步 Streamlit 界面完成完整闭环，无需 LLM API Key。
+- 通过七步 Streamlit 界面完成完整闭环，无需 LLM API Key。
 
 ### 继承自 VetEvidence AI v0.1
 
@@ -63,18 +73,29 @@ python -m venv .venv
 其他平台请按 [Open Babel 官方安装文档](https://openbabel.org/docs/Installation/install.html)
 准备兼容环境。
 
-## 六步工作流
+## 七步工作流
 
 1. `问题与假设`：填写研究对象、候选干预、联合药物和预设指标，检查并修改透明规则生成的假设；
 2. `文献证据`：执行最多 3 轮 PubMed 检索，查看逐篇证据等级、准入理由和判定原句，或上传 RIS、EndNote、RefWorks 导出文件；
 3. `实验数据`：核查实验条件矩阵、冲突和空白，再上传 FICI 或生长曲线 CSV；
-4. `机制预测`：导入可追溯的 CSV/XLSX/DOCX 网络关系并导出 XLSX/DOCX 结果；上传已准备的配体 PDBQT，或用 Open Babel 准备单个配体，再生成 Vina 任务清单，由 Agent 运行已核验的本机 Vina，或导入带任务哈希的外部输出；
-5. `决策报告`：生成带来源、风险、计算预测边界和下一步的报告，完成人工复核；
-6. `运行记录`：查看事件、工具调用和失败记录，下载快照或凭完整运行 ID 恢复。
+4. `数据库证据`：按 TaxID 查询六类公开数据库，审阅标识映射、版本、来源
+   和原始响应归档，并把 STRING/DAVID 结果组织为分层证据网络；
+5. `机制预测`：导入可追溯的 CSV/XLSX/DOCX 网络关系并导出 XLSX/DOCX 结果；上传已准备的配体 PDBQT，或用 Open Babel 准备单个配体，再生成 Vina 任务清单，由 Agent 运行已核验的本机 Vina，或导入带任务哈希的外部输出；
+6. `决策报告`：生成带来源、风险、计算预测边界和下一步的报告，完成人工复核；
+7. `运行记录`：查看事件、工具调用和失败记录，下载快照或凭完整运行 ID 恢复。
 
 页面提供合成 RIS、FICI 和生长曲线演示数据。这些文件只用于验证工作流，页面与报告会明确标记，不能作为科研事实。
 
 ## 支持的输入
+
+### 公开数据库查询
+
+数据库查询必须由用户点击提交，不会在 Streamlit 重跑时自动重复。所有
+生物实体查询要求明确的 NCBI TaxID；名称或符号映射出现多个候选时，结果
+会标记歧义，不替用户静默选择。STRING 与 DAVID 会把标识列表发送给第三方
+服务，界面因此要求单独确认；敏感或未公开列表应下载离线请求并在获批环境
+中处理。详细的数据源、证据类型与归档口径见
+[数据库连接与证据网络](docs/DATABASE_CONNECTORS.md)。
 
 ### 文献题录
 
@@ -199,11 +220,14 @@ PDBQT SHA-256，并在 `.workbench/vina/<run_id>/<task_id>/` 保存绑定任务�
 
 ## 配置与期刊分区
 
-如需填写 NCBI 联系邮箱或 API Key，可在启动前为当前终端设置：
+如需填写 NCBI 联系邮箱、API Key、STRING 调用方身份或 DAVID 注册邮箱，
+可在启动前为当前终端设置：
 
 ```powershell
 $env:NCBI_EMAIL = "your_email@example.com"
 $env:NCBI_API_KEY = "your_api_key"
+$env:STRING_CALLER_IDENTITY = "VetEvidenceAI"
+$env:DAVID_EMAIL = "registered_email@example.com"
 ```
 
 `.env.example` 仅说明变量名；不要提交真实 `.env` 或密钥。
@@ -219,8 +243,9 @@ $env:NCBI_API_KEY = "your_api_key"
 ```
 
 自动化测试覆盖文献证据准入、实验分析、网络文件适配与导出、Open Babel
-单配体准备、Vina 任务绑定、本机受控执行和审计留痕。定向评测是受控工程检查，
-不代表通用模型准确率。
+单配体准备、Vina 任务绑定、本机受控执行，以及数据库请求脱敏、真实字段
+解析、TaxID 门禁、证据分层、原始响应归档和审计留痕。定向评测是受控工程
+检查，不代表通用模型准确率。
 
 真实负例使用 `quercetin + amoxicillin / Streptococcus agalactiae`：候选分级后保留 8 篇文献，但直接文献证据为 0，报告状态为 `blocked_no_direct_evidence`。真实正例使用 `florfenicol + thiamphenicol / Pasteurella multocida`：本次（2026-07-29）实时复跑保留 8 篇文献，只有 PMID `31749775` 通过严格直接文献证据准入。PubMed 是实时外部数据源，未来复跑的数量和排序可能变化。
 
@@ -244,6 +269,7 @@ $env:NCBI_API_KEY = "your_api_key"
 
 - [产品需求](docs/PRD.md)
 - [架构说明](docs/ARCHITECTURE.md)
+- [数据库连接与证据网络](docs/DATABASE_CONNECTORS.md)
 - [期刊分区数据说明](docs/JOURNAL_RANKINGS.md)
 - [真实正负验收案例](docs/REAL_CASES.md)
 - [评测报告](docs/EVALUATION.md)
@@ -272,8 +298,14 @@ docker run --rm -p 8501:8501 vetevidence-ai
 - 当前只解析 PubMed 摘要和 RIS、EndNote、RefWorks 题录导出，不读取未授权全文，也不支持扫描 PDF/OCR；
 - 用户导入记录的正确性仍需人工核查，系统不会把缺失信息补造为事实；
 - FICI 和生长曲线只做透明、可追溯的描述性分析；
+- 数据库关联、STRING 网络和 DAVID 富集不等于靶点或通路已经实验验证；
+  零结果也不等于生物学关系不存在；
 - 网络药理学和分子对接只属于计算预测层，不进入直接文献或实验协同证据；
-- 当前不自动下载化合物、靶点、结构或 Vina；Open Babel 只转换用户主动提供的单个配体，且不准备受体。Agent 只在用户明确选择后受控执行已发现且通过版本与哈希核验的本机工具。用户仍须合法取得输入并核查结构、互变异构体、立体化学、质子化状态和搜索框；
+- 当前只在用户主动提交后从公开接口获取数据库记录，不自动运行未知在线
+  预测服务或下载 Vina；Open Babel 只转换用户主动提供的单个配体，且不准备
+  受体。Agent 只在用户明确选择后受控执行已发现且通过版本与哈希核验的本机
+  工具。用户仍须合法取得输入并核查结构、互变异构体、立体化学、质子化
+  状态和搜索框；
 - 直接文献证据规则宁可漏报也不误报：要求同一题名或摘要句明确出现研究对象、两种干预、交互指标和结果；仅描述 checkerboard、time-kill 或 FICI 方法与阈值不构成结果证据，缩写、同义词或跨句表达可能需要人工复核；
 - 合成演示数据只用于验证计算和页面流程，不得进入科研结论；
 - 规则提取无法覆盖所有摘要表达方式，冲突检测也只识别显式方向差异；

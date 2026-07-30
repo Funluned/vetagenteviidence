@@ -5,14 +5,37 @@ import hashlib
 import io
 import json
 import os
+from collections.abc import Callable
 from datetime import datetime, timezone
 from pathlib import Path
+from urllib.parse import quote
 from uuid import uuid4
 
 import streamlit as st
 from pydantic import ValidationError
 
 from vetevidence.config import load_settings
+from vetevidence.connector_artifacts import (
+    ConnectorArchiveError,
+    ConnectorArtifactStore,
+)
+from vetevidence.database_connectors import (
+    ConnectorError,
+    ConnectorResult,
+    ConnectorStatus,
+    DAVIDConnector,
+    DEFAULT_DAVID_CATEGORIES,
+    NCBIConnector,
+    PubChemConnector,
+    RCSBConnector,
+    STRINGConnector,
+    UniProtConnector,
+    export_connector_result,
+)
+from vetevidence.evidence_network import (
+    EvidenceNetwork,
+    build_evidence_network,
+)
 from vetevidence.evaluation import EvaluationReport
 from vetevidence.experiment_analysis import (
     FICIAnalysisResult,
@@ -95,8 +118,10 @@ from vetevidence.workbench_pipeline import (
 PROJECT_ROOT = Path(__file__).parent
 RUN_STATE_KEY = "vetresearch_run_snapshot"
 OPENBABEL_LIGAND_STATE_KEY = "openbabel_prepared_ligand"
+DATABASE_RESULTS_STATE_KEY = "database_connector_results"
 RUN_STORE = RunStore()
 VINA_ARTIFACT_STORE = VinaArtifactStore()
+CONNECTOR_ARTIFACT_STORE = ConnectorArtifactStore()
 
 
 @st.cache_data(ttl=300, show_spinner=False)
@@ -367,6 +392,699 @@ def append_tool_call(
     return snapshot.model_copy(
         update={"tool_calls": [*snapshot.tool_calls, call]}
     )
+
+
+DATABASE_SOURCE_SLUGS = {
+    "PubChem": "pubchem",
+    "UniProt": "uniprot",
+    "NCBI Gene": "ncbi-gene",
+    "GenBank": "genbank",
+    "RCSB PDB": "rcsb-pdb",
+    "STRING": "string",
+    "DAVID": "david",
+    "STRING + DAVID 证据网络": "evidence-network",
+    "数据库输入": "input-validation",
+    "数据库结果归档": "archive-validation",
+}
+DATABASE_HOME_URLS = {
+    "PubChem": "https://pubchem.ncbi.nlm.nih.gov/",
+    "UniProt": "https://www.uniprot.org/",
+    "NCBI Gene": "https://www.ncbi.nlm.nih.gov/gene/",
+    "GenBank": "https://www.ncbi.nlm.nih.gov/genbank/",
+    "RCSB PDB": "https://www.rcsb.org/",
+    "STRING": "https://string-db.org/",
+    "DAVID": "https://davidbioinformatics.nih.gov/",
+}
+DATABASE_STATUS_LABELS = {
+    ConnectorStatus.OK: "可用",
+    ConnectorStatus.NO_RESULTS: "无结果",
+    ConnectorStatus.DEGRADED: "降级",
+    ConnectorStatus.OFFLINE_EXPORT: "未发送 / 离线导出",
+}
+DATABASE_EVIDENCE_TYPE_LABELS = {
+    "experimental": "实验验证",
+    "curated_database": "数据库整理",
+    "text_mined": "文本推断",
+    "computational_prediction": "模型或计算预测",
+}
+MAX_DATABASE_HISTORY = 100
+
+
+def split_database_identifiers(
+    value: str,
+    *,
+    label: str,
+    limit: int,
+) -> tuple[str, ...]:
+    """Parse line/semicolon-delimited identifiers without splitting commas."""
+
+    normalized = value.replace(";", "\n").replace("；", "\n")
+    identifiers = tuple(
+        dict.fromkeys(
+            item.strip()
+            for item in normalized.splitlines()
+            if item.strip()
+        )
+    )
+    if len(identifiers) > limit:
+        raise ValueError(f"{label} 最多允许 {limit} 项，当前为 {len(identifiers)} 项。")
+    return identifiers
+
+
+def database_state(run_id: str) -> dict[str, object]:
+    """Return bounded, per-session connector state for the active run only."""
+
+    state = st.session_state.get(DATABASE_RESULTS_STATE_KEY)
+    if (
+        not isinstance(state, dict)
+        or state.get("run_id") != run_id
+        or not isinstance(state.get("entries"), list)
+    ):
+        state = {
+            "run_id": run_id,
+            "entries": [],
+            "network": None,
+        }
+        st.session_state[DATABASE_RESULTS_STATE_KEY] = state
+    return state
+
+
+def redact_database_error(
+    error: Exception,
+    *,
+    sensitive_values: tuple[str | None, ...] = (),
+) -> str:
+    """Keep UI and audit errors useful without echoing credentials or emails."""
+
+    text = str(error).strip() or error.__class__.__name__
+    settings = load_settings()
+    redactions = (
+        *sensitive_values,
+        settings.ncbi_email,
+        settings.ncbi_api_key,
+        os.getenv("DAVID_EMAIL"),
+    )
+    for value in redactions:
+        if value:
+            text = text.replace(value, "[已脱敏]")
+            text = text.replace(quote(value, safe=""), "[已脱敏]")
+    if len(text) > 1500:
+        text = text[:1497] + "..."
+    return text
+
+
+def record_database_failure(
+    snapshot: WorkbenchRunSnapshot,
+    *,
+    source: str,
+    input_summary: str,
+    error: Exception,
+    sensitive_values: tuple[str | None, ...] = (),
+) -> WorkbenchRunSnapshot:
+    """Expose and persist a failed connector/UI boundary operation."""
+
+    safe_error = redact_database_error(
+        error,
+        sensitive_values=sensitive_values,
+    )
+    slug = DATABASE_SOURCE_SLUGS.get(source, "ui")
+    snapshot = append_tool_call(
+        snapshot,
+        f"database.{slug}",
+        input_summary,
+        status="failed",
+        error=safe_error,
+        metadata={"source": source},
+    )
+    snapshot = append_event(
+        snapshot,
+        TaskStatus.FAILED,
+        f"{source} 数据库操作失败：{safe_error}",
+        metadata={"source": source},
+    )
+    save_snapshot(snapshot)
+    st.error(f"{source}：{safe_error}")
+    return snapshot
+
+
+def run_database_query(
+    snapshot: WorkbenchRunSnapshot,
+    state: dict[str, object],
+    *,
+    source: str,
+    input_summary: str,
+    query: Callable[[], ConnectorResult],
+    sensitive_values: tuple[str | None, ...] = (),
+) -> tuple[WorkbenchRunSnapshot, bool]:
+    """Execute, archive and audit one connector result as an atomic UI step."""
+
+    slug = DATABASE_SOURCE_SLUGS[source]
+    try:
+        result = query()
+        if not isinstance(result, ConnectorResult):
+            raise TypeError("连接器没有返回 ConnectorResult。")
+        query_id = f"{slug}-{uuid4().hex}"
+        archive_path = CONNECTOR_ARTIFACT_STORE.save(
+            snapshot.run_id,
+            query_id,
+            result,
+        )
+    except Exception as exc:
+        return (
+            record_database_failure(
+                snapshot,
+                source=source,
+                input_summary=input_summary,
+                error=exc,
+                sensitive_values=sensitive_values,
+            ),
+            False,
+        )
+
+    try:
+        archive_display = archive_path.relative_to(PROJECT_ROOT).as_posix()
+    except ValueError:
+        archive_display = str(archive_path)
+    entry = {
+        "source": source,
+        "query_id": query_id,
+        "input_summary": input_summary,
+        "archive_path": archive_display,
+        "result": result,
+    }
+    entries = state["entries"]
+    if not isinstance(entries, list):
+        entries = []
+    entries.append(entry)
+    state["entries"] = entries[-MAX_DATABASE_HISTORY:]
+    st.session_state[DATABASE_RESULTS_STATE_KEY] = state
+
+    metadata: dict[str, object] = {
+        "source": source,
+        "query_id": query_id,
+        "connector_status": result.status.value,
+        "record_count": len(result.records),
+        "raw_response_count": len(result.artifacts),
+        "archive_path": archive_display,
+        "raw_response_sha256": [
+            item.provenance.raw_response_sha256 for item in result.artifacts
+        ],
+    }
+    if result.offline_request:
+        metadata["offline_request_sha256"] = result.offline_request.sha256
+    snapshot = append_tool_call(
+        snapshot,
+        f"database.{slug}",
+        input_summary,
+        status="succeeded",
+        output_summary=(
+            f"连接器状态 {result.status.value}；"
+            f"{len(result.records)} 条标准化记录；"
+            f"{len(result.artifacts)} 份原始响应"
+        ),
+        metadata=metadata,
+    )
+    snapshot = append_event(
+        snapshot,
+        TaskStatus.RUNNING,
+        (
+            f"{source} 查询已归档：{query_id}；"
+            f"状态 {result.status.value}，记录 {len(result.records)} 条。"
+        ),
+        metadata=metadata,
+    )
+    save_snapshot(snapshot)
+    return snapshot, True
+
+
+def run_database_query_group(
+    snapshot: WorkbenchRunSnapshot,
+    state: dict[str, object],
+    *,
+    source: str,
+    connector_factory: Callable[[], object],
+    operations: tuple[
+        tuple[str, Callable[[object], ConnectorResult]],
+        ...,
+    ],
+    sensitive_values: tuple[str | None, ...] = (),
+) -> tuple[WorkbenchRunSnapshot, int]:
+    """Reuse one rate-limited connector while isolating each query result."""
+
+    if not operations:
+        return snapshot, 0
+    succeeded = 0
+    try:
+        connector = connector_factory()
+        with connector:
+            for input_summary, operation in operations:
+                snapshot, archived = run_database_query(
+                    snapshot,
+                    state,
+                    source=source,
+                    input_summary=input_summary,
+                    query=lambda operation=operation: operation(connector),
+                    sensitive_values=sensitive_values,
+                )
+                succeeded += int(archived)
+    except Exception as exc:
+        snapshot = record_database_failure(
+            snapshot,
+            source=source,
+            input_summary=f"{len(operations)} 项批量查询的连接器初始化或关闭",
+            error=exc,
+            sensitive_values=sensitive_values,
+        )
+    return snapshot, succeeded
+
+
+def build_database_network(
+    snapshot: WorkbenchRunSnapshot,
+    state: dict[str, object],
+) -> WorkbenchRunSnapshot:
+    """Build the latest STRING + DAVID evidence network and audit the result."""
+
+    latest: dict[str, ConnectorResult] = {}
+    entries = state.get("entries")
+    if isinstance(entries, list):
+        for entry in reversed(entries):
+            if not isinstance(entry, dict):
+                continue
+            source = entry.get("source")
+            result = entry.get("result")
+            if (
+                source in {"STRING", "DAVID"}
+                and source not in latest
+                and isinstance(result, ConnectorResult)
+            ):
+                latest[str(source)] = result
+
+    string_result = latest.get("STRING")
+    david_result = latest.get("DAVID")
+    try:
+        network = build_evidence_network(
+            string_result.records if string_result else (),
+            string_provenance=(
+                string_result.provenance[-1]
+                if string_result and string_result.provenance
+                else None
+            ),
+            string_mappings=(
+                string_result.mappings if string_result else ()
+            ),
+            enrichment_records=david_result.records if david_result else (),
+            enrichment_provenance=(
+                david_result.provenance[-1]
+                if david_result and david_result.provenance
+                else None
+            ),
+        )
+    except Exception as exc:
+        state["network"] = None
+        st.session_state[DATABASE_RESULTS_STATE_KEY] = state
+        return record_database_failure(
+            snapshot,
+            source="STRING + DAVID 证据网络",
+            input_summary="最新 STRING 相互作用与 DAVID 富集标准化记录",
+            error=exc,
+        )
+
+    state["network"] = network
+    st.session_state[DATABASE_RESULTS_STATE_KEY] = state
+    metadata = {
+        "node_count": len(network.nodes),
+        "evidence_edge_count": len(network.edges),
+        "ranking_count": len(network.rankings),
+        "enrichment_count": len(network.enrichment),
+        "string_query_present": string_result is not None,
+        "david_query_present": david_result is not None,
+    }
+    snapshot = append_tool_call(
+        snapshot,
+        "database.evidence-network",
+        "最新 STRING 相互作用与 DAVID 富集标准化记录",
+        status="succeeded",
+        output_summary=(
+            f"{len(network.nodes)} 个节点，{len(network.edges)} 条证据边，"
+            f"{len(network.enrichment)} 条富集结果"
+        ),
+        metadata=metadata,
+    )
+    snapshot = append_event(
+        snapshot,
+        TaskStatus.RUNNING,
+        "STRING + DAVID 证据网络已更新；combined score 仅用于排序。",
+        metadata=metadata,
+    )
+    save_snapshot(snapshot)
+    return snapshot
+
+
+def database_display_value(value: object) -> object:
+    """Keep table previews compact; complete data remains in JSON downloads."""
+
+    if value is None:
+        return ""
+    if isinstance(value, (dict, list, tuple)):
+        text = json.dumps(value, ensure_ascii=False, sort_keys=True)
+    else:
+        text = str(value)
+    return text if len(text) <= 500 else text[:497] + "..."
+
+
+def connector_source_url(
+    result: ConnectorResult,
+    *,
+    source: str | None = None,
+) -> str:
+    for record in result.records:
+        source_url = record.get("source_url")
+        if source_url:
+            return str(source_url)
+    for provenance in reversed(result.provenance):
+        if provenance.citation_url:
+            return provenance.citation_url
+        if provenance.endpoint_url:
+            return provenance.endpoint_url
+    return DATABASE_HOME_URLS.get(source or "", "")
+
+
+def render_database_network(network: EvidenceNetwork) -> None:
+    st.subheader("STRING + DAVID 证据网络")
+    st.caption(
+        "边按实验、数据库整理、文本推断和计算预测分层；"
+        "STRING combined score 只用于排序，不被当作独立证据。"
+    )
+    metrics = st.columns(4)
+    metrics[0].metric("节点", len(network.nodes))
+    metrics[1].metric("分层证据边", len(network.edges))
+    metrics[2].metric("排序关系", len(network.rankings))
+    metrics[3].metric("富集结果", len(network.enrichment))
+
+    if network.edges:
+        st.markdown("**分层证据边**")
+        st.dataframe(
+            [
+                {
+                    "起点": edge.source_node_id,
+                    "终点": edge.target_node_id,
+                    "关系": edge.relationship,
+                    "证据类型": DATABASE_EVIDENCE_TYPE_LABELS[
+                        edge.evidence_type.value
+                    ],
+                    "证据通道": edge.evidence_channel,
+                    "通道分数": edge.channel_score,
+                    "combined 排序分数": edge.ranking_score,
+                    "来源版本": edge.trace.source_version or "",
+                    "来源 URL": edge.trace.source_url,
+                    "原始响应 SHA-256": edge.trace.raw_response_sha256 or "",
+                }
+                for edge in network.edges
+            ],
+            column_config={
+                "来源 URL": st.column_config.LinkColumn("来源 URL"),
+            },
+            hide_index=True,
+            width="stretch",
+        )
+    else:
+        st.info("当前 STRING 结果没有可分层的证据通道。")
+
+    if network.rankings:
+        st.markdown("**combined score 排序（不是证据边）**")
+        st.dataframe(
+            [
+                {
+                    "起点": item.source_node_id,
+                    "终点": item.target_node_id,
+                    "combined score": item.combined_score,
+                    "用途": "仅排序",
+                    "来源 URL": item.trace.source_url,
+                }
+                for item in network.rankings
+            ],
+            column_config={
+                "来源 URL": st.column_config.LinkColumn("来源 URL"),
+            },
+            hide_index=True,
+            width="stretch",
+        )
+
+    if network.enrichment:
+        st.markdown("**DAVID 富集与多重检验校正**")
+        st.dataframe(
+            [
+                {
+                    "类别": item.category,
+                    "条目 ID": item.term_id,
+                    "条目名称": item.term_name,
+                    "命中基因": "；".join(item.gene_ids),
+                    "命中数": item.hit_count,
+                    "输入总数": item.input_total,
+                    "背景命中数": item.background_hit_count,
+                    "背景总数": item.background_total,
+                    "P 值": item.p_value,
+                    "BH 校正 P 值": item.bh_adjusted_p_value,
+                    "校正来源": item.correction_source,
+                    "富集倍数": item.fold_enrichment,
+                    "TaxID": item.taxon_id,
+                    "证据类型": DATABASE_EVIDENCE_TYPE_LABELS[
+                        item.evidence_type.value
+                    ],
+                    "来源 URL": item.trace.source_url,
+                }
+                for item in network.enrichment
+            ],
+            column_config={
+                "来源 URL": st.column_config.LinkColumn("来源 URL"),
+            },
+            hide_index=True,
+            width="stretch",
+        )
+
+    for warning in network.warnings:
+        st.warning(warning)
+    st.download_button(
+        "下载证据网络 JSON",
+        data=json.dumps(
+            network.model_dump(mode="json"),
+            ensure_ascii=False,
+            indent=2,
+        ),
+        file_name="string-david-evidence-network.json",
+        mime="application/json",
+        key="download-database-evidence-network",
+        on_click="ignore",
+        width="stretch",
+    )
+
+
+def render_database_results(
+    snapshot: WorkbenchRunSnapshot,
+    state: dict[str, object],
+) -> WorkbenchRunSnapshot:
+    run_id = snapshot.run_id
+    entries = state.get("entries")
+    valid_entries = [
+        entry
+        for entry in (entries if isinstance(entries, list) else [])
+        if isinstance(entry, dict)
+        and isinstance(entry.get("result"), ConnectorResult)
+    ]
+    if not valid_entries:
+        st.info("尚无数据库查询结果。提交上方表单后，结果与原始响应将写入本地归档。")
+        return snapshot
+
+    st.subheader("连接器结果与可追溯归档")
+    st.dataframe(
+        [
+            {
+                "数据源": entry["source"],
+                "查询 ID": entry["query_id"],
+                "状态": DATABASE_STATUS_LABELS[entry["result"].status],
+                "标准化记录": len(entry["result"].records),
+                "原始响应": len(entry["result"].artifacts),
+                "来源版本": next(
+                    (
+                        provenance.source_version
+                        for provenance in reversed(entry["result"].provenance)
+                        if provenance.source_version
+                    ),
+                    "",
+                ),
+                "访问时间 UTC": next(
+                    (
+                        provenance.retrieved_at_utc.isoformat()
+                        for provenance in reversed(entry["result"].provenance)
+                    ),
+                    "",
+                ),
+                "来源 URL": connector_source_url(
+                    entry["result"],
+                    source=str(entry["source"]),
+                ),
+                "归档目录": entry["archive_path"],
+            }
+            for entry in valid_entries
+        ],
+        column_config={
+            "来源 URL": st.column_config.LinkColumn("来源 URL"),
+        },
+        hide_index=True,
+        width="stretch",
+    )
+
+    st.caption(
+        f"当前会话显示最近 {min(len(valid_entries), MAX_DATABASE_HISTORY)} 次查询；"
+        "完整原始响应、清单与 SHA-256 校验文件保存在 .workbench/connectors/。"
+    )
+    for entry in reversed(valid_entries[-20:]):
+        result = entry["result"]
+        query_id = str(entry["query_id"])
+        with st.expander(
+            f"{entry['source']} · {query_id} · "
+            f"{DATABASE_STATUS_LABELS[result.status]}"
+        ):
+            if result.warnings:
+                for warning in result.warnings:
+                    st.warning(warning)
+
+            if result.records:
+                record_rows = []
+                for record in result.records:
+                    row = {
+                        key: database_display_value(value)
+                        for key, value in record.items()
+                        if key != "source_url"
+                    }
+                    row["来源 URL"] = str(record.get("source_url") or "")
+                    record_rows.append(row)
+                st.markdown("**标准化记录预览**")
+                st.dataframe(
+                    record_rows,
+                    column_config={
+                        "来源 URL": st.column_config.LinkColumn("来源 URL"),
+                    },
+                    hide_index=True,
+                    width="stretch",
+                )
+
+            if result.mappings:
+                st.markdown("**标识符映射**")
+                st.dataframe(
+                    [
+                        {
+                            "输入标识符": mapping.input_identifier,
+                            "命名空间": mapping.namespace,
+                            "规范标识符": mapping.canonical_identifier or "",
+                            "候选项": database_display_value(
+                                [
+                                    candidate.model_dump(mode="json")
+                                    for candidate in mapping.candidates
+                                ]
+                            ),
+                            "是否歧义": mapping.ambiguous,
+                            "映射方法": mapping.mapping_method,
+                            "TaxID": mapping.taxon_id,
+                            "警告": mapping.warning or "",
+                        }
+                        for mapping in result.mappings
+                    ],
+                    hide_index=True,
+                    width="stretch",
+                )
+
+            if result.provenance:
+                st.markdown("**来源与原始响应哈希**")
+                st.dataframe(
+                    [
+                        {
+                            "数据源": provenance.source_name,
+                            "方法": provenance.method,
+                            "端点 URL": provenance.endpoint_url,
+                            "HTTP": provenance.http_status,
+                            "来源版本": provenance.source_version or "",
+                            "发布日期": provenance.source_release_date or "",
+                            "访问时间 UTC": provenance.retrieved_at_utc.isoformat(),
+                            "稳定 ID": "；".join(provenance.stable_ids),
+                            "请求 SHA-256": provenance.request_sha256,
+                            "响应 SHA-256": provenance.raw_response_sha256,
+                            "引用 URL": provenance.citation_url or "",
+                        }
+                        for provenance in result.provenance
+                    ],
+                    column_config={
+                        "端点 URL": st.column_config.LinkColumn("端点 URL"),
+                        "引用 URL": st.column_config.LinkColumn("引用 URL"),
+                    },
+                    hide_index=True,
+                    width="stretch",
+                )
+
+            archive_valid = True
+            try:
+                CONNECTOR_ARTIFACT_STORE.load_manifest(run_id, query_id)
+            except (ConnectorArchiveError, OSError, ValueError) as exc:
+                archive_valid = False
+                safe_error = redact_database_error(exc)
+                st.warning(
+                    "原始响应归档缺失或完整性校验失败，已禁用 ZIP 下载；"
+                    f"标准化 JSON 与离线请求仍可下载。详情：{safe_error}"
+                )
+                if not entry.get("archive_error_logged"):
+                    snapshot = record_database_failure(
+                        snapshot,
+                        source="数据库结果归档",
+                        input_summary=f"校验连接器归档 {query_id}",
+                        error=exc,
+                    )
+                    entry["archive_error_logged"] = True
+                    st.session_state[DATABASE_RESULTS_STATE_KEY] = state
+
+            exported = export_connector_result(result)
+            with st.container(horizontal=True):
+                st.download_button(
+                    "下载标准化结果 JSON",
+                    data=exported.content,
+                    file_name=f"{query_id}-result.json",
+                    mime=exported.media_type,
+                    key=f"download-database-result-{query_id}",
+                    on_click="ignore",
+                )
+
+                def build_archive(
+                    active_run_id: str = run_id,
+                    active_query_id: str = query_id,
+                ) -> bytes:
+                    return CONNECTOR_ARTIFACT_STORE.build_zip(
+                        active_run_id,
+                        active_query_id,
+                    )
+
+                if archive_valid:
+                    st.download_button(
+                        "下载原始响应归档 ZIP",
+                        data=build_archive,
+                        file_name=f"{query_id}-archive.zip",
+                        mime="application/zip",
+                        key=f"download-database-archive-{query_id}",
+                        on_click="ignore",
+                    )
+                if result.offline_request:
+                    st.download_button(
+                        "下载离线请求 JSON",
+                        data=result.offline_request.content,
+                        file_name=f"{query_id}-offline-request.json",
+                        mime=result.offline_request.media_type,
+                        key=f"download-database-offline-{query_id}",
+                        on_click="ignore",
+                    )
+
+    network = state.get("network")
+    if isinstance(network, EvidenceNetwork):
+        st.divider()
+        render_database_network(network)
+    return snapshot
 
 
 def render_articles(
@@ -815,7 +1533,7 @@ st.set_page_config(
 
 st.title("VetResearch Workbench")
 st.caption(
-    "VetResearch Workbench v0.3 · 文献、实验、网络药理学、"
+    "VetResearch Workbench v0.4 · 文献、实验、数据库证据、网络药理学、"
     "分子对接与人工复核的可审计科研决策闭环"
 )
 st.warning(
@@ -843,6 +1561,7 @@ with st.sidebar:
     question_tab,
     literature_tab,
     experiment_tab,
+    database_tab,
     mechanism_tab,
     report_tab,
     audit_tab,
@@ -851,9 +1570,10 @@ with st.sidebar:
         "1 问题与假设",
         "2 文献证据",
         "3 实验数据",
-        "4 机制预测",
-        "5 决策报告",
-        "6 运行记录",
+        "4 数据库证据",
+        "5 网络与对接",
+        "6 决策报告",
+        "7 运行记录",
     ]
 )
 
@@ -1418,6 +2138,574 @@ with experiment_tab:
                 save_snapshot(snapshot)
 
         render_analysis(current_snapshot())
+
+with database_tab:
+    snapshot = current_snapshot()
+    if not snapshot:
+        st.info("请先创建研究任务。")
+    else:
+        st.header("公开数据库证据")
+        st.warning(
+            "数据库记录、PPI 与富集分析属于可追溯的外部资料或计算证据，"
+            "不等同于论文中的直接实验结论；物种必须用 NCBI TaxID 明确限定。"
+        )
+        st.caption(
+            "所有外部请求都只在提交表单后执行。每次结果会保存请求参数、"
+            "数据库版本、访问时间、来源 URL、原始响应及 SHA-256；"
+            "联系方式和 API Key 不写入结果或审计摘要。"
+        )
+        settings = load_settings()
+        state = database_state(snapshot.run_id)
+
+        with st.form(
+            f"database-connectors-{snapshot.run_id}",
+            enter_to_submit=False,
+        ):
+            st.subheader("共同范围与联系信息")
+            shared_columns = st.columns(3)
+            taxon_id = int(
+                shared_columns[0].number_input(
+                    "NCBI TaxID",
+                    min_value=1,
+                    value=9606,
+                    step=1,
+                    key=f"database-taxon-{snapshot.run_id}",
+                    help="所有蛋白、基因、PPI 和富集结果共用这一物种范围。",
+                )
+            )
+            ncbi_email = shared_columns[1].text_input(
+                "NCBI 联系邮箱（可选）",
+                value=settings.ncbi_email or "",
+                key=f"database-ncbi-email-{snapshot.run_id}",
+                help="未提供时 NCBI Gene/GenBank 不发送请求，只生成离线请求文件。",
+            ).strip()
+            david_email = shared_columns[2].text_input(
+                "DAVID 注册邮箱（可选）",
+                value=os.getenv("DAVID_EMAIL", ""),
+                key=f"database-david-email-{snapshot.run_id}",
+                help="DAVID Web Service 需要已注册邮箱；该值不会写入审计摘要。",
+            ).strip()
+
+            with st.expander("化合物与蛋白", expanded=True):
+                compound_columns = st.columns(2)
+                with compound_columns[0]:
+                    pubchem_namespace_label = st.selectbox(
+                        "PubChem 输入类型",
+                        ["名称", "CID", "InChIKey"],
+                        key=f"database-pubchem-namespace-{snapshot.run_id}",
+                    )
+                    pubchem_input = st.text_area(
+                        "PubChem 化合物（最多 10 项）",
+                        key=f"database-pubchem-{snapshot.run_id}",
+                        help=(
+                            "每行或分号分隔一项；名称模式不会按逗号切分，"
+                            "以免破坏系统命名。"
+                        ),
+                        placeholder="quercetin",
+                    )
+                    pubchem_include_3d = st.checkbox(
+                        "同时获取可用的 PubChem 3D SDF",
+                        key=f"database-pubchem-3d-{snapshot.run_id}",
+                    )
+                with compound_columns[1]:
+                    uniprot_input = st.text_area(
+                        "UniProt accession（最多 20 项）",
+                        key=f"database-uniprot-{snapshot.run_id}",
+                        help="一行一个标识符，也可用中文或英文分号分隔。",
+                        placeholder="P69905",
+                    )
+
+            with st.expander("NCBI Gene、GenBank 与 RCSB PDB"):
+                ncbi_columns = st.columns(3)
+                with ncbi_columns[0]:
+                    gene_identifier_label = st.selectbox(
+                        "NCBI Gene 输入类型",
+                        ["GeneID", "基因符号"],
+                        key=f"database-gene-mode-{snapshot.run_id}",
+                    )
+                    gene_input = st.text_area(
+                        "NCBI Gene（最多 20 项）",
+                        key=f"database-gene-{snapshot.run_id}",
+                        help="一行一个标识符，也可用中文或英文分号分隔。",
+                        placeholder="3043",
+                    )
+                with ncbi_columns[1]:
+                    genbank_input = st.text_area(
+                        "GenBank accession.version（最多 10 项）",
+                        key=f"database-genbank-{snapshot.run_id}",
+                        help="优先输入带版本号的 accession.version。",
+                        placeholder="NM_000518.5",
+                    )
+                with ncbi_columns[2]:
+                    pdb_input = st.text_area(
+                        "RCSB PDB ID（最多 10 项）",
+                        key=f"database-pdb-{snapshot.run_id}",
+                        help="一行一个标识符，也可用中文或英文分号分隔。",
+                        placeholder="1IEP",
+                    )
+                    pdb_download_mmcif = st.checkbox(
+                        "保存 mmCIF 坐标原始文件",
+                        value=True,
+                        key=f"database-pdb-mmcif-{snapshot.run_id}",
+                    )
+
+            with st.expander("STRING PPI"):
+                string_input = st.text_area(
+                    "蛋白标识符（最多 50 项）",
+                    key=f"database-string-{snapshot.run_id}",
+                    help="可输入 UniProt accession、基因名或 STRING ID；物种由 TaxID 限定。",
+                    placeholder="P69905\nP68871",
+                )
+                string_columns = st.columns(2)
+                string_network_label = string_columns[0].selectbox(
+                    "网络类型",
+                    ["功能关联", "物理相互作用"],
+                    key=f"database-string-type-{snapshot.run_id}",
+                )
+                string_required_score = int(
+                    string_columns[1].slider(
+                        "最低 STRING 分数",
+                        min_value=0,
+                        max_value=1000,
+                        value=400,
+                        step=50,
+                        key=f"database-string-score-{snapshot.run_id}",
+                    )
+                )
+                string_consent = st.checkbox(
+                    "我同意把上述蛋白标识符和 TaxID 提交给 STRING 公共服务",
+                    key=f"database-string-consent-{snapshot.run_id}",
+                    help="未勾选时不会联网提交，只生成可下载的离线请求 JSON。",
+                )
+
+            with st.expander("DAVID 富集"):
+                david_columns = st.columns(2)
+                with david_columns[0]:
+                    david_target_input = st.text_area(
+                        "目标基因（最多 500 项）",
+                        key=f"database-david-targets-{snapshot.run_id}",
+                        help="一行一个标识符，也可用中文或英文分号分隔。",
+                        placeholder="3043\n3040",
+                    )
+                    david_id_type = st.selectbox(
+                        "DAVID 标识符类型",
+                        [
+                            "ENTREZ_GENE_ID",
+                            "UNIPROT_ACCESSION",
+                            "OFFICIAL_GENE_SYMBOL",
+                        ],
+                        key=f"database-david-id-type-{snapshot.run_id}",
+                    )
+                with david_columns[1]:
+                    david_background_input = st.text_area(
+                        "明确背景基因集（最多 1000 项）",
+                        key=f"database-david-background-{snapshot.run_id}",
+                        help="背景必须包含全部目标基因，不能留空或使用隐式全基因组背景。",
+                        placeholder="3043\n3040\n3039",
+                    )
+                    david_categories = st.multiselect(
+                        "注释类别",
+                        options=list(DEFAULT_DAVID_CATEGORIES),
+                        default=list(DEFAULT_DAVID_CATEGORIES),
+                        key=f"database-david-categories-{snapshot.run_id}",
+                    )
+                david_threshold_columns = st.columns(2)
+                david_max_p_value = float(
+                    david_threshold_columns[0].number_input(
+                        "最大 EASE P 值",
+                        min_value=0.000001,
+                        max_value=1.0,
+                        value=0.1,
+                        step=0.01,
+                        format="%.6f",
+                        key=f"database-david-p-{snapshot.run_id}",
+                    )
+                )
+                david_min_count = int(
+                    david_threshold_columns[1].number_input(
+                        "最少命中基因数",
+                        min_value=1,
+                        value=2,
+                        step=1,
+                        key=f"database-david-min-count-{snapshot.run_id}",
+                    )
+                )
+                david_consent = st.checkbox(
+                    "我同意把上述目标、背景基因、TaxID 和类别提交给 DAVID 公共服务",
+                    key=f"database-david-consent-{snapshot.run_id}",
+                    help="未勾选时不会联网提交，只生成可下载的离线请求 JSON。",
+                )
+
+            database_submitted = st.form_submit_button(
+                "查询并归档数据库证据",
+                type="primary",
+                icon=":material/database_search:",
+                width="stretch",
+            )
+
+        if database_submitted:
+            pubchem_namespace = {
+                "名称": "name",
+                "CID": "cid",
+                "InChIKey": "inchikey",
+            }[pubchem_namespace_label]
+            gene_identifier_type = (
+                "gene_id" if gene_identifier_label == "GeneID" else "symbol"
+            )
+            string_network_type = (
+                "functional"
+                if string_network_label == "功能关联"
+                else "physical"
+            )
+            try:
+                pubchem_identifiers = split_database_identifiers(
+                    pubchem_input,
+                    label="PubChem 化合物",
+                    limit=10,
+                )
+                uniprot_accessions = split_database_identifiers(
+                    uniprot_input,
+                    label="UniProt accession",
+                    limit=20,
+                )
+                gene_identifiers = split_database_identifiers(
+                    gene_input,
+                    label="NCBI Gene",
+                    limit=20,
+                )
+                genbank_accessions = split_database_identifiers(
+                    genbank_input,
+                    label="GenBank accession.version",
+                    limit=10,
+                )
+                pdb_ids = split_database_identifiers(
+                    pdb_input,
+                    label="RCSB PDB ID",
+                    limit=10,
+                )
+                string_identifiers = split_database_identifiers(
+                    string_input,
+                    label="STRING 蛋白标识符",
+                    limit=50,
+                )
+                david_targets = split_database_identifiers(
+                    david_target_input,
+                    label="DAVID 目标基因",
+                    limit=500,
+                )
+                david_background = split_database_identifiers(
+                    david_background_input,
+                    label="DAVID 背景基因",
+                    limit=1000,
+                )
+                if bool(david_targets) != bool(david_background):
+                    raise ValueError("DAVID 目标基因和明确背景基因集必须同时提供。")
+                if david_targets and not set(david_targets).issubset(
+                    david_background
+                ):
+                    raise ValueError("DAVID 明确背景基因集必须包含全部目标基因。")
+                if david_targets and not david_categories:
+                    raise ValueError("DAVID 至少选择一个注释类别。")
+                planned_calls = (
+                    len(pubchem_identifiers)
+                    + len(uniprot_accessions)
+                    + len(gene_identifiers)
+                    + len(genbank_accessions)
+                    + len(pdb_ids)
+                    + int(bool(string_identifiers))
+                    + int(bool(david_targets))
+                )
+                if planned_calls == 0:
+                    raise ValueError("至少填写一个数据库查询输入。")
+            except Exception as exc:
+                snapshot = record_database_failure(
+                    snapshot,
+                    source="数据库输入",
+                    input_summary="数据库批量查询表单校验",
+                    error=exc,
+                    sensitive_values=(ncbi_email, david_email),
+                )
+            else:
+                query_status = st.status(
+                    f"正在执行并归档 {planned_calls} 项数据库查询…",
+                    expanded=True,
+                )
+                successful_calls = 0
+                network_result_archived = False
+
+                snapshot, completed = run_database_query_group(
+                    snapshot,
+                    state,
+                    source="PubChem",
+                    connector_factory=PubChemConnector,
+                    operations=tuple(
+                        (
+                            (
+                                f"namespace={pubchem_namespace}; "
+                                f"input_sha256="
+                                f"{hashlib.sha256(identifier.encode('utf-8')).hexdigest()}"
+                            ),
+                            lambda connector, identifier=identifier: (
+                                connector.fetch_compound(
+                                    identifier,
+                                    namespace=pubchem_namespace,
+                                    include_3d=pubchem_include_3d,
+                                )
+                            ),
+                        )
+                        for identifier in pubchem_identifiers
+                    ),
+                )
+                successful_calls += completed
+                if pubchem_identifiers:
+                    query_status.write(
+                        f"PubChem：已归档 {completed}/{len(pubchem_identifiers)} 项。"
+                    )
+
+                snapshot, completed = run_database_query_group(
+                    snapshot,
+                    state,
+                    source="UniProt",
+                    connector_factory=UniProtConnector,
+                    operations=tuple(
+                        (
+                            (
+                                "UniProt accession; "
+                                f"input_sha256="
+                                f"{hashlib.sha256(accession.encode('utf-8')).hexdigest()}; "
+                                f"TaxID={taxon_id}"
+                            ),
+                            lambda connector, accession=accession: (
+                                connector.fetch_protein(
+                                    accession,
+                                    taxon_id=taxon_id,
+                                )
+                            ),
+                        )
+                        for accession in uniprot_accessions
+                    ),
+                )
+                successful_calls += completed
+                if uniprot_accessions:
+                    query_status.write(
+                        f"UniProt：已归档 {completed}/{len(uniprot_accessions)} 项。"
+                    )
+
+                ncbi_sensitive = (
+                    ncbi_email,
+                    settings.ncbi_api_key,
+                )
+                snapshot, completed = run_database_query_group(
+                    snapshot,
+                    state,
+                    source="NCBI Gene",
+                    connector_factory=lambda: NCBIConnector(
+                        email=ncbi_email or None,
+                        api_key=settings.ncbi_api_key,
+                    ),
+                    operations=tuple(
+                        (
+                            (
+                                f"identifier_type={gene_identifier_type}; "
+                                f"input_sha256="
+                                f"{hashlib.sha256(identifier.encode('utf-8')).hexdigest()}; "
+                                f"TaxID={taxon_id}"
+                            ),
+                            lambda connector, identifier=identifier: (
+                                connector.fetch_gene(
+                                    identifier,
+                                    taxon_id=taxon_id,
+                                    identifier_type=gene_identifier_type,
+                                )
+                            ),
+                        )
+                        for identifier in gene_identifiers
+                    ),
+                    sensitive_values=ncbi_sensitive,
+                )
+                successful_calls += completed
+                if gene_identifiers:
+                    query_status.write(
+                        f"NCBI Gene：已归档 {completed}/{len(gene_identifiers)} 项。"
+                    )
+
+                snapshot, completed = run_database_query_group(
+                    snapshot,
+                    state,
+                    source="GenBank",
+                    connector_factory=lambda: NCBIConnector(
+                        email=ncbi_email or None,
+                        api_key=settings.ncbi_api_key,
+                    ),
+                    operations=tuple(
+                        (
+                            (
+                                "GenBank accession.version; "
+                                f"input_sha256="
+                                f"{hashlib.sha256(accession.encode('utf-8')).hexdigest()}; "
+                                f"TaxID={taxon_id}"
+                            ),
+                            lambda connector, accession=accession: (
+                                connector.fetch_nucleotide(
+                                    accession,
+                                    taxon_id=taxon_id,
+                                )
+                            ),
+                        )
+                        for accession in genbank_accessions
+                    ),
+                    sensitive_values=ncbi_sensitive,
+                )
+                successful_calls += completed
+                if genbank_accessions:
+                    query_status.write(
+                        f"GenBank：已归档 {completed}/{len(genbank_accessions)} 项。"
+                    )
+
+                snapshot, completed = run_database_query_group(
+                    snapshot,
+                    state,
+                    source="RCSB PDB",
+                    connector_factory=RCSBConnector,
+                    operations=tuple(
+                        (
+                            (
+                                "PDB ID; "
+                                f"input_sha256="
+                                f"{hashlib.sha256(pdb_id.encode('utf-8')).hexdigest()}"
+                            ),
+                            lambda connector, pdb_id=pdb_id: (
+                                connector.fetch_structure(
+                                    pdb_id,
+                                    download_mmcif=pdb_download_mmcif,
+                                )
+                            ),
+                        )
+                        for pdb_id in pdb_ids
+                    ),
+                )
+                successful_calls += completed
+                if pdb_ids:
+                    query_status.write(
+                        f"RCSB PDB：已归档 {completed}/{len(pdb_ids)} 项。"
+                    )
+
+                string_input_hash = hashlib.sha256(
+                    "\n".join(string_identifiers).encode("utf-8")
+                ).hexdigest()
+                snapshot, completed = run_database_query_group(
+                    snapshot,
+                    state,
+                    source="STRING",
+                    connector_factory=lambda: STRINGConnector(
+                        caller_identity=(
+                            os.getenv("STRING_CALLER_IDENTITY")
+                            or "VetEvidenceAI"
+                        )
+                    ),
+                    operations=(
+                        (
+                            (
+                                f"{len(string_identifiers)} identifiers; "
+                                f"input_sha256={string_input_hash}; "
+                                f"TaxID={taxon_id}; type={string_network_type}; "
+                                f"required_score={string_required_score}"
+                            ),
+                            lambda connector: connector.fetch_network(
+                                string_identifiers,
+                                taxon_id=taxon_id,
+                                consent_external_submission=string_consent,
+                                required_score=string_required_score,
+                                network_type=string_network_type,
+                            ),
+                        ),
+                    )
+                    if string_identifiers
+                    else (),
+                )
+                successful_calls += completed
+                network_result_archived = network_result_archived or completed > 0
+                if string_identifiers:
+                    query_status.write(f"STRING：已归档 {completed}/1 项。")
+
+                david_input_hash = hashlib.sha256(
+                    json.dumps(
+                        {
+                            "targets": david_targets,
+                            "background": david_background,
+                            "categories": david_categories,
+                        },
+                        ensure_ascii=False,
+                        sort_keys=True,
+                    ).encode("utf-8")
+                ).hexdigest()
+                snapshot, completed = run_database_query_group(
+                    snapshot,
+                    state,
+                    source="DAVID",
+                    connector_factory=lambda: DAVIDConnector(
+                        registered_email=david_email or None,
+                    ),
+                    operations=(
+                        (
+                            (
+                                f"{len(david_targets)} targets; "
+                                f"{len(david_background)} background identifiers; "
+                                f"input_sha256={david_input_hash}; TaxID={taxon_id}; "
+                                f"id_type={david_id_type}"
+                            ),
+                            lambda connector: connector.enrich(
+                                david_targets,
+                                taxon_id=taxon_id,
+                                background=david_background,
+                                consent_external_submission=david_consent,
+                                id_type=david_id_type,
+                                categories=tuple(david_categories),
+                                max_ease_p_value=david_max_p_value,
+                                min_count=david_min_count,
+                            ),
+                        ),
+                    )
+                    if david_targets
+                    else (),
+                    sensitive_values=(david_email,),
+                )
+                successful_calls += completed
+                network_result_archived = network_result_archived or completed > 0
+                if david_targets:
+                    query_status.write(f"DAVID：已归档 {completed}/1 项。")
+
+                if network_result_archived:
+                    snapshot = build_database_network(snapshot, state)
+                    query_status.write("STRING + DAVID 证据网络已重建。")
+
+                failed_calls = planned_calls - successful_calls
+                query_status.update(
+                    label=(
+                        f"数据库查询完成：已归档 {successful_calls}/{planned_calls} 项；"
+                        f"失败 {failed_calls} 项。"
+                    ),
+                    state="error" if failed_calls else "complete",
+                    expanded=bool(failed_calls),
+                )
+
+        try:
+            snapshot = render_database_results(snapshot, state)
+        except (
+            ConnectorArchiveError,
+            ConnectorError,
+            OSError,
+            TypeError,
+            ValueError,
+        ) as exc:
+            latest_snapshot = current_snapshot()
+            if latest_snapshot:
+                record_database_failure(
+                    latest_snapshot,
+                    source="数据库结果归档",
+                    input_summary="校验并渲染当前运行的数据库结果",
+                    error=exc,
+                )
 
 with mechanism_tab:
     snapshot = current_snapshot()

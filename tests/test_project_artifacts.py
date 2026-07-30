@@ -13,12 +13,16 @@ def test_required_delivery_artifacts_exist() -> None:
         ".dockerignore",
         "docs/PRD.md",
         "docs/ARCHITECTURE.md",
+        "docs/DATABASE_CONNECTORS.md",
         "docs/EVALUATION.md",
         "docs/DEMO_SCRIPT.md",
         "docs/RESUME_EVIDENCE.md",
         "docs/INTERVIEW_GUIDE.md",
         "docs/RETROSPECTIVE.md",
         "src/vetevidence/experiment_analysis.py",
+        "src/vetevidence/connector_artifacts.py",
+        "src/vetevidence/database_connectors.py",
+        "src/vetevidence/evidence_network.py",
         "src/vetevidence/imported_extraction.py",
         "src/vetevidence/literature_import.py",
         "src/vetevidence/mechanism_prediction.py",
@@ -67,12 +71,15 @@ def test_workbench_release_metadata_and_readme_contract() -> None:
     pyproject = (PROJECT_ROOT / "pyproject.toml").read_text(encoding="utf-8")
     readme = (PROJECT_ROOT / "README.md").read_text(encoding="utf-8")
 
-    assert 'version = "0.3.0"' in pyproject
+    assert 'version = "0.4.0"' in pyproject
     assert "VetResearch Workbench" in readme
     assert "FICI" in readme
     assert "生长曲线" in readme
     assert "RIS" in readme
     assert "网络药理学" in readme
+    assert "PubChem" in readme
+    assert "STRING" in readme
+    assert "DAVID" in readme
     assert "Open Babel" in readme
     assert "AutoDock Vina" in readme
     assert 'molecular-docking = [' in pyproject

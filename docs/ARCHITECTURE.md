@@ -1,11 +1,11 @@
-# VetResearch Workbench v0.3 架构说明
+# VetResearch Workbench v0.4 架构说明
 
 ## 版本关系
 
-VetResearch Workbench v0.3 复用 VetEvidence AI v0.1 的 PubMed、期刊分区、
+VetResearch Workbench v0.4 复用 VetEvidence AI v0.1 的 PubMed、期刊分区、
 规则提取、引用和评测能力，在 v0.2 的问题、实验和审计闭环上增加严格的
 证据结果判定、问题范围绑定、网络药理学、Open Babel 配体准备和 AutoDock
-Vina 预测层。
+Vina 预测层，并增加带原始响应归档的公开数据库证据层。
 
 包名继续使用 `vetevidence`，以避免为产品升级进行无收益的代码重命名。
 
@@ -13,7 +13,7 @@ Vina 预测层。
 
 ```mermaid
 flowchart TD
-    U["用户科研问题"] --> UI["Streamlit 六步界面"]
+    U["用户科研问题"] --> UI["Streamlit 七步界面"]
     UI --> Q["ResearchQuestion"]
     Q --> H["2—4 条可检验假设"]
     Q --> P["最多 3 轮 PubMed 检索式"]
@@ -32,6 +32,12 @@ flowchart TD
 
     UI --> CSV["FICI 或生长曲线 CSV"]
     CSV --> X["逐行校验、问题范围门槛与描述性分析"]
+    UI --> DB["用户主动提交数据库查询"]
+    DB --> PC["PubChem / UniProt / NCBI / RCSB"]
+    DB --> SD["STRING / DAVID 外发确认"]
+    PC --> DA["原始响应 + provenance + SHA-256 归档"]
+    SD --> DA
+    SD --> EN["分通道 PPI + 背景集富集证据网络"]
     UI --> NP["化合物-靶点与靶点-通路 CSV / XLSX / DOCX"]
     NP --> NF["严格表格适配、来源与 SHA-256"]
     NF --> NX["可追溯网络排名"]
@@ -61,6 +67,7 @@ flowchart TD
     ID --> S
     A --> S
     X --> S
+    DA --> S
     NX --> S
     VM --> S
     DX --> S
@@ -103,13 +110,16 @@ v0.2 的多轮检索保留每个查询内部的 PubMed 相关性顺序，以轮�
 | `workbench.py` | v0.3 | 问题、假设、结构化交互结局、引用、冲突、空白、任务与复核模型 |
 | `workbench_pipeline.py` | v0.3 | 多查询融合、证据准入、实验范围门槛、评估与分层决策报告 |
 | `experiment_analysis.py` | v0.3 | 带药物和病原体身份的 FICI 与生长曲线校验和描述性计算 |
+| `database_connectors.py` | v0.4 | 六类公开数据库的限流、重试、标识映射、版本与原始响应来源记录 |
+| `connector_artifacts.py` | v0.4 | 每个查询的不可覆盖原始响应、规范化结果、清单和 SHA-256 归档 |
+| `evidence_network.py` | v0.4 | STRING 分通道证据边、仅排序综合分数及 DAVID/BH 富集证据 |
 | `mechanism_prediction.py` | v0.3 | 可追溯网络关系分析、Vina 任务清单、绑定输出解析和问题范围门槛 |
 | `network_files.py` | v0.3 | CSV/XLSX/DOCX 网络表格适配、模板生成及 XLSX/DOCX 结果导出 |
 | `openbabel_execution.py` | v0.3 | Open Babel 发现与身份核验、单配体受控准备、可解析非退化坐标与 PDBQT 校验、执行审计 |
 | `vina_execution.py` | v0.3 | 本机 Vina 发现、身份核验、受控参数执行、日志绑定和输出校验 |
 | `vina_artifacts.py` | v0.3 | 任务级 `run.log`、`poses.pdbqt`、`metadata.json` 原子保存与哈希复核 |
 | `run_store.py` | v0.3 | 每个运行一个 JSON 快照的原子保存、schema v6 迁移与按 ID 恢复 |
-| `app.py` | v0.3 | 六步 Streamlit UI 与会话状态 |
+| `app.py` | v0.4 | 七步 Streamlit UI、数据库查询表单与会话状态 |
 
 ## 关键数据契约
 
@@ -165,6 +175,7 @@ SHA-256、输出 PDBQT SHA-256、Open Babel 版本与可执行文件 SHA-256、�
 - PubMed 结果与导入文献；
 - 实验条件、冲突、空白和 CSV 分析；
 - 网络药理学结果、Vina 待运行清单、已解析对接输出及本机执行审计；
+- 数据库查询标识、状态、连接器归档位置、原始响应哈希和证据网络摘要；
 - 任务事件、工具调用、失败和重试关系；
 - 决策报告与人工复核。
 
@@ -235,6 +246,22 @@ Streamlit 重跑都启动版本检查；已有本机执行审计的任务不能�
 
 这两类分析都只提供描述性结果，不自动执行显著性推断、模型比较或因果判断。
 
+### 公开数据库证据
+
+六类连接器共用有界重试、限流、请求规范化和敏感字段脱敏。每次 HTTP 响应
+连同来源 URL、访问时间、数据库版本或发布日期、稳定标识和 SHA-256 写入
+`.workbench/connectors/<run_id>/<query_id>/`；归档使用临时目录后原子落盘，
+已有查询目录不能覆盖，下载 ZIP 前再次核验每个文件。
+
+NCBI Gene/GenBank 在缺少联系邮箱时不发送请求；STRING 与 DAVID 只有在用户
+明确同意标识外发时才联网。离线路径输出带参数与哈希的请求清单。STRING 的
+实验、人工整理、文本挖掘和预测通道各自形成证据边，`combined_score` 单独
+保存为 `ranking_only`。富集记录必须保留 TaxID、目标集与背景集规模、原始
+P 值和上游报告的 BH 校正后 P 值；上游缺失时标记为未报告，不在经过阈值
+筛选的不完整检验家族上补算。STRING 与富集层只在 TaxID 和输入标识完全
+一致时连接，不猜跨库身份。数据库零结果、物种覆盖不足或映射歧义均作为
+限制显示，不推断为生物学阴性。
+
 ## 关键取舍
 
 ### 顺序工作流而非多 Agent 框架
@@ -264,6 +291,8 @@ Streamlit 重跑都启动版本检查；已有本机执行审计的任务不能�
 - 导入记录按 DOI 优先、标题与年份兜底去重；
 - CSV 校验保留每一行的原始值和错误；
 - 网络 CSV/XLSX/DOCX 使用同一严格列契约并限制文件大小、表格结构、行列数和 OOXML 解压规模；
+- 数据库请求由表单提交触发，限制单次标识数量；外部响应按查询隔离且下载前
+  复核清单与 SHA-256，认证信息不会进入规范化请求、日志或归档；
 - Open Babel 只接受允许列表中的单个配体格式和最大 10 MB 输入，工具身份、数据目录、输入/输出哈希及参数均留痕；执行失败、超时、多分子、不可解析或退化坐标都不返回可用 PDBQT；
 - 本机 Vina 在执行前后复核可执行文件哈希与版本，非零退出、超时、日志或输出 PDBQT 异常都不会形成分数；
 - 成功的本机 Vina 任务以任务清单哈希绑定并原子保存日志、输出 PDBQT 和元数据，读取时再次校验哈希；
@@ -279,6 +308,8 @@ Streamlit 重跑都启动版本检查；已有本机执行审计的任务不能�
 ## 安全边界
 
 - 只自动读取公开 PubMed 元数据和摘要；
+- 只在用户主动提交、满足 NCBI 联系信息或 STRING/DAVID 外发确认后访问相应
+  公开接口；不把未公开基因列表默认发送给第三方；
 - RIS、EndNote、RefWorks 与实验 CSV 由用户主动上传并在本机处理；
 - 不自动抓取知网，不读取未授权全文，不支持扫描 PDF/OCR；
 - `.env`、API Key、用户数据和 `.workbench` 运行记录不进入仓库；

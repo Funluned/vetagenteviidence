@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 import re
 from collections.abc import Mapping, Sequence
+from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 from types import MappingProxyType
@@ -256,6 +257,57 @@ class ConnectorResultSummary(DatabaseUISupportModel):
     no_results: int = Field(ge=0)
     offline_export: int = Field(ge=0)
     degraded: int = Field(ge=0)
+
+
+@dataclass(frozen=True, slots=True)
+class DatabaseQueryExecution:
+    """Outcome of one connector operation without consulting bounded UI history."""
+
+    source: str
+    input_summary: str
+    query_id: str | None = None
+    result: ConnectorResult | None = None
+    error: str | None = None
+
+    @property
+    def archived(self) -> bool:
+        return self.query_id is not None and self.result is not None
+
+
+@dataclass(frozen=True, slots=True)
+class DatabaseQueryGroupExecution:
+    """Ordered outcomes for one source, including operations that failed."""
+
+    source: str
+    operations: tuple[DatabaseQueryExecution, ...]
+
+    @property
+    def planned_count(self) -> int:
+        return len(self.operations)
+
+    @property
+    def archived_count(self) -> int:
+        return sum(int(operation.archived) for operation in self.operations)
+
+    @property
+    def failed_count(self) -> int:
+        return len(self.operations) - self.archived_count
+
+    @property
+    def query_ids(self) -> tuple[str, ...]:
+        return tuple(
+            operation.query_id
+            for operation in self.operations
+            if operation.query_id is not None
+        )
+
+    @property
+    def results(self) -> tuple[ConnectorResult, ...]:
+        return tuple(
+            operation.result
+            for operation in self.operations
+            if operation.result is not None
+        )
 
 
 class ConnectorArchiveEntry(DatabaseUISupportModel):
@@ -746,6 +798,8 @@ __all__ = [
     "DAVID_SUPPORTED_TAXON_IDS",
     "DATABASE_SOURCE_CONFIG_BY_KEY",
     "DATABASE_SOURCE_CONFIGS",
+    "DatabaseQueryExecution",
+    "DatabaseQueryGroupExecution",
     "DatabaseSourceAccessMode",
     "DatabaseSourceKey",
     "MAX_RESTORED_CONNECTOR_ENTRIES",

@@ -12,6 +12,12 @@ def _compact(value: str | None) -> str:
     return re.sub(r"[^\w]+", "", (value or "").casefold())
 
 
+def _has_letter_or_number(value: str | None) -> bool:
+    """Return whether the value contains a meaningful Unicode character."""
+
+    return any(character.isalnum() for character in (value or ""))
+
+
 def validate_synergy_question_input(
     *,
     question_text: str,
@@ -30,6 +36,8 @@ def validate_synergy_question_input(
     errors: list[str] = []
     if len(question_text.strip()) < 3:
         errors.append("科研问题至少需要 3 个字符。")
+    elif not _has_letter_or_number(question_text):
+        errors.append("科研问题必须包含文字或数字。")
 
     required_fields = (
         ("病原体/研究对象", population),
@@ -39,6 +47,8 @@ def validate_synergy_question_input(
     for label, value in required_fields:
         if not value.strip():
             errors.append(f"{label}不能为空。")
+        elif not _has_letter_or_number(value):
+            errors.append(f"{label}必须包含文字或数字。")
 
     intervention_key = _compact(intervention)
     comparator_key = _compact(comparator)
@@ -59,6 +69,13 @@ def validate_synergy_question_input(
                     "正文与结构化范围必须一致。"
                 )
 
-    if not any(value.strip() for value in outcomes):
+    nonempty_outcomes = [value for value in outcomes if value.strip()]
+    if not nonempty_outcomes:
         errors.append("至少填写一个预设结局指标。")
+    else:
+        for value in nonempty_outcomes:
+            if not _has_letter_or_number(value):
+                errors.append(
+                    f"预设结局指标“{value.strip()}”必须包含文字或数字。"
+                )
     return errors

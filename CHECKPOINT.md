@@ -4,6 +4,8 @@
 
 VetResearch Workbench v0.7 阶段 2 已完成：独立版本化的 27 题离线评测集、
 理想产品金标准、七项固定指标、评分运行器和 `rules_v1` 快照已经落盘并可复跑。
+阶段提交 `b61d742` 已推送至 `codex/vetresearch-workbench`，GitHub Actions
+运行 `30698205011` 的 Ubuntu、Windows、macOS 三平台均通过。
 当前停在阶段 3 开始前；真实 LLM、RAG、单 Agent 与双 Agent 尚未实现或调用。
 孙奇本人从零安装、讲解、修改和排错验收已按决定延期到 GitHub 工程状态稳定后，
 不作为当前门禁。
@@ -38,7 +40,7 @@ VetResearch Workbench v0.7 阶段 2 已完成：独立版本化的 27 题离线�
 
 - 金标准仍标记为 `engineering_gold_pending_domain_expert_review`；工程结构已
   固化，但正式科研语义仍需领域人工复核。
-- 本阶段只完成本地改动和验证；按任务书，远端推送前须再次取得大壮确认。
+- 阶段提交 `b61d742` 已按确认推送；本地 HEAD 与远端开发分支 SHA 完全一致。
 - 下一阶段才允许设计 LLM Provider、RAG 和单 Agent；本阶段没有提前实现。
 
 ### 验证证据
@@ -46,6 +48,9 @@ VetResearch Workbench v0.7 阶段 2 已完成：独立版本化的 27 题离线�
 - v0.7 专项、旧评测兼容与制品回归：`15 passed`。
 - 最终全量自动回归：`449 passed, 1 skipped in 24.64s`；跳过项是既有平台条件。
 - `pip check`、Python 编译、基线快照重放校验和 `git diff --check` 均通过。
+- 远端 CI [`30698205011`](https://github.com/Funluned/vetagenteviidence/actions/runs/30698205011)
+  全绿：Ubuntu `447 passed, 3 skipped`，Windows `446 passed, 4 skipped`，
+  macOS `447 passed, 3 skipped`。
 
 ## 2026-08-01 v0.7 阶段 1 跨平台修复与三系统 CI（已完成）
 

@@ -512,3 +512,15 @@ python -m venv .venv
 - 最终全量自动回归为 `449 passed, 1 skipped in 24.64s`；依赖、编译、
   baseline 完整性／复现校验与 Git 差异检查均通过。既有平台跳过项没有被用来
   隐藏阶段 2 失败。
+
+### 远端收口
+
+- 阶段提交 `b61d74254383496b15d02e5259243995ea94741f` 已按确认推送至
+  `codex/vetresearch-workbench`；本地 HEAD、远端分支、提交树和父提交一致。
+- 本机 HTTPS Git 通道连续发生连接重置，最终通过 GitHub Git Data API 上传
+  完全一致的 Git 对象，并以 `force=false` 更新分支；未改写既有历史。
+- 排错期间生成的两个诊断提交对象未挂到任何分支或标签，也未触发 CI；正确分支
+  历史只包含 `b61d742`。
+- GitHub Actions [`30698205011`](https://github.com/Funluned/vetagenteviidence/actions/runs/30698205011)
+  全绿：Ubuntu `447 passed, 3 skipped`，Windows `446 passed, 4 skipped`，
+  macOS `447 passed, 3 skipped`。阶段 2 至此关闭，阶段 3 仍须另行确认。

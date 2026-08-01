@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import csv
 import math
+import ntpath
 import re
 import unicodedata
 from collections.abc import Mapping, Sequence
@@ -108,7 +109,9 @@ def _safe_filename(value: str) -> str:
         raise ValueError("filename cannot be blank.")
     if "\x00" in value:
         raise ValueError("filename contains a NUL character.")
-    filename = Path(value.strip()).name
+    # ntpath recognizes both slash styles regardless of the host platform, so
+    # Windows, POSIX, UNC, and mixed paths cannot leak directory components.
+    filename = ntpath.basename(value.strip())
     if not filename or filename in {".", ".."}:
         raise ValueError("filename is invalid.")
     if len(filename) > 255:

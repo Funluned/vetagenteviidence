@@ -137,6 +137,56 @@ def test_genecards_csv_normalizes_aliases_xrefs_and_provenance() -> None:
     assert "license_confirmed" not in provenance.normalized_request
 
 
+@pytest.mark.parametrize(
+    "filename",
+    [
+        r"C:\private\exports\genecards.csv",
+        "/private/exports/genecards.csv",
+        r"\\research-server\licensed\exports\genecards.csv",
+        r"C:\private/exports\genecards.csv",
+    ],
+    ids=["windows", "posix", "unc", "mixed-separators"],
+)
+def test_import_filename_uses_cross_platform_safe_basename(
+    filename: str,
+) -> None:
+    result = import_restricted_database_file(
+        "GeneCards",
+        filename,
+        b"Gene Symbol\nBRCA1\n",
+        license_confirmed=True,
+    )
+
+    request = json.loads(result.artifacts[0].provenance.normalized_request)
+    assert request["filename"] == "genecards.csv"
+
+
+@pytest.mark.parametrize(
+    ("filename", "message"),
+    [
+        ("", "blank"),
+        (" \t ", "blank"),
+        ("unsafe\x00.csv", "NUL"),
+        (".", "invalid"),
+        ("..", "invalid"),
+        ("/private/.", "invalid"),
+        (r"C:\private\..", "invalid"),
+        ("a" * 252 + ".csv", "too long"),
+    ],
+)
+def test_import_filename_keeps_existing_safety_constraints(
+    filename: str,
+    message: str,
+) -> None:
+    with pytest.raises(ValueError, match=message):
+        import_restricted_database_file(
+            "GeneCards",
+            filename,
+            b"Gene Symbol\nBRCA1\n",
+            license_confirmed=True,
+        )
+
+
 def test_malacards_tsv_is_human_curated_evidence() -> None:
     payload = (
         "MalaCards ID\tDisease Name\tDisease Family\tMIFTS Score\t"

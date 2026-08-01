@@ -1,0 +1,1299 @@
+{
+  "schema_version": "1.0",
+  "dataset_version": "v0.7.0",
+  "evaluation_input_sha256": "cee6679796636b06aff2965336f22a93895115bcf85c800c74312bb0fcbeb65d",
+  "gold_review_status": "engineering_gold_pending_domain_expert_review",
+  "boundaries": [
+    "All 1 selected cases are synthetic engineering fixtures; no result establishes clinical or scientific truth.",
+    "Fake mode validates orchestration and provider contracts only; it does not validate model quality.",
+    "Real mode means real provider API calls only; it does not turn synthetic fixtures into scientific evidence."
+  ],
+  "generated_at": "2026-08-01T17:06:12.772093Z",
+  "execution_mode": "real",
+  "rules_baseline": {
+    "baseline_path": "data/eval/v0.7/baselines/rules_v1.json",
+    "provider": "rules_v1",
+    "deterministic_result_sha256": "d316f911fffc39a4190e11d4173e2d2ecfe2bfddad3bbc0ef42e63a470886823",
+    "implementation_sha256": "5c4d78a3d8bfaeab9c5e228e3fbf37788a167cb3a85bc7b2ccdba99069706300",
+    "total": 27,
+    "passed": 20,
+    "failed": 7,
+    "pass_rate": 0.7407407407407407,
+    "system_profile": {
+      "provider": "rules_v1",
+      "evidence_admission_rule": "interaction-evidence-v2",
+      "llm_enabled": false,
+      "model_calls": 0,
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "llm_api_cost_usd": 0.0,
+      "network_calls": 0,
+      "implementation_sha256": "5c4d78a3d8bfaeab9c5e228e3fbf37788a167cb3a85bc7b2ccdba99069706300"
+    }
+  },
+  "single_aggregate": {
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "by_category": {
+      "tool_resilience": {
+        "total": 1,
+        "passed": 1,
+        "failed": 0,
+        "pass_rate": 1.0
+      }
+    },
+    "metrics": {
+      "retrieval_recall_at_k": {
+        "status": "measured",
+        "value": 1.0,
+        "numerator": 2.0,
+        "denominator": 2.0,
+        "unit": "ratio",
+        "scope": "micro across declared gold source IDs",
+        "not_applicable_cases": 0
+      },
+      "citation_precision": {
+        "status": "not_applicable",
+        "value": null,
+        "numerator": null,
+        "denominator": null,
+        "unit": "ratio",
+        "scope": "micro across emitted claim-citation pairs",
+        "not_applicable_cases": 1
+      },
+      "unsupported_claim_rate": {
+        "status": "not_applicable",
+        "value": null,
+        "numerator": null,
+        "denominator": null,
+        "unit": "ratio",
+        "scope": "micro across emitted atomic claims",
+        "not_applicable_cases": 1
+      },
+      "abstention_accuracy": {
+        "status": "not_applicable",
+        "value": null,
+        "numerator": null,
+        "denominator": null,
+        "unit": "ratio",
+        "scope": "micro across applicable abstention decisions",
+        "not_applicable_cases": 1
+      },
+      "task_completion_rate": {
+        "status": "measured",
+        "value": 1.0,
+        "numerator": 1.0,
+        "denominator": 1.0,
+        "unit": "ratio",
+        "scope": "micro across applicable completed tasks",
+        "not_applicable_cases": 0
+      },
+      "cost": {
+        "status": "measured",
+        "value": 0.0183094,
+        "numerator": null,
+        "denominator": null,
+        "unit": "CNY",
+        "scope": "sum across model-call audit costs",
+        "not_applicable_cases": 0
+      },
+      "latency": {
+        "status": "measured",
+        "value": 41854.44290000305,
+        "numerator": null,
+        "denominator": null,
+        "unit": "ms",
+        "scope": "median per-case wall-clock diagnostic",
+        "not_applicable_cases": 0
+      }
+    }
+  },
+  "dual_aggregate": {
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "by_category": {
+      "tool_resilience": {
+        "total": 1,
+        "passed": 1,
+        "failed": 0,
+        "pass_rate": 1.0
+      }
+    },
+    "metrics": {
+      "retrieval_recall_at_k": {
+        "status": "measured",
+        "value": 1.0,
+        "numerator": 2.0,
+        "denominator": 2.0,
+        "unit": "ratio",
+        "scope": "micro across declared gold source IDs",
+        "not_applicable_cases": 0
+      },
+      "citation_precision": {
+        "status": "not_applicable",
+        "value": null,
+        "numerator": null,
+        "denominator": null,
+        "unit": "ratio",
+        "scope": "micro across emitted claim-citation pairs",
+        "not_applicable_cases": 1
+      },
+      "unsupported_claim_rate": {
+        "status": "not_applicable",
+        "value": null,
+        "numerator": null,
+        "denominator": null,
+        "unit": "ratio",
+        "scope": "micro across emitted atomic claims",
+        "not_applicable_cases": 1
+      },
+      "abstention_accuracy": {
+        "status": "not_applicable",
+        "value": null,
+        "numerator": null,
+        "denominator": null,
+        "unit": "ratio",
+        "scope": "micro across applicable abstention decisions",
+        "not_applicable_cases": 1
+      },
+      "task_completion_rate": {
+        "status": "measured",
+        "value": 1.0,
+        "numerator": 1.0,
+        "denominator": 1.0,
+        "unit": "ratio",
+        "scope": "micro across applicable completed tasks",
+        "not_applicable_cases": 0
+      },
+      "cost": {
+        "status": "measured",
+        "value": 0.0276604,
+        "numerator": null,
+        "denominator": null,
+        "unit": "CNY",
+        "scope": "sum across model-call audit costs",
+        "not_applicable_cases": 0
+      },
+      "latency": {
+        "status": "measured",
+        "value": 55040.357500001846,
+        "numerator": null,
+        "denominator": null,
+        "unit": "ms",
+        "scope": "median per-case wall-clock diagnostic",
+        "not_applicable_cases": 0
+      }
+    }
+  },
+  "metric_deltas": {
+    "abstention_accuracy": {
+      "preferred_direction": "higher",
+      "single_value": null,
+      "dual_value": null,
+      "dual_minus_single": null,
+      "unit": "ratio"
+    },
+    "citation_precision": {
+      "preferred_direction": "higher",
+      "single_value": null,
+      "dual_value": null,
+      "dual_minus_single": null,
+      "unit": "ratio"
+    },
+    "cost": {
+      "preferred_direction": "lower",
+      "single_value": 0.0183094,
+      "dual_value": 0.0276604,
+      "dual_minus_single": 0.009351000000000002,
+      "unit": "CNY"
+    },
+    "latency": {
+      "preferred_direction": "lower",
+      "single_value": 41854.44290000305,
+      "dual_value": 55040.357500001846,
+      "dual_minus_single": 13185.914599998796,
+      "unit": "ms"
+    },
+    "retrieval_recall_at_k": {
+      "preferred_direction": "higher",
+      "single_value": 1.0,
+      "dual_value": 1.0,
+      "dual_minus_single": 0.0,
+      "unit": "ratio"
+    },
+    "task_completion_rate": {
+      "preferred_direction": "higher",
+      "single_value": 1.0,
+      "dual_value": 1.0,
+      "dual_minus_single": 0.0,
+      "unit": "ratio"
+    },
+    "unsupported_claim_rate": {
+      "preferred_direction": "lower",
+      "single_value": null,
+      "dual_value": null,
+      "dual_minus_single": null,
+      "unit": "ratio"
+    }
+  },
+  "actual_spend": {
+    "shared_research": {
+      "logical_model_calls": 2,
+      "provider_reported_model_calls": 2,
+      "real_model_calls": 2,
+      "logical_network_calls": 2,
+      "actual_http_attempts": 2,
+      "input_tokens": 1119,
+      "output_tokens": 2619,
+      "reasoning_tokens": 2225,
+      "costs_by_currency": {
+        "CNY": "0.0183094"
+      },
+      "cost_accounting_source": "provider_settled_audit",
+      "latency_ms": 41854.44290000305
+    },
+    "reviewer_and_revision": {
+      "logical_model_calls": 1,
+      "provider_reported_model_calls": 1,
+      "real_model_calls": 1,
+      "logical_network_calls": 1,
+      "actual_http_attempts": 1,
+      "input_tokens": 1483,
+      "output_tokens": 817,
+      "reasoning_tokens": 728,
+      "costs_by_currency": {
+        "CNY": "0.009351"
+      },
+      "cost_accounting_source": "provider_settled_audit",
+      "latency_ms": 13185.914599998796
+    },
+    "total_actual": {
+      "logical_model_calls": 3,
+      "provider_reported_model_calls": 3,
+      "real_model_calls": 3,
+      "logical_network_calls": 3,
+      "actual_http_attempts": 3,
+      "input_tokens": 2602,
+      "output_tokens": 3436,
+      "reasoning_tokens": 2953,
+      "costs_by_currency": {
+        "CNY": "0.0276604"
+      },
+      "cost_accounting_source": "provider_settled_audit",
+      "latency_ms": 55040.357500001846
+    },
+    "accounting_rule": "shared Research is charged once; reviewer and revision are incremental"
+  },
+  "cases": [
+    {
+      "id": "TOOL-02",
+      "category": "tool_resilience",
+      "shared_hashes": {
+        "research_state_sha256": "92152a11bdc84ed227429c34f504a3b0d8f6e83bd9c886e10528b7ddddf72dbc",
+        "initial_draft_sha256": "f4e1a560c18bf12e60f12fee262321caa8802c124531390562fd9d47aa49a2e0",
+        "evidence_ledger_sha256": "279a8e3317fe5fa8fee2f3f6f17112f38f078f7b51a147d3d05a1a0e4bd82e19",
+        "tool_trace_sha256": "5c7f1e8f1ebcf13cf21a4e85f6f42cf535bd3d9c6020c4fefcd94dccf327345d"
+      },
+      "research_state": {
+        "run_id": "run-6b1c620ab382743d5ae9",
+        "question": "Question: 三路检索一路失败时能否保留另外两路的可复核结果？\nPopulation: Streptococcus agalactiae\nIntervention: quercetin\nComparator: amoxicillin\nOutcomes: synergy\n\nRUN_CONTEXT={\"available_tools\":[\"pubmed.search\"],\"dataset_ids\":[],\"report_input_id\":null}",
+        "phase": "completed",
+        "stop_reason": "completed",
+        "budget": {
+          "max_plan_items": 3,
+          "max_tool_calls": 4,
+          "max_normal_model_calls": 2,
+          "max_retries": 1,
+          "max_total_tokens": 32000,
+          "max_output_tokens_per_call": 2048,
+          "max_cost_amount": "5",
+          "cost_currency": "CNY",
+          "normal_model_calls_used": 2,
+          "retries_used": 0,
+          "tool_calls_used": 3,
+          "total_tokens_used": 3738,
+          "cost_amount_used": "0.0183094"
+        },
+        "plan": {
+          "items": [
+            {
+              "step_id": "run-6b1c620ab382743d5ae9:tool:1",
+              "tool_name": "pubmed.search",
+              "arguments": {
+                "query": "quercetin AND amoxicillin AND Streptococcus agalactiae AND synergy",
+                "max_results": 5
+              }
+            },
+            {
+              "step_id": "run-6b1c620ab382743d5ae9:tool:2",
+              "tool_name": "pubmed.search",
+              "arguments": {
+                "query": "quercetin AND Streptococcus agalactiae AND synergy",
+                "max_results": 5
+              }
+            },
+            {
+              "step_id": "run-6b1c620ab382743d5ae9:tool:3",
+              "tool_name": "pubmed.search",
+              "arguments": {
+                "query": "amoxicillin AND Streptococcus agalactiae AND synergy",
+                "max_results": 5
+              }
+            }
+          ]
+        },
+        "evidence_ledger": {
+          "items": [
+            {
+              "source_id": "source-001",
+              "chunk_id": "source-001:abstract",
+              "content": "Title: Synthetic direct result from replay branch A\nAbstract: Checkerboard assays showed synergistic activity of quercetin and amoxicillin against Streptococcus agalactiae.",
+              "source_type": "frozen_pubmed_abstract",
+              "title": "Synthetic direct result from replay branch A",
+              "locator": null,
+              "evidence_role": "untrusted_evidence"
+            },
+            {
+              "source_id": "source-002",
+              "chunk_id": "source-002:abstract",
+              "content": "Title: Synthetic supporting result from replay branch C\nAbstract: Time-kill experiments showed synergistic activity of quercetin and amoxicillin against Streptococcus agalactiae.",
+              "source_type": "frozen_pubmed_abstract",
+              "title": "Synthetic supporting result from replay branch C",
+              "locator": null,
+              "evidence_role": "untrusted_evidence"
+            }
+          ]
+        },
+        "claims": [
+          {
+            "claim_id": "claim-1",
+            "text": "Both the checkerboard assay (source-001) and time-kill experiment (source-002) demonstrate synergistic activity between quercetin and amoxicillin against Streptococcus agalactiae, indicating that the results from the two successful search routes are reproducible and can be retained.",
+            "scope": "In vitro synergy evidence for Streptococcus agalactiae; limited to the two studies retrieved.",
+            "citations": [
+              {
+                "source_id": "source-001",
+                "chunk_id": "source-001:abstract",
+                "support_quote": "Checkerboard assays showed synergistic activity of quercetin and amoxicillin against Streptococcus agalactiae."
+              },
+              {
+                "source_id": "source-002",
+                "chunk_id": "source-002:abstract",
+                "support_quote": "Time-kill experiments showed synergistic activity of quercetin and amoxicillin against Streptococcus agalactiae."
+              }
+            ]
+          }
+        ],
+        "answer": "Both the checkerboard assay (source-001) and time-kill experiment (source-002) demonstrate synergistic activity between quercetin and amoxicillin against Streptococcus agalactiae, indicating that the results from the two successful search routes are reproducible and can be retained.\nScope: In vitro synergy evidence for Streptococcus agalactiae; limited to the two studies retrieved.\nEvidence: [source-001 | source-001:abstract] \"Checkerboard assays showed synergistic activity of quercetin and amoxicillin against Streptococcus agalactiae.\"; [source-002 | source-002:abstract] \"Time-kill experiments showed synergistic activity of quercetin and amoxicillin against Streptococcus agalactiae.\"",
+        "model_call_audits": [
+          {
+            "purpose": "planning",
+            "attempt": 1,
+            "retry": false,
+            "request_id": "run-6b1c620ab382743d5ae9:planning:1",
+            "prompt_sha256": "1e218f47677be613b42099947516574fe29566688dc5a30dc94d4181be4e5a99",
+            "generation_parameters_sha256": "8ea6b4f55a65a29fea2871e9bc8ca9d73e5f192390b8947039084d7099d46397",
+            "response_text_sha256": "a76e2878f627e37e7260bc76a22ebff912bb8a06c14a71380918616ed04f7285",
+            "provider_name": "deepseek",
+            "model_name": "deepseek-v4-pro",
+            "model_version": "DeepSeek-V4-Pro",
+            "response_succeeded": true,
+            "failure_code": null,
+            "fake": false,
+            "network_used": true,
+            "latency_ms": 22005.76379999984,
+            "usage": {
+              "input_tokens": 687,
+              "output_tokens": 1343,
+              "reasoning_tokens": 1191,
+              "provider_reported_model_calls": 1,
+              "cost_amount": "0.010119",
+              "cost_currency": "CNY"
+            }
+          },
+          {
+            "purpose": "drafting",
+            "attempt": 1,
+            "retry": false,
+            "request_id": "run-6b1c620ab382743d5ae9:drafting:1",
+            "prompt_sha256": "ca82560a595d6f8dcd769f797ce8fbc0e1b63998eb73f5864310a143f9336636",
+            "generation_parameters_sha256": "6b5d10f8d0bbde9ea439b872da0ff92d51e5a1bb12d74793df69c4988fabbc8d",
+            "response_text_sha256": "c3392a38d26c67403aac6d1b843b23dacdb6da2c96c4d233d9ec14f749b5cb95",
+            "provider_name": "deepseek",
+            "model_name": "deepseek-v4-pro",
+            "model_version": "DeepSeek-V4-Pro",
+            "response_succeeded": true,
+            "failure_code": null,
+            "fake": false,
+            "network_used": true,
+            "latency_ms": 19819.3339999998,
+            "usage": {
+              "input_tokens": 432,
+              "output_tokens": 1276,
+              "reasoning_tokens": 1034,
+              "provider_reported_model_calls": 1,
+              "cost_amount": "0.0081904",
+              "cost_currency": "CNY"
+            }
+          }
+        ],
+        "tool_results": [
+          {
+            "call_id": "run-6b1c620ab382743d5ae9:tool:1",
+            "tool_name": "pubmed.search",
+            "call_signature_sha256": "cd559d98999048c7f78a40d12f99ce19119be080868509b3d5f8559b6e9c95b5",
+            "status": "succeeded",
+            "evidence": [
+              {
+                "source_id": "source-001",
+                "chunk_id": "source-001:abstract",
+                "content": "Title: Synthetic direct result from replay branch A\nAbstract: Checkerboard assays showed synergistic activity of quercetin and amoxicillin against Streptococcus agalactiae.",
+                "source_type": "frozen_pubmed_abstract",
+                "title": "Synthetic direct result from replay branch A",
+                "locator": null,
+                "evidence_role": "untrusted_evidence"
+              }
+            ],
+            "output": {
+              "retrieved_count": 1
+            },
+            "failure": null,
+            "frozen_replay": true,
+            "network_used": false,
+            "external_actions": 0
+          },
+          {
+            "call_id": "run-6b1c620ab382743d5ae9:tool:2",
+            "tool_name": "pubmed.search",
+            "call_signature_sha256": "d71c7a4e2371463a296dbcef158607103b6c3fe0b494119b3c049a8f4e7f25d1",
+            "status": "failed",
+            "evidence": [],
+            "output": {},
+            "failure": {
+              "code": "RuntimeError",
+              "message": "synthetic branch B failure",
+              "retryable": false
+            },
+            "frozen_replay": true,
+            "network_used": false,
+            "external_actions": 0
+          },
+          {
+            "call_id": "run-6b1c620ab382743d5ae9:tool:3",
+            "tool_name": "pubmed.search",
+            "call_signature_sha256": "deb9af23089b0731616d6c96a3aa617dbd11b30ad9e752d2b128a25ba49a68ed",
+            "status": "succeeded",
+            "evidence": [
+              {
+                "source_id": "source-002",
+                "chunk_id": "source-002:abstract",
+                "content": "Title: Synthetic supporting result from replay branch C\nAbstract: Time-kill experiments showed synergistic activity of quercetin and amoxicillin against Streptococcus agalactiae.",
+                "source_type": "frozen_pubmed_abstract",
+                "title": "Synthetic supporting result from replay branch C",
+                "locator": null,
+                "evidence_role": "untrusted_evidence"
+              }
+            ],
+            "output": {
+              "retrieved_count": 1
+            },
+            "failure": null,
+            "frozen_replay": true,
+            "network_used": false,
+            "external_actions": 0
+          }
+        ],
+        "transitions": [
+          {
+            "from_phase": "created",
+            "to_phase": "planning",
+            "reason": "start_planning"
+          },
+          {
+            "from_phase": "planning",
+            "to_phase": "plan_validated",
+            "reason": "plan_validated"
+          },
+          {
+            "from_phase": "plan_validated",
+            "to_phase": "executing_tools",
+            "reason": "execute_validated_plan"
+          },
+          {
+            "from_phase": "executing_tools",
+            "to_phase": "evidence_validated",
+            "reason": "evidence_validated"
+          },
+          {
+            "from_phase": "evidence_validated",
+            "to_phase": "drafting",
+            "reason": "draft_from_current_ledger"
+          },
+          {
+            "from_phase": "drafting",
+            "to_phase": "completed",
+            "reason": "all_claims_evidence_locked"
+          }
+        ],
+        "errors": [
+          {
+            "stage": "executing_tools",
+            "code": "RuntimeError",
+            "message": "An allowlisted tool reported a structured failure."
+          }
+        ]
+      },
+      "single": {
+        "actual": {
+          "phase": "completed",
+          "task_state": "awaiting_review",
+          "task_completed": true,
+          "target_claim_abstained": false,
+          "admission_status": "admitted",
+          "retrieved_ids": [
+            "source-001",
+            "source-002"
+          ],
+          "evidence": [
+            {
+              "source_id": "source-001",
+              "chunk_id": "source-001:abstract",
+              "content": "Title: Synthetic direct result from replay branch A\nAbstract: Checkerboard assays showed synergistic activity of quercetin and amoxicillin against Streptococcus agalactiae.",
+              "source_type": "frozen_pubmed_abstract",
+              "title": "Synthetic direct result from replay branch A",
+              "locator": null,
+              "evidence_role": "untrusted_evidence"
+            },
+            {
+              "source_id": "source-002",
+              "chunk_id": "source-002:abstract",
+              "content": "Title: Synthetic supporting result from replay branch C\nAbstract: Time-kill experiments showed synergistic activity of quercetin and amoxicillin against Streptococcus agalactiae.",
+              "source_type": "frozen_pubmed_abstract",
+              "title": "Synthetic supporting result from replay branch C",
+              "locator": null,
+              "evidence_role": "untrusted_evidence"
+            }
+          ],
+          "citations": [
+            {
+              "claim_id": "claim-1",
+              "claim_text": "Both the checkerboard assay (source-001) and time-kill experiment (source-002) demonstrate synergistic activity between quercetin and amoxicillin against Streptococcus agalactiae, indicating that the results from the two successful search routes are reproducible and can be retained.",
+              "source_id": "source-001",
+              "chunk_id": "source-001:abstract",
+              "support_quote": "Checkerboard assays showed synergistic activity of quercetin and amoxicillin against Streptococcus agalactiae."
+            },
+            {
+              "claim_id": "claim-1",
+              "claim_text": "Both the checkerboard assay (source-001) and time-kill experiment (source-002) demonstrate synergistic activity between quercetin and amoxicillin against Streptococcus agalactiae, indicating that the results from the two successful search routes are reproducible and can be retained.",
+              "source_id": "source-002",
+              "chunk_id": "source-002:abstract",
+              "support_quote": "Time-kill experiments showed synergistic activity of quercetin and amoxicillin against Streptococcus agalactiae."
+            }
+          ],
+          "claim_ids": [
+            "claim-1"
+          ],
+          "failed_batch_count": 1,
+          "replay_request_count": 3,
+          "partial_results_preserved": true,
+          "error_type": "RuntimeError",
+          "analysis_type": null,
+          "analysis_valid": null,
+          "analysis_admitted": null,
+          "valid_row_count": null,
+          "invalid_row_count": null,
+          "report_generated": false,
+          "model_calls": 2,
+          "real_model_calls": 2,
+          "network_calls": 2,
+          "external_actions": 0,
+          "input_tokens": 1119,
+          "output_tokens": 2619,
+          "cost_amount": "0.0183094",
+          "cost_currency": "CNY",
+          "latency_ms": 41854.44290000305,
+          "answer": "Both the checkerboard assay (source-001) and time-kill experiment (source-002) demonstrate synergistic activity between quercetin and amoxicillin against Streptococcus agalactiae, indicating that the results from the two successful search routes are reproducible and can be retained.\nScope: In vitro synergy evidence for Streptococcus agalactiae; limited to the two studies retrieved.\nEvidence: [source-001 | source-001:abstract] \"Checkerboard assays showed synergistic activity of quercetin and amoxicillin against Streptococcus agalactiae.\"; [source-002 | source-002:abstract] \"Time-kill experiments showed synergistic activity of quercetin and amoxicillin against Streptococcus agalactiae.\""
+        },
+        "score": {
+          "id": "TOOL-02",
+          "category": "tool_resilience",
+          "passed": true,
+          "mismatches": [],
+          "applicable_metrics": [
+            "retrieval_recall_at_k",
+            "task_completion_rate",
+            "cost",
+            "latency"
+          ],
+          "actual": {
+            "phase": "completed",
+            "task_state": "awaiting_review",
+            "task_completed": true,
+            "target_claim_abstained": false,
+            "admission_status": "admitted",
+            "retrieved_ids": [
+              "source-001",
+              "source-002"
+            ],
+            "evidence": [
+              {
+                "source_id": "source-001",
+                "chunk_id": "source-001:abstract",
+                "content": "Title: Synthetic direct result from replay branch A\nAbstract: Checkerboard assays showed synergistic activity of quercetin and amoxicillin against Streptococcus agalactiae.",
+                "source_type": "frozen_pubmed_abstract",
+                "title": "Synthetic direct result from replay branch A",
+                "locator": null,
+                "evidence_role": "untrusted_evidence"
+              },
+              {
+                "source_id": "source-002",
+                "chunk_id": "source-002:abstract",
+                "content": "Title: Synthetic supporting result from replay branch C\nAbstract: Time-kill experiments showed synergistic activity of quercetin and amoxicillin against Streptococcus agalactiae.",
+                "source_type": "frozen_pubmed_abstract",
+                "title": "Synthetic supporting result from replay branch C",
+                "locator": null,
+                "evidence_role": "untrusted_evidence"
+              }
+            ],
+            "citations": [
+              {
+                "claim_id": "claim-1",
+                "claim_text": "Both the checkerboard assay (source-001) and time-kill experiment (source-002) demonstrate synergistic activity between quercetin and amoxicillin against Streptococcus agalactiae, indicating that the results from the two successful search routes are reproducible and can be retained.",
+                "source_id": "source-001",
+                "chunk_id": "source-001:abstract",
+                "support_quote": "Checkerboard assays showed synergistic activity of quercetin and amoxicillin against Streptococcus agalactiae."
+              },
+              {
+                "claim_id": "claim-1",
+                "claim_text": "Both the checkerboard assay (source-001) and time-kill experiment (source-002) demonstrate synergistic activity between quercetin and amoxicillin against Streptococcus agalactiae, indicating that the results from the two successful search routes are reproducible and can be retained.",
+                "source_id": "source-002",
+                "chunk_id": "source-002:abstract",
+                "support_quote": "Time-kill experiments showed synergistic activity of quercetin and amoxicillin against Streptococcus agalactiae."
+              }
+            ],
+            "claim_ids": [
+              "claim-1"
+            ],
+            "failed_batch_count": 1,
+            "replay_request_count": 3,
+            "partial_results_preserved": true,
+            "error_type": "RuntimeError",
+            "analysis_type": null,
+            "analysis_valid": null,
+            "analysis_admitted": null,
+            "valid_row_count": null,
+            "invalid_row_count": null,
+            "report_generated": false,
+            "model_calls": 2,
+            "real_model_calls": 2,
+            "network_calls": 2,
+            "external_actions": 0,
+            "input_tokens": 1119,
+            "output_tokens": 2619,
+            "cost_amount": "0.0183094",
+            "cost_currency": "CNY",
+            "latency_ms": 41854.44290000305,
+            "answer": "Both the checkerboard assay (source-001) and time-kill experiment (source-002) demonstrate synergistic activity between quercetin and amoxicillin against Streptococcus agalactiae, indicating that the results from the two successful search routes are reproducible and can be retained.\nScope: In vitro synergy evidence for Streptococcus agalactiae; limited to the two studies retrieved.\nEvidence: [source-001 | source-001:abstract] \"Checkerboard assays showed synergistic activity of quercetin and amoxicillin against Streptococcus agalactiae.\"; [source-002 | source-002:abstract] \"Time-kill experiments showed synergistic activity of quercetin and amoxicillin against Streptococcus agalactiae.\""
+          },
+          "metric_observations": {
+            "retrieval_recall_at_k": {
+              "value": 1.0,
+              "numerator": 2.0,
+              "denominator": 2.0,
+              "unit": "ratio"
+            },
+            "task_completion_rate": {
+              "value": 1.0,
+              "numerator": 1.0,
+              "denominator": 1.0,
+              "unit": "ratio"
+            },
+            "cost": {
+              "value": 0.0183094,
+              "numerator": null,
+              "denominator": null,
+              "unit": "CNY"
+            },
+            "latency": {
+              "value": 41854.44290000305,
+              "numerator": null,
+              "denominator": null,
+              "unit": "ms"
+            }
+          }
+        },
+        "usage": {
+          "logical_model_calls": 2,
+          "provider_reported_model_calls": 2,
+          "real_model_calls": 2,
+          "logical_network_calls": 2,
+          "actual_http_attempts": 2,
+          "input_tokens": 1119,
+          "output_tokens": 2619,
+          "reasoning_tokens": 2225,
+          "costs_by_currency": {
+            "CNY": "0.0183094"
+          },
+          "cost_accounting_source": "provider_settled_audit",
+          "latency_ms": 41854.44290000305
+        }
+      },
+      "dual": {
+        "actual": {
+          "phase": "completed",
+          "task_state": "awaiting_review",
+          "task_completed": true,
+          "target_claim_abstained": false,
+          "admission_status": "admitted",
+          "retrieved_ids": [
+            "source-001",
+            "source-002"
+          ],
+          "evidence": [
+            {
+              "source_id": "source-001",
+              "chunk_id": "source-001:abstract",
+              "content": "Title: Synthetic direct result from replay branch A\nAbstract: Checkerboard assays showed synergistic activity of quercetin and amoxicillin against Streptococcus agalactiae.",
+              "source_type": "frozen_pubmed_abstract",
+              "title": "Synthetic direct result from replay branch A",
+              "locator": null,
+              "evidence_role": "untrusted_evidence"
+            },
+            {
+              "source_id": "source-002",
+              "chunk_id": "source-002:abstract",
+              "content": "Title: Synthetic supporting result from replay branch C\nAbstract: Time-kill experiments showed synergistic activity of quercetin and amoxicillin against Streptococcus agalactiae.",
+              "source_type": "frozen_pubmed_abstract",
+              "title": "Synthetic supporting result from replay branch C",
+              "locator": null,
+              "evidence_role": "untrusted_evidence"
+            }
+          ],
+          "citations": [
+            {
+              "claim_id": "claim-1",
+              "claim_text": "Both the checkerboard assay (source-001) and time-kill experiment (source-002) demonstrate synergistic activity between quercetin and amoxicillin against Streptococcus agalactiae, indicating that the results from the two successful search routes are reproducible and can be retained.",
+              "source_id": "source-001",
+              "chunk_id": "source-001:abstract",
+              "support_quote": "Checkerboard assays showed synergistic activity of quercetin and amoxicillin against Streptococcus agalactiae."
+            },
+            {
+              "claim_id": "claim-1",
+              "claim_text": "Both the checkerboard assay (source-001) and time-kill experiment (source-002) demonstrate synergistic activity between quercetin and amoxicillin against Streptococcus agalactiae, indicating that the results from the two successful search routes are reproducible and can be retained.",
+              "source_id": "source-002",
+              "chunk_id": "source-002:abstract",
+              "support_quote": "Time-kill experiments showed synergistic activity of quercetin and amoxicillin against Streptococcus agalactiae."
+            }
+          ],
+          "claim_ids": [
+            "claim-1"
+          ],
+          "failed_batch_count": 1,
+          "replay_request_count": 3,
+          "partial_results_preserved": true,
+          "error_type": "RuntimeError",
+          "analysis_type": null,
+          "analysis_valid": null,
+          "analysis_admitted": null,
+          "valid_row_count": null,
+          "invalid_row_count": null,
+          "report_generated": false,
+          "model_calls": 3,
+          "real_model_calls": 3,
+          "network_calls": 3,
+          "external_actions": 0,
+          "input_tokens": 2602,
+          "output_tokens": 3436,
+          "cost_amount": "0.0276604",
+          "cost_currency": "CNY",
+          "latency_ms": 55040.357500001846,
+          "answer": "Both the checkerboard assay (source-001) and time-kill experiment (source-002) demonstrate synergistic activity between quercetin and amoxicillin against Streptococcus agalactiae, indicating that the results from the two successful search routes are reproducible and can be retained.\nScope: In vitro synergy evidence for Streptococcus agalactiae; limited to the two studies retrieved.\nEvidence: [source-001 | source-001:abstract] \"Checkerboard assays showed synergistic activity of quercetin and amoxicillin against Streptococcus agalactiae.\"; [source-002 | source-002:abstract] \"Time-kill experiments showed synergistic activity of quercetin and amoxicillin against Streptococcus agalactiae.\""
+        },
+        "score": {
+          "id": "TOOL-02",
+          "category": "tool_resilience",
+          "passed": true,
+          "mismatches": [],
+          "applicable_metrics": [
+            "retrieval_recall_at_k",
+            "task_completion_rate",
+            "cost",
+            "latency"
+          ],
+          "actual": {
+            "phase": "completed",
+            "task_state": "awaiting_review",
+            "task_completed": true,
+            "target_claim_abstained": false,
+            "admission_status": "admitted",
+            "retrieved_ids": [
+              "source-001",
+              "source-002"
+            ],
+            "evidence": [
+              {
+                "source_id": "source-001",
+                "chunk_id": "source-001:abstract",
+                "content": "Title: Synthetic direct result from replay branch A\nAbstract: Checkerboard assays showed synergistic activity of quercetin and amoxicillin against Streptococcus agalactiae.",
+                "source_type": "frozen_pubmed_abstract",
+                "title": "Synthetic direct result from replay branch A",
+                "locator": null,
+                "evidence_role": "untrusted_evidence"
+              },
+              {
+                "source_id": "source-002",
+                "chunk_id": "source-002:abstract",
+                "content": "Title: Synthetic supporting result from replay branch C\nAbstract: Time-kill experiments showed synergistic activity of quercetin and amoxicillin against Streptococcus agalactiae.",
+                "source_type": "frozen_pubmed_abstract",
+                "title": "Synthetic supporting result from replay branch C",
+                "locator": null,
+                "evidence_role": "untrusted_evidence"
+              }
+            ],
+            "citations": [
+              {
+                "claim_id": "claim-1",
+                "claim_text": "Both the checkerboard assay (source-001) and time-kill experiment (source-002) demonstrate synergistic activity between quercetin and amoxicillin against Streptococcus agalactiae, indicating that the results from the two successful search routes are reproducible and can be retained.",
+                "source_id": "source-001",
+                "chunk_id": "source-001:abstract",
+                "support_quote": "Checkerboard assays showed synergistic activity of quercetin and amoxicillin against Streptococcus agalactiae."
+              },
+              {
+                "claim_id": "claim-1",
+                "claim_text": "Both the checkerboard assay (source-001) and time-kill experiment (source-002) demonstrate synergistic activity between quercetin and amoxicillin against Streptococcus agalactiae, indicating that the results from the two successful search routes are reproducible and can be retained.",
+                "source_id": "source-002",
+                "chunk_id": "source-002:abstract",
+                "support_quote": "Time-kill experiments showed synergistic activity of quercetin and amoxicillin against Streptococcus agalactiae."
+              }
+            ],
+            "claim_ids": [
+              "claim-1"
+            ],
+            "failed_batch_count": 1,
+            "replay_request_count": 3,
+            "partial_results_preserved": true,
+            "error_type": "RuntimeError",
+            "analysis_type": null,
+            "analysis_valid": null,
+            "analysis_admitted": null,
+            "valid_row_count": null,
+            "invalid_row_count": null,
+            "report_generated": false,
+            "model_calls": 3,
+            "real_model_calls": 3,
+            "network_calls": 3,
+            "external_actions": 0,
+            "input_tokens": 2602,
+            "output_tokens": 3436,
+            "cost_amount": "0.0276604",
+            "cost_currency": "CNY",
+            "latency_ms": 55040.357500001846,
+            "answer": "Both the checkerboard assay (source-001) and time-kill experiment (source-002) demonstrate synergistic activity between quercetin and amoxicillin against Streptococcus agalactiae, indicating that the results from the two successful search routes are reproducible and can be retained.\nScope: In vitro synergy evidence for Streptococcus agalactiae; limited to the two studies retrieved.\nEvidence: [source-001 | source-001:abstract] \"Checkerboard assays showed synergistic activity of quercetin and amoxicillin against Streptococcus agalactiae.\"; [source-002 | source-002:abstract] \"Time-kill experiments showed synergistic activity of quercetin and amoxicillin against Streptococcus agalactiae.\""
+          },
+          "metric_observations": {
+            "retrieval_recall_at_k": {
+              "value": 1.0,
+              "numerator": 2.0,
+              "denominator": 2.0,
+              "unit": "ratio"
+            },
+            "task_completion_rate": {
+              "value": 1.0,
+              "numerator": 1.0,
+              "denominator": 1.0,
+              "unit": "ratio"
+            },
+            "cost": {
+              "value": 0.0276604,
+              "numerator": null,
+              "denominator": null,
+              "unit": "CNY"
+            },
+            "latency": {
+              "value": 55040.357500001846,
+              "numerator": null,
+              "denominator": null,
+              "unit": "ms"
+            }
+          }
+        },
+        "usage": {
+          "logical_model_calls": 3,
+          "provider_reported_model_calls": 3,
+          "real_model_calls": 3,
+          "logical_network_calls": 3,
+          "actual_http_attempts": 3,
+          "input_tokens": 2602,
+          "output_tokens": 3436,
+          "reasoning_tokens": 2953,
+          "costs_by_currency": {
+            "CNY": "0.0276604"
+          },
+          "cost_accounting_source": "provider_settled_audit",
+          "latency_ms": 55040.357500001846
+        }
+      },
+      "review_incremental_usage": {
+        "logical_model_calls": 1,
+        "provider_reported_model_calls": 1,
+        "real_model_calls": 1,
+        "logical_network_calls": 1,
+        "actual_http_attempts": 1,
+        "input_tokens": 1483,
+        "output_tokens": 817,
+        "reasoning_tokens": 728,
+        "costs_by_currency": {
+          "CNY": "0.009351"
+        },
+        "cost_accounting_source": "provider_settled_audit",
+        "latency_ms": 13185.914599998796
+      },
+      "review": {
+        "run_id": "run-6b1c620ab382743d5ae9:review",
+        "status": "approved",
+        "safe_refusal": false,
+        "final_answer": "Both the checkerboard assay (source-001) and time-kill experiment (source-002) demonstrate synergistic activity between quercetin and amoxicillin against Streptococcus agalactiae, indicating that the results from the two successful search routes are reproducible and can be retained.\nScope: In vitro synergy evidence for Streptococcus agalactiae; limited to the two studies retrieved.\nEvidence: [source-001 | source-001:abstract] \"Checkerboard assays showed synergistic activity of quercetin and amoxicillin against Streptococcus agalactiae.\"; [source-002 | source-002:abstract] \"Time-kill experiments showed synergistic activity of quercetin and amoxicillin against Streptococcus agalactiae.\"",
+        "shared_research_state_sha256": "92152a11bdc84ed227429c34f504a3b0d8f6e83bd9c886e10528b7ddddf72dbc",
+        "shared_draft_sha256": "f4e1a560c18bf12e60f12fee262321caa8802c124531390562fd9d47aa49a2e0",
+        "shared_evidence_ledger_sha256": "279a8e3317fe5fa8fee2f3f6f17112f38f078f7b51a147d3d05a1a0e4bd82e19",
+        "shared_tool_trace_sha256": "5c7f1e8f1ebcf13cf21a4e85f6f42cf535bd3d9c6020c4fefcd94dccf327345d",
+        "initial_draft": {
+          "refusal": false,
+          "refusal_reason": null,
+          "claims": [
+            {
+              "claim_id": "claim-1",
+              "text": "Both the checkerboard assay (source-001) and time-kill experiment (source-002) demonstrate synergistic activity between quercetin and amoxicillin against Streptococcus agalactiae, indicating that the results from the two successful search routes are reproducible and can be retained.",
+              "scope": "In vitro synergy evidence for Streptococcus agalactiae; limited to the two studies retrieved.",
+              "citations": [
+                {
+                  "source_id": "source-001",
+                  "chunk_id": "source-001:abstract",
+                  "support_quote": "Checkerboard assays showed synergistic activity of quercetin and amoxicillin against Streptococcus agalactiae."
+                },
+                {
+                  "source_id": "source-002",
+                  "chunk_id": "source-002:abstract",
+                  "support_quote": "Time-kill experiments showed synergistic activity of quercetin and amoxicillin against Streptococcus agalactiae."
+                }
+              ]
+            }
+          ]
+        },
+        "final_draft": {
+          "refusal": false,
+          "refusal_reason": null,
+          "claims": [
+            {
+              "claim_id": "claim-1",
+              "text": "Both the checkerboard assay (source-001) and time-kill experiment (source-002) demonstrate synergistic activity between quercetin and amoxicillin against Streptococcus agalactiae, indicating that the results from the two successful search routes are reproducible and can be retained.",
+              "scope": "In vitro synergy evidence for Streptococcus agalactiae; limited to the two studies retrieved.",
+              "citations": [
+                {
+                  "source_id": "source-001",
+                  "chunk_id": "source-001:abstract",
+                  "support_quote": "Checkerboard assays showed synergistic activity of quercetin and amoxicillin against Streptococcus agalactiae."
+                },
+                {
+                  "source_id": "source-002",
+                  "chunk_id": "source-002:abstract",
+                  "support_quote": "Time-kill experiments showed synergistic activity of quercetin and amoxicillin against Streptococcus agalactiae."
+                }
+              ]
+            }
+          ]
+        },
+        "final_draft_sha256": "f4e1a560c18bf12e60f12fee262321caa8802c124531390562fd9d47aa49a2e0",
+        "audit_candidate_draft": {
+          "refusal": false,
+          "refusal_reason": null,
+          "claims": [
+            {
+              "claim_id": "claim-1",
+              "text": "Both the checkerboard assay (source-001) and time-kill experiment (source-002) demonstrate synergistic activity between quercetin and amoxicillin against Streptococcus agalactiae, indicating that the results from the two successful search routes are reproducible and can be retained.",
+              "scope": "In vitro synergy evidence for Streptococcus agalactiae; limited to the two studies retrieved.",
+              "citations": [
+                {
+                  "source_id": "source-001",
+                  "chunk_id": "source-001:abstract",
+                  "support_quote": "Checkerboard assays showed synergistic activity of quercetin and amoxicillin against Streptococcus agalactiae."
+                },
+                {
+                  "source_id": "source-002",
+                  "chunk_id": "source-002:abstract",
+                  "support_quote": "Time-kill experiments showed synergistic activity of quercetin and amoxicillin against Streptococcus agalactiae."
+                }
+              ]
+            }
+          ]
+        },
+        "audit_candidate_draft_sha256": "f4e1a560c18bf12e60f12fee262321caa8802c124531390562fd9d47aa49a2e0",
+        "verdicts": [
+          {
+            "decision": "approved",
+            "rationale": "The claim accurately reflects the evidence from the two successful search routes. Both citations provide verbatim support for the claimed synergy. The failed tool call is disclosed and no evidence from it is used. The scope is properly limited to the two retrieved studies. The draft correctly demonstrates that results from successful routes can be retained despite one failure.",
+            "flagged_claim_ids": []
+          }
+        ],
+        "call_audits": [
+          {
+            "role": "reviewer",
+            "round_number": 1,
+            "attempt": 1,
+            "retry": false,
+            "request_id": "run-6b1c620ab382743d5ae9:review:reviewer:1:1",
+            "system_prompt_sha256": "9b4055132f93fe9527236ed4eb55fd5cf759b6379813c03af2e59051e84c3ab7",
+            "prompt_sha256": "3fc3a64f03e728b01b12c2fb6c7729d4a60c3966d5c1028b9b1099e100c1da3c",
+            "request_sha256": "95f7ba86fb064088aa0b46decb47ff2cf65274e23b4df53f8ff6e94eac7d30c6",
+            "generation_parameters_sha256": "49688d5bcd0f400409d094aac3c3fd53bd8776cd863d2447a776dd43a7fc2d84",
+            "response_text_sha256": "f0f1796198cc7e45a3aa2ec5722634c50e36fa2af2379301702ca0671b3e1c1d",
+            "provider_name": "deepseek",
+            "model_name": "deepseek-v4-pro",
+            "model_version": "DeepSeek-V4-Pro",
+            "response_succeeded": true,
+            "failure_code": null,
+            "fake": false,
+            "network_used": true,
+            "latency_ms": 13183.283999998821,
+            "usage": {
+              "input_tokens": 1483,
+              "output_tokens": 817,
+              "reasoning_tokens": 728,
+              "provider_reported_model_calls": 1,
+              "cost_amount": "0.009351",
+              "cost_currency": "CNY"
+            }
+          }
+        ],
+        "budget": {
+          "max_review_calls": 2,
+          "max_revision_calls": 1,
+          "max_retries": 1,
+          "max_output_tokens_per_call": 2048,
+          "max_total_tokens": 32000,
+          "max_cost_amount": "5",
+          "cost_currency": "CNY",
+          "review_calls_used": 1,
+          "revision_calls_used": 0,
+          "retries_used": 0,
+          "total_tokens_used": 2300,
+          "cost_amount_used": "0.009351",
+          "costs_by_currency": {
+            "CNY": "0.009351"
+          }
+        },
+        "errors": []
+      },
+      "research_call_audits": [
+        {
+          "purpose": "planning",
+          "attempt": 1,
+          "retry": false,
+          "request_id": "run-6b1c620ab382743d5ae9:planning:1",
+          "prompt_sha256": "1e218f47677be613b42099947516574fe29566688dc5a30dc94d4181be4e5a99",
+          "generation_parameters_sha256": "8ea6b4f55a65a29fea2871e9bc8ca9d73e5f192390b8947039084d7099d46397",
+          "response_text_sha256": "a76e2878f627e37e7260bc76a22ebff912bb8a06c14a71380918616ed04f7285",
+          "provider_name": "deepseek",
+          "model_name": "deepseek-v4-pro",
+          "model_version": "DeepSeek-V4-Pro",
+          "response_succeeded": true,
+          "failure_code": null,
+          "fake": false,
+          "network_used": true,
+          "latency_ms": 22005.76379999984,
+          "usage": {
+            "input_tokens": 687,
+            "output_tokens": 1343,
+            "reasoning_tokens": 1191,
+            "provider_reported_model_calls": 1,
+            "cost_amount": "0.010119",
+            "cost_currency": "CNY"
+          }
+        },
+        {
+          "purpose": "drafting",
+          "attempt": 1,
+          "retry": false,
+          "request_id": "run-6b1c620ab382743d5ae9:drafting:1",
+          "prompt_sha256": "ca82560a595d6f8dcd769f797ce8fbc0e1b63998eb73f5864310a143f9336636",
+          "generation_parameters_sha256": "6b5d10f8d0bbde9ea439b872da0ff92d51e5a1bb12d74793df69c4988fabbc8d",
+          "response_text_sha256": "c3392a38d26c67403aac6d1b843b23dacdb6da2c96c4d233d9ec14f749b5cb95",
+          "provider_name": "deepseek",
+          "model_name": "deepseek-v4-pro",
+          "model_version": "DeepSeek-V4-Pro",
+          "response_succeeded": true,
+          "failure_code": null,
+          "fake": false,
+          "network_used": true,
+          "latency_ms": 19819.3339999998,
+          "usage": {
+            "input_tokens": 432,
+            "output_tokens": 1276,
+            "reasoning_tokens": 1034,
+            "provider_reported_model_calls": 1,
+            "cost_amount": "0.0081904",
+            "cost_currency": "CNY"
+          }
+        }
+      ],
+      "review_call_audits": [
+        {
+          "role": "reviewer",
+          "round_number": 1,
+          "attempt": 1,
+          "retry": false,
+          "request_id": "run-6b1c620ab382743d5ae9:review:reviewer:1:1",
+          "system_prompt_sha256": "9b4055132f93fe9527236ed4eb55fd5cf759b6379813c03af2e59051e84c3ab7",
+          "prompt_sha256": "3fc3a64f03e728b01b12c2fb6c7729d4a60c3966d5c1028b9b1099e100c1da3c",
+          "request_sha256": "95f7ba86fb064088aa0b46decb47ff2cf65274e23b4df53f8ff6e94eac7d30c6",
+          "generation_parameters_sha256": "49688d5bcd0f400409d094aac3c3fd53bd8776cd863d2447a776dd43a7fc2d84",
+          "response_text_sha256": "f0f1796198cc7e45a3aa2ec5722634c50e36fa2af2379301702ca0671b3e1c1d",
+          "provider_name": "deepseek",
+          "model_name": "deepseek-v4-pro",
+          "model_version": "DeepSeek-V4-Pro",
+          "response_succeeded": true,
+          "failure_code": null,
+          "fake": false,
+          "network_used": true,
+          "latency_ms": 13183.283999998821,
+          "usage": {
+            "input_tokens": 1483,
+            "output_tokens": 817,
+            "reasoning_tokens": 728,
+            "provider_reported_model_calls": 1,
+            "cost_amount": "0.009351",
+            "cost_currency": "CNY"
+          }
+        }
+      ],
+      "provider_audit_slices": [
+        {
+          "binding": "research",
+          "provider_name": "deepseek",
+          "model_name": "deepseek-v4-pro",
+          "model_version": "DeepSeek-V4-Pro",
+          "provider_audit_available": true,
+          "http_attempts": 2,
+          "settled_cost_cny": "0.0183094",
+          "records": [
+            {
+              "request_id": "run-6b1c620ab382743d5ae9:planning:1",
+              "requested_model": "deepseek-v4-pro",
+              "actual_model": "deepseek-v4-pro",
+              "request_body_sha256": "dbe5bbb0beae941417c9256e8406f9deced32b8dec4683e9d9273f5ef3f9e9a9",
+              "response_id": "0f43fd56-a39a-4be9-8847-4246c3d0cffd",
+              "created": 1785603917,
+              "system_fingerprint": "fp_9954b31ca7_prod0820_fp8_kvcache_20260402",
+              "finish_reason": "stop",
+              "usage": {
+                "prompt_tokens": 687,
+                "prompt_cache_hit_tokens": 0,
+                "prompt_cache_miss_tokens": 687,
+                "completion_tokens": 1343,
+                "reasoning_tokens": 1191,
+                "total_tokens": 2030,
+                "raw_usage_json": "{\"completion_tokens\":1343,\"completion_tokens_details\":{\"reasoning_tokens\":1191},\"prompt_cache_hit_tokens\":0,\"prompt_cache_miss_tokens\":687,\"prompt_tokens\":687,\"prompt_tokens_details\":{\"cached_tokens\":0},\"total_tokens\":2030}",
+                "exact_cost_cny": "0.010119",
+                "cost_basis": "reported_cache_split",
+                "pricing_snapshot_id": "deepseek-cny-2026-08-01",
+                "pricing_snapshot_date": "2026-08-01",
+                "pricing_source_url": "https://api-docs.deepseek.com/zh-cn/quick_start/pricing/"
+              },
+              "attempts": 1,
+              "http_status": 200,
+              "estimated_max_cost_cny_per_attempt": "0.022185",
+              "conservative_unverified_cost_cny": "0",
+              "settled_cost_cny": "0.010119",
+              "attempt_outcomes": [
+                "success"
+              ],
+              "failure_code": null
+            },
+            {
+              "request_id": "run-6b1c620ab382743d5ae9:drafting:1",
+              "requested_model": "deepseek-v4-pro",
+              "actual_model": "deepseek-v4-pro",
+              "request_body_sha256": "23e612d296070b4bae276fd7c10513e5027de4e4669f0c382f4675f1c20a8f08",
+              "response_id": "44ca275a-4874-4568-96e5-84759b35ac4c",
+              "created": 1785603938,
+              "system_fingerprint": "fp_9954b31ca7_prod0820_fp8_kvcache_20260402",
+              "finish_reason": "stop",
+              "usage": {
+                "prompt_tokens": 432,
+                "prompt_cache_hit_tokens": 256,
+                "prompt_cache_miss_tokens": 176,
+                "completion_tokens": 1276,
+                "reasoning_tokens": 1034,
+                "total_tokens": 1708,
+                "raw_usage_json": "{\"completion_tokens\":1276,\"completion_tokens_details\":{\"reasoning_tokens\":1034},\"prompt_cache_hit_tokens\":256,\"prompt_cache_miss_tokens\":176,\"prompt_tokens\":432,\"prompt_tokens_details\":{\"cached_tokens\":256},\"total_tokens\":1708}",
+                "exact_cost_cny": "0.0081904",
+                "cost_basis": "reported_cache_split",
+                "pricing_snapshot_id": "deepseek-cny-2026-08-01",
+                "pricing_snapshot_date": "2026-08-01",
+                "pricing_source_url": "https://api-docs.deepseek.com/zh-cn/quick_start/pricing/"
+              },
+              "attempts": 1,
+              "http_status": 200,
+              "estimated_max_cost_cny_per_attempt": "0.019224",
+              "conservative_unverified_cost_cny": "0",
+              "settled_cost_cny": "0.0081904",
+              "attempt_outcomes": [
+                "success"
+              ],
+              "failure_code": null
+            }
+          ]
+        },
+        {
+          "binding": "research_revision+reviewer",
+          "provider_name": "deepseek",
+          "model_name": "deepseek-v4-pro",
+          "model_version": "DeepSeek-V4-Pro",
+          "provider_audit_available": true,
+          "http_attempts": 1,
+          "settled_cost_cny": "0.009351",
+          "records": [
+            {
+              "request_id": "run-6b1c620ab382743d5ae9:review:reviewer:1:1",
+              "requested_model": "deepseek-v4-pro",
+              "actual_model": "deepseek-v4-pro",
+              "request_body_sha256": "4f30ea4f5d0120b62ee8a50de56a4852efdcdcb77b910d1cb471e82738687714",
+              "response_id": "45261e78-7693-4e90-abf6-736f647fb369",
+              "created": 1785603958,
+              "system_fingerprint": "fp_9954b31ca7_prod0820_fp8_kvcache_20260402",
+              "finish_reason": "stop",
+              "usage": {
+                "prompt_tokens": 1483,
+                "prompt_cache_hit_tokens": 0,
+                "prompt_cache_miss_tokens": 1483,
+                "completion_tokens": 817,
+                "reasoning_tokens": 728,
+                "total_tokens": 2300,
+                "raw_usage_json": "{\"completion_tokens\":817,\"completion_tokens_details\":{\"reasoning_tokens\":728},\"prompt_cache_hit_tokens\":0,\"prompt_cache_miss_tokens\":1483,\"prompt_tokens\":1483,\"prompt_tokens_details\":{\"cached_tokens\":0},\"total_tokens\":2300}",
+                "exact_cost_cny": "0.009351",
+                "cost_basis": "reported_cache_split",
+                "pricing_snapshot_id": "deepseek-cny-2026-08-01",
+                "pricing_snapshot_date": "2026-08-01",
+                "pricing_source_url": "https://api-docs.deepseek.com/zh-cn/quick_start/pricing/"
+              },
+              "attempts": 1,
+              "http_status": 200,
+              "estimated_max_cost_cny_per_attempt": "0.030078",
+              "conservative_unverified_cost_cny": "0",
+              "settled_cost_cny": "0.009351",
+              "attempt_outcomes": [
+                "success"
+              ],
+              "failure_code": null
+            }
+          ]
+        }
+      ],
+      "retrieval_reused": true
+    }
+  ],
+  "result_sha256": "7e0e47360e0f0a4820d0c884f5056aa01f3990e331e436053835cbac76d7c4d8",
+  "hash_policy": "real_run_full_content_integrity_not_deterministic_replay",
+  "provider_budget_policy": "shared paid-run ceiling is enforced by caller-supplied providers"
+}

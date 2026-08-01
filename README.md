@@ -26,6 +26,22 @@ VetResearch Workbench 基于 VetEvidence AI v0.1，把科研问题、可核查�
   调用、Token 和模型 API 费用均为 0。它仍会使用本机 CPU、磁盘和人工复核；
   SQLite 正文当前没有静态加密。
 
+### v0.7：隔离的 LLM Agent 评测链
+
+- 已实现 DeepSeek V4 Provider、受限的 Research Agent，以及只读的 Evidence
+  Reviewer；它们用于开发者评测，不进入上面的免费默认工作台；
+- Research Agent 只能调用 PubMed、本地 RAG、FICI、生长曲线和报告五类严格参数
+  工具，不能执行 Shell、任意文件路径或任意网络请求；
+- 每条生成式声明必须保留适用范围、来源 ID、切片 ID 和原文引句；无充分证据时
+  必须拒答。Reviewer 只能检查同一份检索结果，不能偷偷重搜或加入新证据；
+- 27 题 Fake 合同烟测只验证编排、预算、审计和单／双 Agent 对比是否接通，
+  `Fake` 不是 LLM，分数不能写成模型效果；
+- 已在明确费用上限下用 DeepSeek V4 Pro 运行五个合成代表场景：同题规则
+  `3/5`、真实单 Agent `4/5`、真实双 Agent `4/5`。首测暴露 `TOOL-02` 多路规划
+  与 Reviewer 可见性缺陷，修复后的单题复测中单／双 Agent 均通过；两轮累计
+  17 次模型调用、实际费用 `¥0.0765120`；
+- 即使完全不配置 `DEEPSEEK_API_KEY`，免费规则和本地关键词检索仍可正常使用。
+
 ### VetResearch Workbench v0.6
 
 - 只提供 OpenMM 8.5.2 的单重复、30 步 `technical_smoke`：核验已参数化
@@ -469,10 +485,26 @@ v0.7 阶段 3A 建立了可替换 Provider 契约和本地 SQLite 检索，并�
 零模型 API 费用的本地索引、
 来源哈希和评测链可复跑；不能写成“语义 RAG 已有效”。因此工作台默认使用
 关键词模式，另外两种只作为实验入口。完整口径见
-[v0.7 本地 RAG 离线基线](docs/V0.7_RAG_EVALUATION.md)。真实 DeepSeek、
-本地大模型、Research Agent 和 Codex／MCP 入口仍未接入。没有 Key 的用户可以
-使用现有规则、导入材料和本地检索；实时 PubMed 获取仍需要可用网络，但不产生
-模型 API 费用。
+[v0.7 本地 RAG 离线基线](docs/V0.7_RAG_EVALUATION.md)。隔离的 DeepSeek
+Provider、Research Agent 和 Evidence Reviewer 已实现并完成受控真实小样本
+评测，但仍不进入 Streamlit 免费路径。没有 Key 的用户可以使用现有规则、导入
+材料和本地检索；实时 PubMed 获取仍需要可用网络，但不产生模型 API 费用。
+
+27 题零费用 Agent 合同烟测可复跑：
+
+```powershell
+.\.venv\Scripts\python.exe scripts\run_v07_agent_evaluation.py --check-baseline
+```
+
+该 Fake 基线为规则 `20/27`、单 Agent `17/27`、双 Agent `17/27`，真实模型
+调用、网络、Token 和 API 费用均为 0。Fake 不是 LLM，这些分数只能检查工程
+合同，不能表示 DeepSeek 效果。真实五题首测为规则 `3/5`、单／双 Agent
+`4/5`；修复后仅复测原失败的 `TOOL-02`，该题单／双均通过。由于其余四题没有
+在修复后的版本重跑，两份报告不拼成正式 `5/5`。真实模式可先用
+`--provider deepseek --dry-run` 查看调用上限；只有同时给出题目、
+`--confirm-paid-run`、正数 `--max-cost-cny` 和环境变量 Key，程序才可能发出请求。
+完整结果、费用和边界见
+[v0.7 Agent 评测说明](docs/V0.7_AGENT_EVALUATION.md)。
 
 ## 数据与审计
 
@@ -504,6 +536,7 @@ v0.7 阶段 3A 建立了可替换 Provider 契约和本地 SQLite 检索，并�
 - [评测报告](docs/EVALUATION.md)
 - [v0.7 规则基线评测](docs/V0.7_EVALUATION.md)
 - [v0.7 本地 RAG 离线基线](docs/V0.7_RAG_EVALUATION.md)
+- [v0.7 Agent 评测说明](docs/V0.7_AGENT_EVALUATION.md)
 - [演示脚本](docs/DEMO_SCRIPT.md)
 - [简历证据](docs/RESUME_EVIDENCE.md)
 - [面试讲解](docs/INTERVIEW_GUIDE.md)
@@ -555,6 +588,8 @@ Vina 时仍可生成任务清单；未提供 PyMOL/PLIP 时仍可下载 PML、�
 - 直接文献证据规则宁可漏报也不误报：要求同一题名或摘要句明确出现研究对象、两种干预、交互指标和结果；仅描述 checkerboard、time-kill 或 FICI 方法与阈值不构成结果证据，缩写、同义词或跨句表达可能需要人工复核；
 - 合成演示数据只用于验证计算和页面流程，不得进入科研结论；
 - 规则提取无法覆盖所有摘要表达方式，冲突检测也只识别显式方向差异；
-- 系统不训练或微调模型，不使用多 Agent 框架、向量数据库或复杂权限系统；
+- 系统不训练或微调模型，不使用第三方多 Agent 框架、向量数据库或复杂权限
+  系统；隔离评测中的 Research／Reviewer 是代码内显式、有限状态的双角色流程，
+  不是开放式自治多 Agent 系统；
 - 当前仅面向可信的单用户本机运行；完整运行 ID 在本机恢复流程中相当于访问凭证，不适合直接用于共享部署；
 - 决策报告必须人工复核，不能替代全文核查、原始数据审计或验证性实验。

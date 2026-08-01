@@ -2,13 +2,96 @@
 
 ## 当前阶段
 
-VetResearch Workbench v0.7 阶段 2 和阶段 3A 第一批已通过三平台 CI。阶段 3A
-第二批已在本地把“规则＋本地检索”接入 Streamlit 文献页，形成没有模型 Key
-也能操作的免费基本闭环。当前没有接入或调用 DeepSeek、本地大模型、
-Codex／MCP、真实 LLM 单 Agent 或双 Agent；建立索引和检索的网络、真实模型
-调用、Token、外部动作与模型 API 费用均为 0。本批提交 `6e908e8` 已推送并通过
-远端三平台 CI，阶段 3A 免费基本路径至此关闭。孙奇本人从零安装、讲解、修改
-和排错验收继续延期到 GitHub 工程状态稳定后，不作为当前门禁。
+VetResearch Workbench v0.7 的免费规则＋本地关键词检索路径保持不变；没有模型
+Key 的用户仍可使用。隔离的 DeepSeek V4 Provider、有限状态 Research Agent
+和只读 Evidence Reviewer 已在本地实现，27 题 Fake 合同烟测及单／双 Agent
+同源对比已固化。Fake 不是 LLM，只证明工程链路。经大壮单独批准后，已完成
+DeepSeek V4 Pro 五题首测；首测暴露的 `TOOL-02` 多路规划与 Reviewer 可见性
+缺陷已修复，并完成该题真实定向复测。两轮累计 17 次模型调用，实际费用
+`¥0.0765120`。最终本地回归、文档收口和安全复核均已通过；当前停在 GitHub
+提交推送的单独确认点，代码尚未提交或推送。孙奇本人从零安装、讲解、修改和排错验收继续延期到 GitHub
+工程状态稳定后，不作为当前门禁。
+
+## 2026-08-02 v0.7 DeepSeek 五题首测与 TOOL-02 定向复测（本地已完成）
+
+### 真实首测
+
+- [x] 使用 `deepseek-v4-pro` 跑 `DIR-01`、`NONE-01`、`INJ-01`、`SCOPE-01`、
+  `TOOL-02` 五个合成工程场景；共享费用硬上限 `¥3`。
+- [x] 首次报告为
+  `data/eval/v0.7/results/agent_deepseek_deepseek-v4-pro_20260801T164712078981Z.json`，
+  结果 SHA-256 为
+  `f3a4e0d5b74548b12765f5cb981c4b670066f5afa5f525a2f1471a4f9afc654d`。
+- [x] 同五题规则 `3/5`，真实单 Agent `4/5`，真实双 Agent `4/5`；14 次模型
+  调用与 14 次 HTTP 尝试全部成功，输入／输出／推理 Token 为
+  `7,286 / 5,324 / 4,468`，实际费用 `¥0.0488516`。
+- [x] Reviewer 五题均批准，增加 `¥0.017358`，没有改变单 Agent 的 `4/5`。
+  `TOOL-02` 只规划并执行一路，Recall `1/2`，且 Reviewer 因看不到计划与工具
+  状态而错误批准；首次失败结果原样保留，没有覆盖或修改。
+
+### 缺陷修复与定向复测
+
+- [x] 规划规则改为：用户明确要求多路独立检索时拆成最多三项，一路失败不得
+  取消后续计划；没有读取 gold、预期答案或冻结批次数量来补计划。
+- [x] Reviewer 现在读取同一份已验证计划、白名单化工具摘要、规范化错误码和
+  完整工具轨迹哈希；正文、locator、失败消息、任意输出、本机路径及伪造模式名
+  不能通过摘要进入 Reviewer。
+- [x] 定向复测只运行 `TOOL-02`，报告为
+  `data/eval/v0.7/results/agent_deepseek_deepseek-v4-pro_20260801T170517725369Z.json`，
+  结果 SHA-256 为
+  `7e0e47360e0f0a4820d0c884f5056aa01f3990e331e436053835cbac76d7c4d8`。
+- [x] 工具状态为“成功—失败—成功”，保留两个成功来源，失败批次 1，
+  `partial_results_preserved=true`，Recall `2/2`；单／双 Agent 均通过，Reviewer
+  明确看见失败路线后批准。
+- [x] 定向复测 3 次模型调用、3 次 HTTP 尝试，输入／输出／推理 Token 为
+  `2,602 / 3,436 / 2,953`，实际费用 `¥0.0276604`。两轮累计 17 次调用、费用
+  `¥0.0765120`，远低于批准上限。
+- [x] 两份真实结果均通过结构与敏感信息扫描。其余四题没有在修复版上重跑，
+  因此不把两份不同版本的报告拼成正式 `5/5`；合成 gold 仍待领域专家复核。
+- [x] Agent 专项 `76 passed`；全量收集 `603` 项，执行
+  `602 passed, 1 skipped`。规则、RAG、Agent 三套基线匹配，Python 编译、
+  `pip check`、`git diff --check` 和最终只读安全复核全部通过，无剩余高、中等级
+  问题。没有继续调用模型或产生新费用。
+
+## 2026-08-01 v0.7 真实 Agent 代码与零费用合同烟测（本地已完成）
+
+### 本批交付契约
+
+- [x] 实现 DeepSeek V4 Pro／Flash Provider：固定官方 HTTPS 地址，默认预算为
+  0，只在真实 `generate()` 时读取 `DEEPSEEK_API_KEY`；Key 不进入审计、结果
+  或日志。请求／响应身份、Token、Decimal 费用、重试与失败均可追溯。
+- [x] 实现有限状态 Research Agent：每题最多 3 个计划项、4 次工具调用、
+  2 次正常模型调用和 1 次结构修复重试；只允许 PubMed、本地 RAG、FICI、
+  生长曲线和报告工具，不接受 Shell、任意路径或任意 URL。
+- [x] 实现 Evidence Reviewer：只读同一份 Research 状态、草稿、证据账本和
+  工具轨迹；不能重新检索或加入新证据。未批准结果只公开安全拒答或人工复核。
+- [x] 每条生成声明必须带适用范围、来源 ID、切片 ID 和原文引句；无证据时
+  拒答。单／双 Agent 共用一次 Research 运行和四个共享哈希，费用不重复计算。
+- [x] 27 题 Provider 可见输入使用中性来源别名；gold、case 分类、评分词、
+  `SYN-*` 和原始测试 URL 只留在评分器侧，不送给模型。
+- [x] 新增安全 CLI：默认只跑零费用 Fake；DeepSeek 必须显式选题、确认付费、
+  给出正数人民币上限并配置 Key。dry-run 不读 Key、不构造 Provider、不联网；
+  一个共享费用上限覆盖 Research、Reviewer 和 Revision。
+
+### 基线、验证与边界
+
+- Fake 基线：规则 `20/27`、单 Agent `17/27`、双 Agent `17/27`；稳定结果
+  SHA-256 为 `f3f7ac99fb2b333fbd06d7875f26e7a16c33c9ea0f62cd681a8682dd9c1c3330`。
+  Fake Reviewer 固定批准，因此单／双无提升是合同烟测设计，不代表 DeepSeek。
+- Fake 单／双共同指标：Recall@3 `5/5`、Citation Precision `3/5`、Unsupported
+  Claim Rate `2/5`、Abstention Accuracy `15/25`、Task Completion `27/27`。
+- 这份 Fake 基线自身的真实模型调用、HTTP 尝试、Token、网络动作与模型 API
+  费用均为 0；gold 仍是 `engineering_gold_pending_domain_expert_review`，不能
+  外推为科研正确率。
+- 审查发现“全量 Fake＋自定义输出路径”可能覆盖已有文件后已修复：只有默认
+  版本化 Fake 基线可刷新，所有显式输出路径均拒绝覆盖；哨兵回归测试通过。
+  最终只读审查没有剩余高、中等级问题。
+- Agent 相关审查集 `107 passed`；本地全量收集 `597` 项，执行结果
+  `596 passed, 1 skipped`。规则、RAG、Agent 三套基线复跑匹配；Python 编译、
+  `pip check` 与 `git diff --check` 通过。
+- 本节约定的后续门禁是：只用 `deepseek-v4-pro` 跑 5 个代表场景，通常 15 次、
+  所有修复走满最多 35 次，共享费用硬上限 `¥3`。该门禁已取得大壮单独确认并于
+  2026-08-02 执行，结果见上节。
 
 ## 2026-08-01 v0.7 阶段 3A 第二批免费工作台路径（本地已完成）
 

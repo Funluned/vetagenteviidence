@@ -9,6 +9,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
 def test_required_delivery_artifacts_exist() -> None:
     required_paths = [
+        ".gitattributes",
         "Dockerfile",
         ".dockerignore",
         "docs/PRD.md",
@@ -74,6 +75,17 @@ def test_required_delivery_artifacts_exist() -> None:
         if not (PROJECT_ROOT / path).is_file()
     ]
     assert missing == []
+
+
+def test_sha256_pinned_3dmol_asset_disables_git_eol_conversion() -> None:
+    attributes = (PROJECT_ROOT / ".gitattributes").read_text(encoding="utf-8")
+    rules = {
+        line.partition("#")[0].strip()
+        for line in attributes.splitlines()
+        if line.partition("#")[0].strip()
+    }
+
+    assert "src/vetevidence/assets/vendor/3dmol/3Dmol.es6-min.js -text" in rules
 
 
 def test_dockerfile_has_runtime_and_health_contracts() -> None:

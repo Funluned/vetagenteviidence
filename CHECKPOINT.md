@@ -8,9 +8,10 @@ Key 的用户仍可使用。隔离的 DeepSeek V4 Provider、有限状态 Resear
 同源对比已固化。Fake 不是 LLM，只证明工程链路。经大壮单独批准后，已完成
 DeepSeek V4 Pro 五题首测；首测暴露的 `TOOL-02` 多路规划与 Reviewer 可见性
 缺陷已修复，并完成该题真实定向复测。两轮累计 17 次模型调用，实际费用
-`¥0.0765120`。最终本地回归、文档收口和安全复核均已通过；当前停在 GitHub
-提交推送的单独确认点，代码尚未提交或推送。孙奇本人从零安装、讲解、修改和排错验收继续延期到 GitHub
-工程状态稳定后，不作为当前门禁。
+`¥0.0765120`。最终本地回归、文档收口和安全复核均已通过。功能提交
+`cb819f32eb8eb1d00898e89229e6fc181a89eb35` 已推送，远端 SHA 与本地一致；
+GitHub Actions `30710480196` 三平台全绿。本批远端工程收口完成。孙奇本人从零
+安装、讲解、修改和排错验收继续延期，不作为当前门禁。
 
 ## 2026-08-02 v0.7 DeepSeek 五题首测与 TOOL-02 定向复测（本地已完成）
 
@@ -52,6 +53,11 @@ DeepSeek V4 Pro 五题首测；首测暴露的 `TOOL-02` 多路规划与 Reviewe
   `602 passed, 1 skipped`。规则、RAG、Agent 三套基线匹配，Python 编译、
   `pip check`、`git diff --check` 和最终只读安全复核全部通过，无剩余高、中等级
   问题。没有继续调用模型或产生新费用。
+- [x] 功能提交 `cb819f3` 已非强制推送至 `codex/vetresearch-workbench`；远端
+  SHA 与本地一致。GitHub Actions
+  [`30710480196`](https://github.com/Funluned/vetagenteviidence/actions/runs/30710480196)
+  全绿：Ubuntu `600 passed, 3 skipped`、Windows `599 passed, 4 skipped`、
+  macOS `600 passed, 3 skipped`。
 
 ## 2026-08-01 v0.7 真实 Agent 代码与零费用合同烟测（本地已完成）
 

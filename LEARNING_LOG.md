@@ -688,9 +688,15 @@ python -m venv .venv
 - 首次五题报告和定向复测报告均不可覆盖并通过结构、Key、授权头和本机路径
   扫描。其余四题没有在修复版本上重跑，所以不把两份不同版本报告拼成正式
   `5/5`；合成 gold 仍是 `engineering_gold_pending_domain_expert_review`。
-- 本轮没有继续调用其他 22 题，也没有把 Key 写进仓库、结果或日志。代码和两份
-  结果尚未提交、推送或触发远端 CI；GitHub 推送仍需大壮另行确认。
+- 本轮没有继续调用其他 22 题，也没有把 Key 写进仓库、结果或日志。经大壮另行
+  确认后，代码、文档、Fake 基线和两份脱敏结果以功能提交 `cb819f3` 非强制推送；
+  远端 SHA 与本地一致。
 - 最终 Agent 专项 `76 passed`；全量收集 `603` 项，执行
   `602 passed, 1 skipped in 29.14s`。规则、RAG、Agent 三套基线匹配，编译、
   `pip check`、`git diff --check`、结果结构校验、通用敏感标记扫描和 Key 精确
   扫描全部通过；最终只读复核没有剩余高、中等级问题。
+- GitHub Actions
+  [`30710480196`](https://github.com/Funluned/vetagenteviidence/actions/runs/30710480196)
+  三平台全绿：Ubuntu `600 passed, 3 skipped`、Windows `599 passed, 4 skipped`、
+  macOS `600 passed, 3 skipped`。这证明干净检出后的基础依赖、编译和自动测试
+  可复现，仍不扩大为科研正确性或真实用户验收。

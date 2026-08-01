@@ -439,6 +439,21 @@ v0.7 阶段 2 另有一套独立的离线产品评测：27 个合成场景按九
 规则伪装成 100% 通过。口径与逐题差距见
 [v0.7 规则基线评测](docs/V0.7_EVALUATION.md)。
 
+v0.7 阶段 3A 的第一批离线底座另外建立了可替换 Provider 契约和本地 SQLite
+混合检索。它不需要 API Key，不访问网络，也不调用真实 LLM 或 Embedding
+服务：
+
+```powershell
+.\.venv\Scripts\python.exe scripts\run_v07_rag_baseline.py --check-baseline
+```
+
+同一标签知情固定候选池内的排序 Recall@3 为：关键词 `4/5`、本地特征哈希
+向量 `2/5`、混合 `3/5`。因此当前向量基线反而比关键词少命中 1 条，只证明
+零模型 API 费用的本地索引、
+来源哈希和评测链可复跑；不能写成“语义 RAG 已有效”。完整口径见
+[v0.7 本地 RAG 离线基线](docs/V0.7_RAG_EVALUATION.md)。真实 DeepSeek、
+本地大模型、Research Agent 和 Codex／MCP 入口仍未接入。
+
 ## 数据与审计
 
 - PubMed 题录和摘要来自 [NCBI Entrez Programming Utilities](https://www.ncbi.nlm.nih.gov/books/NBK25501/)；
@@ -466,6 +481,7 @@ v0.7 阶段 2 另有一套独立的离线产品评测：27 个合成场景按九
 - [真实正负验收案例](docs/REAL_CASES.md)
 - [评测报告](docs/EVALUATION.md)
 - [v0.7 规则基线评测](docs/V0.7_EVALUATION.md)
+- [v0.7 本地 RAG 离线基线](docs/V0.7_RAG_EVALUATION.md)
 - [演示脚本](docs/DEMO_SCRIPT.md)
 - [简历证据](docs/RESUME_EVIDENCE.md)
 - [面试讲解](docs/INTERVIEW_GUIDE.md)

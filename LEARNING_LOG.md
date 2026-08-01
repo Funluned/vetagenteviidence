@@ -524,3 +524,41 @@ python -m venv .venv
 - GitHub Actions [`30698205011`](https://github.com/Funluned/vetagenteviidence/actions/runs/30698205011)
   全绿：Ubuntu `447 passed, 3 skipped`，Windows `446 passed, 4 skipped`，
   macOS `447 passed, 3 skipped`。阶段 2 至此关闭，阶段 3 仍须另行确认。
+
+## 2026-08-01：v0.7 阶段 3A 第一批零模型 API 费用离线底座
+
+### 产品与架构判断
+
+- “用户一分钱不花也能用”首先要由不依赖 API Key 或订阅的基本路径保证，
+  不能依赖项目作者的个人 DeepSeek Key、Codex 订阅或替所有用户承担调用费。
+- 第一批只建立可替换 Provider 契约、Fake LLM、本地特征哈希和 SQLite 检索，
+  不提前接入真实模型。这样可先验证审计、溯源、缓存边界和评测链，模型以后
+  作为可选增强替换，不会绑死基本功能。
+- 本地检索的优势是材料不必上传云向量库、没有模型查询费或月租、可离线复跑；
+  代价是占用本机 CPU／磁盘、当前普通 SQLite 没有静态加密，也没有多用户高并发
+  和进程级 Provider 断网沙箱。
+
+### 评测复盘
+
+- 初版评测把 `Title:` 同时写入 canonical content，BM25 又额外拼接 `title`，
+  导致标题被重复计权，而向量只看 content，三种模式比较口径不一致。
+- 修正为关键词与向量都只使用调用方明确选择的 canonical content 后，结果从
+  关键词／哈希向量／混合 `3/5`、`2/5`、`3/5` 变为 `4/5`、`2/5`、`3/5`。
+  真实结论是混合比关键词少命中 1 条；不调权重、不改 gold，也不宣传向量增益。
+- 4 题候选池由本题 gold 与统一硬负例构造，因此指标只能称为固定候选池内排序
+  Recall@3，不能外推成端到端文献召回或通用 RAG 准确率。
+
+### 安全、费用与验证边界
+
+- 每条来源与切片保留稳定标识、字段位置、版本、授权范围和 SHA-256；来源清单、
+  切片清单、向量字节、数据清单、实现与结果形成可校验链。
+- 固定评测不读 `expected.json`，测试会封锁环境变量、socket 与 HTTP；注入样本
+  只保留为 `untrusted_evidence` 数据，不会触发文件、Shell、网络或工具动作。
+- 本批真实模型调用、Token 与模型 API 费用为 0；本地哈希 `embed()` 仍会运行，
+  并依赖 Python、Pydantic、CPU、磁盘和 SQLite，不能把它写成“完全零依赖”。
+- 内置 Provider 的离线行为已测试；自定义 Provider 的 `network_used` 是契约声明，
+  不能冒充系统级网络沙箱。真实 DeepSeek 接入前还需补齐响应身份、完整请求哈希、
+  价格快照、Decimal／整数微单位费用、HTTP／重试和结构化工具调用审计。
+- Provider、本地 RAG 与固定评测专项 `31 passed`；新 RAG 快照与阶段 2 规则快照
+  的复跑校验均通过。全量回归 `480 passed, 1 skipped`，Python 编译、依赖与
+  Git 差异检查通过；本批尚未推送或获得三平台 CI 结果。

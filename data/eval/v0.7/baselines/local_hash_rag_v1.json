@@ -1,0 +1,674 @@
+{
+  "schema_version": "1.0",
+  "report_version": "local_hash_rag_v1",
+  "dataset_version": "v0.7.0",
+  "cases_sha256": "119ff99d18be270d1306d5cb1ea77defd53430ad98823dcf3dc451435081ae6c",
+  "retrieval_manifest_sha256": "bb00a27a69206f6acb7016fd5d71b9e6bcdcbd2aba360753f192e1bb3a30372a",
+  "retrieval_k": 3,
+  "system": {
+    "provider": "local_hash_rag_v1",
+    "implementation_sha256": "8b0d9fa2ac7bd833f0a8ebda96e9bdbc6c90dd57d95a71796ce1e42bc81d3ae7",
+    "embedding_provider_name": "deterministic_hash_embedding",
+    "embedding_model_name": "feature-hash-v1",
+    "embedding_model_version": "1.0",
+    "embedding_dimensions": 256,
+    "embedding_fake": true,
+    "llm_enabled": false,
+    "network_calls": 0,
+    "model_calls": 0,
+    "real_model_calls": 0,
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "llm_api_cost_cny": 0.0,
+    "llm_api_cost_usd": 0.0,
+    "external_actions": 0
+  },
+  "summary": {
+    "case_count": 4,
+    "passed_cases": 3,
+    "failed_cases": 1,
+    "evaluation_errors": 0,
+    "retrieval_recall_at_3": {
+      "numerator": 3,
+      "denominator": 5,
+      "value": 0.6,
+      "case_ids": [
+        "DIR-01",
+        "DIR-02",
+        "DIR-03",
+        "TOOL-02"
+      ]
+    },
+    "slices": {
+      "semantic_direct": {
+        "numerator": 3,
+        "denominator": 3,
+        "value": 1.0,
+        "case_ids": [
+          "DIR-01",
+          "DIR-02",
+          "DIR-03"
+        ]
+      },
+      "resilience_partial": {
+        "numerator": 0,
+        "denominator": 2,
+        "value": 0.0,
+        "case_ids": [
+          "TOOL-02"
+        ]
+      }
+    },
+    "retrieval_modes": {
+      "keyword_only": {
+        "retrieval_recall_at_3": {
+          "numerator": 4,
+          "denominator": 5,
+          "value": 0.8,
+          "case_ids": [
+            "DIR-01",
+            "DIR-02",
+            "DIR-03",
+            "TOOL-02"
+          ]
+        },
+        "slices": {
+          "semantic_direct": {
+            "numerator": 3,
+            "denominator": 3,
+            "value": 1.0,
+            "case_ids": [
+              "DIR-01",
+              "DIR-02",
+              "DIR-03"
+            ]
+          },
+          "resilience_partial": {
+            "numerator": 1,
+            "denominator": 2,
+            "value": 0.5,
+            "case_ids": [
+              "TOOL-02"
+            ]
+          }
+        }
+      },
+      "hash_vector_only": {
+        "retrieval_recall_at_3": {
+          "numerator": 2,
+          "denominator": 5,
+          "value": 0.4,
+          "case_ids": [
+            "DIR-01",
+            "DIR-02",
+            "DIR-03",
+            "TOOL-02"
+          ]
+        },
+        "slices": {
+          "semantic_direct": {
+            "numerator": 2,
+            "denominator": 3,
+            "value": 0.6666666666666666,
+            "case_ids": [
+              "DIR-01",
+              "DIR-02",
+              "DIR-03"
+            ]
+          },
+          "resilience_partial": {
+            "numerator": 0,
+            "denominator": 2,
+            "value": 0.0,
+            "case_ids": [
+              "TOOL-02"
+            ]
+          }
+        }
+      },
+      "hybrid": {
+        "retrieval_recall_at_3": {
+          "numerator": 3,
+          "denominator": 5,
+          "value": 0.6,
+          "case_ids": [
+            "DIR-01",
+            "DIR-02",
+            "DIR-03",
+            "TOOL-02"
+          ]
+        },
+        "slices": {
+          "semantic_direct": {
+            "numerator": 3,
+            "denominator": 3,
+            "value": 1.0,
+            "case_ids": [
+              "DIR-01",
+              "DIR-02",
+              "DIR-03"
+            ]
+          },
+          "resilience_partial": {
+            "numerator": 0,
+            "denominator": 2,
+            "value": 0.0,
+            "case_ids": [
+              "TOOL-02"
+            ]
+          }
+        }
+      }
+    }
+  },
+  "results": [
+    {
+      "id": "DIR-01",
+      "slice": "semantic_direct",
+      "query_sha256": "da8bc034d237055768f1b8a425b0b4ec20849b1ad4b825843e4285ea5d4ddea8",
+      "candidate_source_ids": [
+        "SYN-CTX-01",
+        "SYN-CTX-02",
+        "SYN-CTX-03",
+        "SYN-DIR-01",
+        "SYN-DIR-01-DECOY",
+        "SYN-HIT-01",
+        "SYN-HIT-02",
+        "SYN-HIT-03",
+        "SYN-INJ-01",
+        "SYN-INJ-02",
+        "SYN-NONE-02",
+        "SYN-NONE-03"
+      ],
+      "candidate_count": 12,
+      "gold_relevant_ids": [
+        "SYN-DIR-01"
+      ],
+      "retrieved_source_ids": [
+        "SYN-HIT-01",
+        "SYN-DIR-01",
+        "SYN-INJ-02"
+      ],
+      "hit_source_ids": [
+        "SYN-DIR-01"
+      ],
+      "recall_at_3": {
+        "numerator": 1,
+        "denominator": 1,
+        "value": 1.0,
+        "case_ids": [
+          "DIR-01"
+        ]
+      },
+      "retrieval_modes": {
+        "keyword_only": {
+          "retrieved_source_ids": [
+            "SYN-HIT-01",
+            "SYN-DIR-01",
+            "SYN-CTX-01"
+          ],
+          "hit_source_ids": [
+            "SYN-DIR-01"
+          ],
+          "recall_at_3": {
+            "numerator": 1,
+            "denominator": 1,
+            "value": 1.0,
+            "case_ids": [
+              "DIR-01"
+            ]
+          }
+        },
+        "hash_vector_only": {
+          "retrieved_source_ids": [
+            "SYN-INJ-02",
+            "SYN-HIT-03",
+            "SYN-HIT-01"
+          ],
+          "hit_source_ids": [],
+          "recall_at_3": {
+            "numerator": 0,
+            "denominator": 1,
+            "value": 0.0,
+            "case_ids": [
+              "DIR-01"
+            ]
+          }
+        },
+        "hybrid": {
+          "retrieved_source_ids": [
+            "SYN-HIT-01",
+            "SYN-DIR-01",
+            "SYN-INJ-02"
+          ],
+          "hit_source_ids": [
+            "SYN-DIR-01"
+          ],
+          "recall_at_3": {
+            "numerator": 1,
+            "denominator": 1,
+            "value": 1.0,
+            "case_ids": [
+              "DIR-01"
+            ]
+          }
+        }
+      },
+      "passed": true,
+      "failed_retrieval_batch_count": 0,
+      "preserved_success_source_ids": [
+        "SYN-DIR-01",
+        "SYN-DIR-01-DECOY"
+      ],
+      "index_manifest": {
+        "schema_version": 1,
+        "chunker_version": "fixed-char-v1",
+        "chunk_size": 10000,
+        "overlap_chars": 0,
+        "source_count": 12,
+        "chunk_count": 12,
+        "source_manifest_sha256": "5adb1fb6d0921c05915ce80d0ed9587f8b8ac209b8fa9e9e90d61a49784eb3eb",
+        "chunk_manifest_sha256": "689a2a2ad50fbb03f09c466e1e5f37dd2fa89f406acc304dc0f687b5f669b642",
+        "embedding_bytes_sha256": "28602e0606e2138ab13bde19f21c3bbd5b7057f48c79a8bc2c62e3536a31ec39",
+        "embedding_provider_name": "deterministic_hash_embedding",
+        "embedding_model_name": "feature-hash-v1",
+        "embedding_model_version": "1.0",
+        "embedding_dimensions": 256,
+        "embedding_fake": true,
+        "embedding_network_used": false
+      },
+      "evidence_role": "untrusted_evidence",
+      "network_calls": 0,
+      "model_calls": 0,
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "llm_api_cost_cny": 0.0,
+      "llm_api_cost_usd": 0.0,
+      "external_actions": 0
+    },
+    {
+      "id": "DIR-02",
+      "slice": "semantic_direct",
+      "query_sha256": "1262c8ad86a9c89dc89725a345f24f0ea07430fe37070c92b5963276dbc3862a",
+      "candidate_source_ids": [
+        "SYN-CTX-01",
+        "SYN-CTX-02",
+        "SYN-CTX-03",
+        "SYN-DIR-01-DECOY",
+        "SYN-DIR-02",
+        "SYN-HIT-01",
+        "SYN-HIT-02",
+        "SYN-HIT-03",
+        "SYN-INJ-01",
+        "SYN-INJ-02",
+        "SYN-NONE-02",
+        "SYN-NONE-03"
+      ],
+      "candidate_count": 12,
+      "gold_relevant_ids": [
+        "SYN-DIR-02"
+      ],
+      "retrieved_source_ids": [
+        "SYN-DIR-02",
+        "SYN-HIT-01",
+        "SYN-INJ-02"
+      ],
+      "hit_source_ids": [
+        "SYN-DIR-02"
+      ],
+      "recall_at_3": {
+        "numerator": 1,
+        "denominator": 1,
+        "value": 1.0,
+        "case_ids": [
+          "DIR-02"
+        ]
+      },
+      "retrieval_modes": {
+        "keyword_only": {
+          "retrieved_source_ids": [
+            "SYN-DIR-02",
+            "SYN-HIT-01",
+            "SYN-HIT-02"
+          ],
+          "hit_source_ids": [
+            "SYN-DIR-02"
+          ],
+          "recall_at_3": {
+            "numerator": 1,
+            "denominator": 1,
+            "value": 1.0,
+            "case_ids": [
+              "DIR-02"
+            ]
+          }
+        },
+        "hash_vector_only": {
+          "retrieved_source_ids": [
+            "SYN-DIR-02",
+            "SYN-INJ-02",
+            "SYN-INJ-01"
+          ],
+          "hit_source_ids": [
+            "SYN-DIR-02"
+          ],
+          "recall_at_3": {
+            "numerator": 1,
+            "denominator": 1,
+            "value": 1.0,
+            "case_ids": [
+              "DIR-02"
+            ]
+          }
+        },
+        "hybrid": {
+          "retrieved_source_ids": [
+            "SYN-DIR-02",
+            "SYN-HIT-01",
+            "SYN-INJ-02"
+          ],
+          "hit_source_ids": [
+            "SYN-DIR-02"
+          ],
+          "recall_at_3": {
+            "numerator": 1,
+            "denominator": 1,
+            "value": 1.0,
+            "case_ids": [
+              "DIR-02"
+            ]
+          }
+        }
+      },
+      "passed": true,
+      "failed_retrieval_batch_count": 0,
+      "preserved_success_source_ids": [
+        "SYN-DIR-02"
+      ],
+      "index_manifest": {
+        "schema_version": 1,
+        "chunker_version": "fixed-char-v1",
+        "chunk_size": 10000,
+        "overlap_chars": 0,
+        "source_count": 12,
+        "chunk_count": 12,
+        "source_manifest_sha256": "4a11e93376697ad870cc39c248ba16f68ba5d74893955b12ecbfe18e8b8c97e6",
+        "chunk_manifest_sha256": "6f9ac025b56b47d81ee4155d6616b49fd5c8daebb36add49a41458a720dbf76a",
+        "embedding_bytes_sha256": "4f2c5deb350c6da624855cf08e0a1a1a098a02e873b65aeacf9ab54bdd899053",
+        "embedding_provider_name": "deterministic_hash_embedding",
+        "embedding_model_name": "feature-hash-v1",
+        "embedding_model_version": "1.0",
+        "embedding_dimensions": 256,
+        "embedding_fake": true,
+        "embedding_network_used": false
+      },
+      "evidence_role": "untrusted_evidence",
+      "network_calls": 0,
+      "model_calls": 0,
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "llm_api_cost_cny": 0.0,
+      "llm_api_cost_usd": 0.0,
+      "external_actions": 0
+    },
+    {
+      "id": "DIR-03",
+      "slice": "semantic_direct",
+      "query_sha256": "4eee5a35b6f5e2c0416e46a3c07fbf4fb079b54c6f21716eebfde794970db034",
+      "candidate_source_ids": [
+        "SYN-CTX-01",
+        "SYN-CTX-02",
+        "SYN-CTX-03",
+        "SYN-DIR-01-DECOY",
+        "SYN-DIR-03",
+        "SYN-HIT-01",
+        "SYN-HIT-02",
+        "SYN-HIT-03",
+        "SYN-INJ-01",
+        "SYN-INJ-02",
+        "SYN-NONE-02",
+        "SYN-NONE-03"
+      ],
+      "candidate_count": 12,
+      "gold_relevant_ids": [
+        "SYN-DIR-03"
+      ],
+      "retrieved_source_ids": [
+        "SYN-HIT-01",
+        "SYN-DIR-03",
+        "SYN-HIT-03"
+      ],
+      "hit_source_ids": [
+        "SYN-DIR-03"
+      ],
+      "recall_at_3": {
+        "numerator": 1,
+        "denominator": 1,
+        "value": 1.0,
+        "case_ids": [
+          "DIR-03"
+        ]
+      },
+      "retrieval_modes": {
+        "keyword_only": {
+          "retrieved_source_ids": [
+            "SYN-HIT-01",
+            "SYN-DIR-03",
+            "SYN-CTX-01"
+          ],
+          "hit_source_ids": [
+            "SYN-DIR-03"
+          ],
+          "recall_at_3": {
+            "numerator": 1,
+            "denominator": 1,
+            "value": 1.0,
+            "case_ids": [
+              "DIR-03"
+            ]
+          }
+        },
+        "hash_vector_only": {
+          "retrieved_source_ids": [
+            "SYN-HIT-03",
+            "SYN-DIR-03",
+            "SYN-INJ-02"
+          ],
+          "hit_source_ids": [
+            "SYN-DIR-03"
+          ],
+          "recall_at_3": {
+            "numerator": 1,
+            "denominator": 1,
+            "value": 1.0,
+            "case_ids": [
+              "DIR-03"
+            ]
+          }
+        },
+        "hybrid": {
+          "retrieved_source_ids": [
+            "SYN-HIT-01",
+            "SYN-DIR-03",
+            "SYN-HIT-03"
+          ],
+          "hit_source_ids": [
+            "SYN-DIR-03"
+          ],
+          "recall_at_3": {
+            "numerator": 1,
+            "denominator": 1,
+            "value": 1.0,
+            "case_ids": [
+              "DIR-03"
+            ]
+          }
+        }
+      },
+      "passed": true,
+      "failed_retrieval_batch_count": 0,
+      "preserved_success_source_ids": [
+        "SYN-DIR-03"
+      ],
+      "index_manifest": {
+        "schema_version": 1,
+        "chunker_version": "fixed-char-v1",
+        "chunk_size": 10000,
+        "overlap_chars": 0,
+        "source_count": 12,
+        "chunk_count": 12,
+        "source_manifest_sha256": "421ca2a5684b40c1a7266ac1aca59f586720f0565e70cbba42803f069e584af4",
+        "chunk_manifest_sha256": "ec71ac233bb0ea6cfdb867285988d1bd90e519d4ec9af2952c892cc26fa7f9cf",
+        "embedding_bytes_sha256": "8359003950df574e9a9b80a18098b9c36ab9688d6965b6ad4b18db376e673650",
+        "embedding_provider_name": "deterministic_hash_embedding",
+        "embedding_model_name": "feature-hash-v1",
+        "embedding_model_version": "1.0",
+        "embedding_dimensions": 256,
+        "embedding_fake": true,
+        "embedding_network_used": false
+      },
+      "evidence_role": "untrusted_evidence",
+      "network_calls": 0,
+      "model_calls": 0,
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "llm_api_cost_cny": 0.0,
+      "llm_api_cost_usd": 0.0,
+      "external_actions": 0
+    },
+    {
+      "id": "TOOL-02",
+      "slice": "resilience_partial",
+      "query_sha256": "ee32d55ca4de738aa889ca73062e5fe565ead391d8731b95f9385ac57fe0642b",
+      "candidate_source_ids": [
+        "SYN-CTX-01",
+        "SYN-CTX-02",
+        "SYN-CTX-03",
+        "SYN-DIR-01-DECOY",
+        "SYN-HIT-01",
+        "SYN-HIT-02",
+        "SYN-HIT-03",
+        "SYN-INJ-01",
+        "SYN-INJ-02",
+        "SYN-NONE-02",
+        "SYN-NONE-03",
+        "SYN-TOOL-02-A",
+        "SYN-TOOL-02-C"
+      ],
+      "candidate_count": 13,
+      "gold_relevant_ids": [
+        "SYN-TOOL-02-A",
+        "SYN-TOOL-02-C"
+      ],
+      "retrieved_source_ids": [
+        "SYN-HIT-01",
+        "SYN-HIT-03",
+        "SYN-INJ-02"
+      ],
+      "hit_source_ids": [],
+      "recall_at_3": {
+        "numerator": 0,
+        "denominator": 2,
+        "value": 0.0,
+        "case_ids": [
+          "TOOL-02"
+        ]
+      },
+      "retrieval_modes": {
+        "keyword_only": {
+          "retrieved_source_ids": [
+            "SYN-HIT-01",
+            "SYN-CTX-01",
+            "SYN-TOOL-02-A"
+          ],
+          "hit_source_ids": [
+            "SYN-TOOL-02-A"
+          ],
+          "recall_at_3": {
+            "numerator": 1,
+            "denominator": 2,
+            "value": 0.5,
+            "case_ids": [
+              "TOOL-02"
+            ]
+          }
+        },
+        "hash_vector_only": {
+          "retrieved_source_ids": [
+            "SYN-HIT-03",
+            "SYN-INJ-02",
+            "SYN-INJ-01"
+          ],
+          "hit_source_ids": [],
+          "recall_at_3": {
+            "numerator": 0,
+            "denominator": 2,
+            "value": 0.0,
+            "case_ids": [
+              "TOOL-02"
+            ]
+          }
+        },
+        "hybrid": {
+          "retrieved_source_ids": [
+            "SYN-HIT-01",
+            "SYN-HIT-03",
+            "SYN-INJ-02"
+          ],
+          "hit_source_ids": [],
+          "recall_at_3": {
+            "numerator": 0,
+            "denominator": 2,
+            "value": 0.0,
+            "case_ids": [
+              "TOOL-02"
+            ]
+          }
+        }
+      },
+      "passed": false,
+      "failed_retrieval_batch_count": 1,
+      "preserved_success_source_ids": [
+        "SYN-TOOL-02-A",
+        "SYN-TOOL-02-C"
+      ],
+      "index_manifest": {
+        "schema_version": 1,
+        "chunker_version": "fixed-char-v1",
+        "chunk_size": 10000,
+        "overlap_chars": 0,
+        "source_count": 13,
+        "chunk_count": 13,
+        "source_manifest_sha256": "672843b12f28e9d3559bc34f2135634a3dbff25683ce7b9903f10883f2b79911",
+        "chunk_manifest_sha256": "40bfece56b72444ef2a0a7b30074281e81a16e26246fe9f4e89ebf62ec0be54d",
+        "embedding_bytes_sha256": "5caa9e9f34a3ce69be6d59c72b8bf51c09c367b92043d8494de4052a906aad2f",
+        "embedding_provider_name": "deterministic_hash_embedding",
+        "embedding_model_name": "feature-hash-v1",
+        "embedding_model_version": "1.0",
+        "embedding_dimensions": 256,
+        "embedding_fake": true,
+        "embedding_network_used": false
+      },
+      "evidence_role": "untrusted_evidence",
+      "network_calls": 0,
+      "model_calls": 0,
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "llm_api_cost_cny": 0.0,
+      "llm_api_cost_usd": 0.0,
+      "external_actions": 0
+    }
+  ],
+  "deterministic_result_sha256": "bc4fc059a72c81b8a7b74cb32d7ba659aca4c9fea6d1c14889b6de1e535dabae",
+  "boundaries": [
+    "四题全部来自 v0.7.0 合成工程夹具，不是科研证据或通用检索准确率。",
+    "semantic_direct 切片衡量三条直接证据；resilience_partial 切片衡量 TOOL-02 两条成功分支，不能写成纯向量排序收益。",
+    "候选池由本题 gold 与同一组硬负例固定构造；每题候选数大于 K=3，因此这里只衡量标签知情候选池内排序，不是端到端文献召回。",
+    "DeterministicHashEmbeddingProvider 是离线特征哈希假 Provider，不是训练模型或真实语义 Embedding。",
+    "同一候选池结果：keyword-only 4/5，hash-vector-only 2/5，hybrid 3/5；hybrid 相对 keyword 命中变化 -1，不得据此暗示 hash vector 有效。",
+    "内置固定评测不读取 expected.json、环境变量或 API Key，不联网、不调用真实模型，Token 与模型 API 费用均为零；本地特征哈希 embed() 会运行，但不属于真实模型调用。",
+    "零联网保证只覆盖内置 DeterministicHashEmbeddingProvider 和固定评测；LocalRAGIndex 对自定义 Provider 的 network_used 只是契约校验，不是进程级断网沙箱。",
+    "零新增模型/API/云向量库依赖不等于零运行条件；仍需要 Python、Pydantic、本机 CPU、磁盘和 SQLite 文件写入。",
+    "所有索引正文均是不可信证据数据；文档中的提示或 SYSTEM 字样没有执行权限。"
+  ]
+}

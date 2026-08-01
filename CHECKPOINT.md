@@ -2,13 +2,52 @@
 
 ## 当前阶段
 
-VetResearch Workbench v0.7 阶段 2 已完成：独立版本化的 27 题离线评测集、
-理想产品金标准、七项固定指标、评分运行器和 `rules_v1` 快照已经落盘并可复跑。
-阶段提交 `b61d742` 已推送至 `codex/vetresearch-workbench`，GitHub Actions
-运行 `30698205011` 的 Ubuntu、Windows、macOS 三平台均通过。
-当前停在阶段 3 开始前；真实 LLM、RAG、单 Agent 与双 Agent 尚未实现或调用。
+VetResearch Workbench v0.7 阶段 2 已完成并通过三平台 CI。阶段 3A 第一批
+“零模型 API 费用离线底座”已在本地实现：可替换 Provider 契约、内置 Fake
+LLM、本地特征哈希 Embedding、SQLite 关键词／向量／混合检索、来源与索引
+哈希链，以及固定候选池内排序 Recall@3 基线均可复跑。当前尚未把这条路径接入
+Streamlit 主流程，也没有接入或调用 DeepSeek、本地大模型、Codex／MCP、真实
+LLM 单 Agent 或双 Agent；本批次网络、真实模型调用、Token 与模型 API 费用均为 0。
 孙奇本人从零安装、讲解、修改和排错验收已按决定延期到 GitHub 工程状态稳定后，
 不作为当前门禁。
+
+## 2026-08-01 v0.7 阶段 3A 第一批离线 Provider／RAG 基线（本地已完成）
+
+### 本批交付契约
+
+- [x] 定义可替换 LLM／Embedding Provider 契约；默认 Fake 实现不读环境变量、
+  API Key 或网络，不调用真实模型。
+- [x] 使用本地 SQLite 保存来源、切片与向量；支持 BM25、精确余弦、混合排序
+  和元数据过滤，不引入云向量库、模型订阅或查询费。
+- [x] 来源与切片保留 PMID／DOI、字段位置、版本、授权范围和 SHA-256；来源、
+  切片、向量字节、实现和结果快照均可校验。
+- [x] 所有检索正文标记为 `untrusted_evidence`；注入文本只作数据，不获得
+  Shell、文件、网络或工具执行权。
+- [x] 用阶段 2 中明确带 `gold_relevant_ids` 的 4 题、5 个 gold 和统一 11 个
+  硬负例建立固定候选池内排序 Recall@3；不读取 `expected.json`，不把标签、
+  case ID、URL 或上下文写入查询／正文。
+- [x] 冻结评测测试会封锁环境变量与网络访问；全批真实模型调用、Token、
+  模型 API 费用和外部动作均为 0。
+
+### 基线结果与边界
+
+- 关键词 `4/5`，本地特征哈希向量 `2/5`，混合 `3/5`；混合相对关键词少
+  命中 1 条，因此不得声称“向量带来增益”或“语义 RAG 已有效”。
+- 评测候选池由 gold 与硬负例构造，只衡量标签知情固定候选池内排序，不是
+  端到端文献检索召回，也不是通用 RAG 准确率。
+- 内置特征哈希会在本机 CPU 上执行 `embed()`，但不是训练模型或真实模型调用。
+  “零新增模型/API/云向量库依赖”仍需要 Python、Pydantic、CPU、磁盘和 SQLite。
+- 离线保证覆盖仓库内置 Provider；自定义 Provider 的 `network_used` 只是接口
+  契约，不是进程级断网沙箱。SQLite 正文当前为本机普通文件，没有静态加密。
+- 本批只完成底层契约、索引和冻结评测，尚未形成用户可操作的完整 Agent。
+
+### 本批验证
+
+- Provider、本地 RAG 与冻结评测专项：`31 passed`。
+- 新旧两套 v0.7 快照 `--check-baseline` 均通过；阶段 2 规则基线保持 `20/27`。
+- 本地全量回归：`480 passed, 1 skipped`；Python 编译、`pip check` 与
+  `git diff --check` 均通过。
+- 本批尚未推送，远端三平台 CI 尚未触发，不能把本地结果表述为阶段 3A 已关闭。
 
 ## 2026-08-01 v0.7 阶段 2 评测集与规则基线（已完成）
 

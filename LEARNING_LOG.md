@@ -446,3 +446,27 @@ python -m venv .venv
 - `.codex-run-venv` 缺少 pytest，首次命令没有执行测试；随后使用仓库现有 `.venv` 完成验证，没有把环境错误记为功能失败或通过。
 - 全量测试说明当前自动化测试未发现回归，但不证明真实界面、外部服务、科研结论、用户价值或商业价值。
 - 按本人要求仅保留本地提交，不推送 GitHub。
+
+## 2026-08-01：v0.7 阶段 1 跨平台修复与三系统 CI
+
+### 范围决定
+
+- 本阶段只收口审计确认的跨平台失败、三系统 CI 和执行记录，不提前实现 LLM、RAG、单 Agent 或双 Agent。
+- 孙奇本人从零安装、讲解、修改和排错验收延期到 GitHub 工程状态稳定后，不作为当前工程验收门禁。
+- 付费模型、敏感数据、PR、Release 和仓库设置均不在本阶段授权范围内。
+
+### 修复与失败复盘
+
+- POSIX 假可执行文件测试夹具必须显式设置执行位；生产端 `X_OK` 拒绝逻辑应保留，并用不可执行负例证明没有弱化安全检查。
+- provenance 文件名不能依赖当前宿主系统的路径语义；`ntpath.basename` 可同时收敛 Windows、POSIX、UNC 与混合分隔符，再由既有安全规则处理空值、点段、NUL 和长度。
+- 首次三系统 CI 中 Ubuntu 与 macOS 通过，Windows 唯一失败是固定 SHA-256 的 vendored 3Dmol 资产被 `core.autocrlf=true` 改变检出字节：哈希由 `95513f64…6d427` 变为 `38630fd5…9011`。
+- 这不是测试期望错误，也不应更新固定哈希掩盖问题。通过对该资产设置精确 `.gitattributes` `-text` 规则，修复后的干净 Windows clone 保持 `w/lf attr/-text` 和原始固定哈希。
+- 本机测试通过不等于干净 clone 或其他 runner 通过；固定字节资产必须同时验证 Git blob、工作树属性和 clean-clone 哈希。
+
+### 验证结果与边界
+
+- 最终本地全量：`441 passed, 1 skipped in 23.66s`；依赖、编译和 Git 差异检查通过。
+- 远端 CI [`30695477003`](https://github.com/Funluned/vetagenteviidence/actions/runs/30695477003) 全绿：Ubuntu `439 passed, 3 skipped`，Windows `438 passed, 4 skipped`，macOS `439 passed, 3 skipped`。
+- 原生 HTTPS push 连续遇到连接重置后，使用 GitHub Git Data API 上传与本地对象 SHA 完全一致的非强制提交并推进同一分支；更新前再次核对远端 tip，没有改写历史。
+- 三系统全绿证明当前依赖安装、编译和自动测试集在三套 runner 上通过，不证明真实外部工具、科研结论或用户验收。
+- 阶段 1 已关闭；下一步应先建立独立版本化评测集并保存规则基线，未经新一阶段确认不开始实现或调用模型。

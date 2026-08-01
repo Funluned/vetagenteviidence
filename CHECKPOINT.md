@@ -2,11 +2,37 @@
 
 ## 当前阶段
 
-VetResearch Workbench v0.6 已完成受控 OpenMM 技术烟测：v0.5 分子对接科研
-链已提交并推送；当前 MD 范围严格固定为 OpenMM 8.5.2 单重复 30 步
-`technical_smoke`，只验证已参数化体系、后台任务、checkpoint/resume 和
-真实温度/势能健康检查，不宣称科研级 NVT/NPT、production、轨迹稳定性或
-自由能。
+VetResearch Workbench v0.7 阶段 1 已完成：跨平台路径与 POSIX 执行权限修复、
+固定哈希资产的跨系统检出保护，以及 Ubuntu／Windows／macOS Python 3.11
+全量 CI 均已通过。当前停在阶段 2 评测集设计与规则基线固化开始前；真实
+LLM、RAG、单 Agent 与双 Agent 尚未实现或调用。孙奇本人从零安装、讲解、
+修改和排错验收已按决定延期到 GitHub 工程状态稳定后，不作为当前门禁。
+
+## 2026-08-01 v0.7 阶段 1 跨平台修复与三系统 CI（已完成）
+
+### 本阶段交付契约
+
+- [x] 保留生产端对外部可执行文件的 POSIX `X_OK` 安全检查，只修正测试夹具权限，并增加不可执行负例。
+- [x] provenance 文件名归一化不依赖宿主系统，覆盖 Windows、POSIX、UNC 与混合分隔符。
+- [x] Ubuntu、Windows、macOS 使用 Python 3.11 执行依赖安装、编译检查与全量 pytest。
+- [x] SHA-256 固定的 vendored 资产在 Windows clone 中保持原始字节，不用弱化哈希断言换取通过。
+- [x] 不提前加入真实 LLM、RAG 或 Agent 代码，不调用付费模型或外部敏感数据。
+
+### 修改与验证证据
+
+- 功能与 CI 提交：`b8dd513 修复跨平台测试并建立三系统 CI`。
+- 首次 CI 仅 Windows 因 Git 自动换行转换导致固定资产 SHA-256 不一致；Ubuntu 与 macOS 已通过，业务测试没有跨平台逻辑失败。
+- 收口提交：`003e2e0 固定哈希资产的跨平台检出字节`，通过 `.gitattributes` 的精确 `-text` 规则保护 vendored 资产，并新增项目制品回归。
+- 修复前干净 Windows clone 将工作树哈希从 `95513f64…6d427` 改为 `38630fd5…9011`；修复后保持 `w/lf attr/-text` 且哈希与固定值一致。
+- 最终本地全量回归：`441 passed, 1 skipped in 23.66s`；`pip check`、Python 编译检查和 `git diff --check` 通过。
+- 远端 CI [`30695477003`](https://github.com/Funluned/vetagenteviidence/actions/runs/30695477003) 全绿：Ubuntu `439 passed, 3 skipped`，Windows `438 passed, 4 skipped`，macOS `439 passed, 3 skipped`。
+- 全量自动测试只证明当前测试集与三套 runner 未发现回归，不证明真实外部工具、科研结论、用户价值或商业价值。
+
+### 当前边界
+
+- 阶段 1 已关闭；下一阶段是独立版本化评测集和规则基线，不在本阶段改动范围内。
+- 当前 Provider 仍是规则实现，PubMed 流程仍不是混合检索 RAG，现有 Agent 仍是受控顺序工作流。
+- 没有创建或合并 PR、发布 Release、修改仓库设置，也没有触发付费模型调用。
 
 ## 2026-08-01 结局指标重复输入校验（已完成）
 
@@ -331,7 +357,7 @@ VetResearch Workbench v0.6 已完成受控 OpenMM 技术烟测：v0.5 分子对�
   还需确认机构许可；GeneCards、MalaCards 与 SwissTargetPrediction 的内容
   真实性依赖用户对导入材料来源的声明，系统当前不独立向上游验证。
 - 尚未录制演示视频，也未获准进行公开部署。
-- 仍需孙奇亲自完成一次从零启动、完整垂直案例讲解和一次核心流程小修改。
+- 孙奇本人从零启动、完整垂直案例讲解、核心流程小修改和排错验收已延期到 GitHub 工程状态稳定后，不作为 v0.7 当前工程阶段的阻塞项。
 
 ## 多数据库批次检索与下载（已完成）
 

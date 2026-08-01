@@ -561,4 +561,6 @@ python -m venv .venv
   价格快照、Decimal／整数微单位费用、HTTP／重试和结构化工具调用审计。
 - Provider、本地 RAG 与固定评测专项 `31 passed`；新 RAG 快照与阶段 2 规则快照
   的复跑校验均通过。全量回归 `480 passed, 1 skipped`，Python 编译、依赖与
-  Git 差异检查通过；本批尚未推送或获得三平台 CI 结果。
+  Git 差异检查通过。功能提交 `b09fa77` 已按确认推送；GitHub Actions
+  `30702625775` 全绿：Ubuntu `478 passed, 3 skipped`，Windows
+  `477 passed, 4 skipped`，macOS `478 passed, 3 skipped`。

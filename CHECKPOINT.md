@@ -47,7 +47,11 @@ LLM 单 Agent 或双 Agent；本批次网络、真实模型调用、Token 与模
 - 新旧两套 v0.7 快照 `--check-baseline` 均通过；阶段 2 规则基线保持 `20/27`。
 - 本地全量回归：`480 passed, 1 skipped`；Python 编译、`pip check` 与
   `git diff --check` 均通过。
-- 本批尚未推送，远端三平台 CI 尚未触发，不能把本地结果表述为阶段 3A 已关闭。
+- 功能提交 `b09fa77` 已按确认推送至 `codex/vetresearch-workbench`；GitHub
+  Actions [`30702625775`](https://github.com/Funluned/vetagenteviidence/actions/runs/30702625775)
+  全绿：Ubuntu `478 passed, 3 skipped`，Windows `477 passed, 4 skipped`，
+  macOS `478 passed, 3 skipped`。阶段 3A 第一批已关闭，但整个阶段 3A 尚未关闭，
+  下一批仍需把免费路径接入工作台。
 
 ## 2026-08-01 v0.7 阶段 2 评测集与规则基线（已完成）
 

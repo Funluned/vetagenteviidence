@@ -7,7 +7,7 @@
   "retrieval_k": 3,
   "system": {
     "provider": "local_hash_rag_v1",
-    "implementation_sha256": "8b0d9fa2ac7bd833f0a8ebda96e9bdbc6c90dd57d95a71796ce1e42bc81d3ae7",
+    "implementation_sha256": "4099912e9991c73e1d2ec160aa5eb98af1fcac741d502d06d83a116fb5d8081a",
     "embedding_provider_name": "deterministic_hash_embedding",
     "embedding_model_name": "feature-hash-v1",
     "embedding_model_version": "1.0",
@@ -659,7 +659,7 @@
       "external_actions": 0
     }
   ],
-  "deterministic_result_sha256": "bc4fc059a72c81b8a7b74cb32d7ba659aca4c9fea6d1c14889b6de1e535dabae",
+  "deterministic_result_sha256": "739ebd078261ea7a9fdfafc78a424bf939ab37fbd5f31cc4a0f7009ee4f6ce8e",
   "boundaries": [
     "四题全部来自 v0.7.0 合成工程夹具，不是科研证据或通用检索准确率。",
     "semantic_direct 切片衡量三条直接证据；resilience_partial 切片衡量 TOOL-02 两条成功分支，不能写成纯向量排序收益。",

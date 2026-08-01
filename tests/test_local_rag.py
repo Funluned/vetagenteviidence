@@ -10,6 +10,7 @@ from pathlib import Path
 
 import pytest
 
+import vetevidence.local_rag as local_rag_module
 from vetevidence.agent_providers import DeterministicHashEmbeddingProvider
 from vetevidence.local_rag import (
     EVIDENCE_ROLE,
@@ -251,6 +252,35 @@ def test_sqlite_index_round_trips_and_is_atomically_replaced(
     restored.build([_source("replacement", "Replacement evidence only.")])
     assert [source.source_id for source in restored.sources()] == ["replacement"]
     assert list(path.parent.glob(f".{path.name}.*.tmp")) == []
+
+
+def test_sqlite_connection_closes_when_index_header_is_corrupt(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class BrokenConnection:
+        closed = False
+
+        def execute(self, _statement: str) -> None:
+            raise sqlite3.DatabaseError("corrupt SQLite header")
+
+        def close(self) -> None:
+            self.closed = True
+
+    path = tmp_path / "corrupt.sqlite3"
+    path.write_bytes(b"not-a-sqlite-database")
+    connection = BrokenConnection()
+    monkeypatch.setattr(
+        local_rag_module.sqlite3,
+        "connect",
+        lambda _path: connection,
+    )
+    index = LocalRAGIndex(path, DeterministicHashEmbeddingProvider())
+
+    with pytest.raises(sqlite3.DatabaseError, match="corrupt SQLite header"):
+        index.manifest()
+
+    assert connection.closed is True
 
 
 def test_prompt_injection_text_remains_untrusted_data(

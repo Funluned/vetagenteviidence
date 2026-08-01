@@ -73,6 +73,7 @@ from vetevidence.literature_import import (
     LiteratureImportResult,
     parse_literature_export,
 )
+from vetevidence.local_rag_ui import render_local_rag_workbench
 from vetevidence.licensed_connectors import (
     DrugBankConnector,
     OMIMConnector,
@@ -440,7 +441,7 @@ def record_computational_audit(
     error: str | None = None,
     metadata: dict[str, object] | None = None,
 ) -> None:
-    """Persist docking and MD actions in the active Agent audit trail."""
+    """Persist local retrieval and computational actions in the audit trail."""
 
     snapshot = current_snapshot()
     if snapshot is None:
@@ -3450,7 +3451,8 @@ st.set_page_config(
 
 st.title("VetResearch Workbench")
 st.caption(
-    "VetResearch Workbench v0.6 · 文献、实验、数据库证据、网络药理学、"
+    "VetResearch Workbench v0.7 · 免费规则与本地证据检索、文献、实验、"
+    "数据库证据、网络药理学、"
     "科研级分子对接、可编辑三维可视化、OpenMM 技术烟测与人工复核闭环"
 )
 st.warning(
@@ -3472,7 +3474,10 @@ with st.sidebar:
     st.caption(
         "当前版本仅支持可信的单用户本机运行，不具备共享部署所需的账号与对象授权。"
     )
-    st.caption("透明规则工作流，无需 LLM API Key。")
+    st.caption(
+        "免费核心已启用：透明规则＋本地证据检索，无需 LLM API Key，"
+        "模型 API 费用为 0。"
+    )
 
 (
     question_tab,
@@ -3891,6 +3896,21 @@ with literature_tab:
             )
             if imported.duplicates:
                 st.info(f"已排除 {len(imported.duplicates)} 条重复记录。")
+
+        st.divider()
+        validated_run_stem = RUN_STORE.path_for(snapshot.run_id).stem
+        render_local_rag_workbench(
+            run_id=snapshot.run_id,
+            research=snapshot.research,
+            imported=snapshot.literature_import,
+            conditions=snapshot.conditions,
+            index_path=(
+                RUN_STORE.root.parent
+                / "local-rag"
+                / f"{validated_run_stem}.sqlite3"
+            ),
+            audit_callback=record_computational_audit,
+        )
 
 with experiment_tab:
     snapshot = current_snapshot()

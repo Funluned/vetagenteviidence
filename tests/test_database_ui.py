@@ -120,6 +120,16 @@ def test_database_ui_is_single_source_and_switches_rcsb_modes(
 ) -> None:
     app = _create_research_task(tmp_path, monkeypatch)
 
+    assert any(
+        header.value == "本地证据检索（免费模式）"
+        for header in app.header
+    )
+    local_rag_build = _element_with_key_prefix(
+        app.button,
+        "local-rag-build-",
+    )
+    assert local_rag_build.disabled is True
+
     source = _element_with_key_prefix(
         app.selectbox,
         "database-source-",

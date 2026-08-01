@@ -533,13 +533,16 @@ class LocalRAGIndex:
         if not self.path.is_file():
             raise FileNotFoundError(self.path)
         connection = sqlite3.connect(self.path)
-        connection.execute("PRAGMA foreign_keys = ON")
-        user_version = connection.execute("PRAGMA user_version").fetchone()[0]
-        if user_version != INDEX_SCHEMA_VERSION:
+        try:
+            connection.execute("PRAGMA foreign_keys = ON")
+            user_version = connection.execute("PRAGMA user_version").fetchone()[0]
+            if user_version != INDEX_SCHEMA_VERSION:
+                raise ValueError(
+                    f"不支持的本地 RAG 索引版本：{user_version}。"
+                )
+        except BaseException:
             connection.close()
-            raise ValueError(
-                f"不支持的本地 RAG 索引版本：{user_version}。"
-            )
+            raise
         return connection
 
     def manifest(self) -> IndexManifest:

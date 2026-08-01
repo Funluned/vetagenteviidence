@@ -6,9 +6,9 @@ VetResearch Workbench v0.7 阶段 2 和阶段 3A 第一批已通过三平台 CI�
 第二批已在本地把“规则＋本地检索”接入 Streamlit 文献页，形成没有模型 Key
 也能操作的免费基本闭环。当前没有接入或调用 DeepSeek、本地大模型、
 Codex／MCP、真实 LLM 单 Agent 或双 Agent；建立索引和检索的网络、真实模型
-调用、Token、外部动作与模型 API 费用均为 0。本批尚未推送，远端三平台 CI
-需在大壮另行确认推送后验收。孙奇本人从零安装、讲解、修改和排错验收继续
-延期到 GitHub 工程状态稳定后，不作为当前门禁。
+调用、Token、外部动作与模型 API 费用均为 0。本批提交 `6e908e8` 已推送并通过
+远端三平台 CI，阶段 3A 免费基本路径至此关闭。孙奇本人从零安装、讲解、修改
+和排错验收继续延期到 GitHub 工程状态稳定后，不作为当前门禁。
 
 ## 2026-08-01 v0.7 阶段 3A 第二批免费工作台路径（本地已完成）
 
@@ -38,7 +38,11 @@ Codex／MCP、真实 LLM 单 Agent 或双 Agent；建立索引和检索的网络
   阻塞问题。
 - 本地 SQLite 正文仍是未加密普通文件；授权确认是用户声明，不是上游许可认证。
   当前只完成候选检索，不是真实语义 Embedding、生成式 RAG 或 LLM Agent。
-- 本批只完成本地修改和提交，不自动推送；推送与三平台 CI 需大壮另行确认。
+- 提交 `6e908e8` 已按确认非强制快进至 `codex/vetresearch-workbench`；本地、
+  远端提交和树 SHA 一致。GitHub Actions
+  [`30704650604`](https://github.com/Funluned/vetagenteviidence/actions/runs/30704650604)
+  全绿：Ubuntu `487 passed, 3 skipped`，Windows `486 passed, 4 skipped`，
+  macOS `487 passed, 3 skipped`。
 
 ## 2026-08-01 v0.7 阶段 3A 第一批离线 Provider／RAG 基线（本地已完成）
 

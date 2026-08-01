@@ -596,5 +596,8 @@ python -m venv .venv
   `pip check`、`git diff --check` 和规则／RAG 两套基线复跑通过。
 - 当前真实模型调用、Token、网络调用、外部动作和模型 API 费用均为 0；本地
   特征哈希仍使用 CPU，人工复核、电脑、电力和磁盘并非零成本。
-- 本批尚未推送。下一步先在大壮确认后推送并观察三平台 CI；通过后再单独设计
-  本地语义模型、DeepSeek BYOK 与真实 LLM 单 Agent，不把它们设为免费路径依赖。
+- 提交 `6e908e8` 已按确认以 `force=false` 推送，远端 SHA 与本地一致；GitHub
+  Actions `30704650604` 全绿：Ubuntu `487 passed, 3 skipped`，Windows
+  `486 passed, 4 skipped`，macOS `487 passed, 3 skipped`。阶段 3A 免费基本路径
+  关闭；下一步再单独设计本地语义模型、DeepSeek BYOK 与真实 LLM 单 Agent，
+  不把它们设为免费路径依赖。

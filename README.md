@@ -427,6 +427,18 @@ checkpoint/resume、资源与平台门禁、产物哈希和只允许真实温度
 
 评测结果写入 `data/eval/latest_results.json` 和 `docs/EVALUATION.md`。
 
+v0.7 阶段 2 另有一套独立的离线产品评测：27 个合成场景按九类边界各 3 题，
+输入、金标准、评分方法和 `rules_v1` 快照均已版本化。它不访问 PubMed、
+不调用 LLM，也不等同于旧版 30 条单查询字段回归或后续 RAG 召回评测：
+
+```powershell
+.\.venv\Scripts\python.exe scripts\run_v07_rule_baseline.py --check-baseline
+```
+
+规则基线允许失败；检查命令验证的是同一数据和实现能否稳定复现，而不是把现有
+规则伪装成 100% 通过。口径与逐题差距见
+[v0.7 规则基线评测](docs/V0.7_EVALUATION.md)。
+
 ## 数据与审计
 
 - PubMed 题录和摘要来自 [NCBI Entrez Programming Utilities](https://www.ncbi.nlm.nih.gov/books/NBK25501/)；
@@ -453,6 +465,7 @@ checkpoint/resume、资源与平台门禁、产物哈希和只允许真实温度
 - [期刊分区数据说明](docs/JOURNAL_RANKINGS.md)
 - [真实正负验收案例](docs/REAL_CASES.md)
 - [评测报告](docs/EVALUATION.md)
+- [v0.7 规则基线评测](docs/V0.7_EVALUATION.md)
 - [演示脚本](docs/DEMO_SCRIPT.md)
 - [简历证据](docs/RESUME_EVIDENCE.md)
 - [面试讲解](docs/INTERVIEW_GUIDE.md)

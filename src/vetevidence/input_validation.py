@@ -73,9 +73,19 @@ def validate_synergy_question_input(
     if not nonempty_outcomes:
         errors.append("至少填写一个预设结局指标。")
     else:
+        seen_outcomes: dict[str, str] = {}
         for value in nonempty_outcomes:
             if not _has_letter_or_number(value):
                 errors.append(
                     f"预设结局指标“{value.strip()}”必须包含文字或数字。"
                 )
+                continue
+            value_key = _compact(value)
+            if value_key in seen_outcomes:
+                errors.append(
+                    f"预设结局指标“{value.strip()}”与"
+                    f"“{seen_outcomes[value_key]}”重复，请合并后重试。"
+                )
+            else:
+                seen_outcomes[value_key] = value.strip()
     return errors

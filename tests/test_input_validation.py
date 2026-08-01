@@ -85,3 +85,18 @@ def test_unicode_and_hyphenated_names_remain_valid() -> None:
     )
 
     assert errors == []
+
+
+def test_duplicate_outcomes_are_rejected_after_normalization() -> None:
+    errors = validate_synergy_question_input(
+        question_text="Drug-A 与 Drug-B 对 target 是否协同？",
+        population="target",
+        intervention="Drug-A",
+        comparator="Drug-B",
+        outcomes=["FICI", "fici", "F-I-C-I"],
+    )
+
+    assert errors == [
+        "预设结局指标“fici”与“FICI”重复，请合并后重试。",
+        "预设结局指标“F-I-C-I”与“FICI”重复，请合并后重试。",
+    ]

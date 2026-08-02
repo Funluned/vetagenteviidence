@@ -864,3 +864,6 @@ python -m venv .venv
 - `TOOL-03` 首次草稿的 2048 output Token 全部被 reasoning 使用，随后真实消耗
   唯一 retry，以 4096 上限成功恢复。它证明有界截断恢复在真实 V4 Pro 上有效，
   同时仍保持“第二次失败就关闭”的费用和安全边界。
+- 功能提交 `4401e4910fa86243dcc00e358bc6bf1ac941865b` 已推送；GitHub Actions
+  `30738353459` 三平台全绿：Ubuntu `640 passed, 3 skipped`、Windows
+  `639 passed, 4 skipped`、macOS `640 passed, 3 skipped`。

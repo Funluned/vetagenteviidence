@@ -58,7 +58,11 @@ JSON Output 要求的字面量 `json` 而收到 HTTP 400；该确定性问题已
   0；精确费用 `¥0.0634410`。单／双 Agent 均为 `2/2`，Reviewer 均批准。
 - [x] `DIR-01` 首次草稿正常完成并引用直接证据；`TOOL-03` 命中 `source-001`，
   首次草稿在 2048 Token 截断，唯一一次 4096 有界恢复成功，未继续重试。
-- [ ] 当前改动、新 Fake 基线和三份本轮真实报告尚未提交或推送。
+- [x] 功能提交 `4401e4910fa86243dcc00e358bc6bf1ac941865b` 已推送至
+  `codex/vetresearch-workbench`；GitHub Actions
+  [`30738353459`](https://github.com/Funluned/vetagenteviidence/actions/runs/30738353459)
+  三平台全绿：Ubuntu `640 passed, 3 skipped`、Windows `639 passed, 4 skipped`、
+  macOS `640 passed, 3 skipped`。
 
 ## 2026-08-02 v0.7 Agent 零费用工程修复（本地已完成）
 

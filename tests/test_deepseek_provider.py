@@ -13,6 +13,9 @@ import vetevidence.deepseek_provider as deepseek_module
 from vetevidence.agent_providers import GenerationRequest, LLMProvider
 from vetevidence.deepseek_provider import (
     DEEPSEEK_CHAT_COMPLETIONS_URL,
+    DEEPSEEK_DEFAULT_TIMEOUT_SECONDS,
+    DEEPSEEK_MAX_TIMEOUT_SECONDS,
+    DEEPSEEK_MIN_TIMEOUT_SECONDS,
     DEEPSEEK_PRICING_SNAPSHOT,
     DEEPSEEK_PRICING_SNAPSHOT_ID,
     DeepSeekProvider,
@@ -132,6 +135,7 @@ def test_success_uses_official_endpoint_system_role_and_full_audit(
         "temperature": 0,
         "stream": False,
     }
+
     expected_body_json = json.dumps(
         captured_body,
         ensure_ascii=False,
@@ -151,6 +155,7 @@ def test_success_uses_official_endpoint_system_role_and_full_audit(
     assert audit.finish_reason == "stop"
     assert audit.http_status == 200
     assert audit.attempts == 1
+    assert audit.timeout_seconds == DEEPSEEK_DEFAULT_TIMEOUT_SECONDS
     assert audit.failure_code is None
     assert audit.usage is not None
     assert audit.usage.pricing_snapshot_id == DEEPSEEK_PRICING_SNAPSHOT_ID
@@ -160,6 +165,48 @@ def test_success_uses_official_endpoint_system_role_and_full_audit(
     assert budget.reserved_cny == 0
     assert secret not in repr(provider.audit_records)
     assert secret not in repr(response)
+
+
+def test_configured_timeout_is_used_by_httpx_and_recorded_in_audit(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("DEEPSEEK_API_KEY", "timeout-config-key")
+    configured_timeout = 75.5
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.extensions["timeout"] == {
+            "connect": configured_timeout,
+            "read": configured_timeout,
+            "write": configured_timeout,
+            "pool": configured_timeout,
+        }
+        return _json_response(request, _success_payload())
+
+    provider = DeepSeekProvider(
+        budget=DeepSeekRunBudget("1"),
+        transport=httpx.MockTransport(handler),
+        timeout_seconds=configured_timeout,
+    )
+
+    response = provider.generate(GenerationRequest(prompt="bounded timeout"))
+
+    assert response.succeeded is True
+    assert provider.last_audit is not None
+    assert provider.last_audit.timeout_seconds == configured_timeout
+
+
+@pytest.mark.parametrize(
+    "timeout_seconds",
+    [
+        DEEPSEEK_MIN_TIMEOUT_SECONDS - 0.1,
+        DEEPSEEK_MAX_TIMEOUT_SECONDS + 0.1,
+        float("nan"),
+        float("inf"),
+    ],
+)
+def test_provider_rejects_unbounded_timeout(timeout_seconds: float) -> None:
+    with pytest.raises(ValueError, match="between 30 and 300"):
+        DeepSeekProvider(timeout_seconds=timeout_seconds)
 
 
 def test_price_snapshot_uses_exact_decimal_cny_rates() -> None:

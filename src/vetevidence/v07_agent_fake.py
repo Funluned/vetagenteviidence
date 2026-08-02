@@ -10,6 +10,7 @@ token/cost usage.
 from __future__ import annotations
 
 import json
+import re
 from hashlib import sha256
 from typing import Any
 
@@ -245,6 +246,11 @@ class V07ContractSmokeProvider:
         if any(contains_prompt_injection(item.content) for item in ledger.items):
             return self._refusal("contract_smoke_untrusted_control_text")
 
+        conflict_draft = self._conflict_draft(ledger)
+        if conflict_draft is not None:
+            AgentDraft.model_validate(conflict_draft)
+            return _canonical_json(conflict_draft)
+
         evidence, quote = self._first_quotable_evidence(ledger)
         if evidence is None or quote is None:
             return self._refusal("contract_smoke_no_quotable_evidence")
@@ -343,6 +349,100 @@ class V07ContractSmokeProvider:
             if len(stripped) >= 8:
                 return evidence, stripped[:160]
         return None, None
+
+    @classmethod
+    def _conflict_draft(cls, ledger: EvidenceLedger) -> dict[str, Any] | None:
+        """Emit a generic contract-smoke conflict from provider-visible facts."""
+
+        for evidence in ledger.items:
+            if evidence.source_type != "frozen_experiment_summary":
+                continue
+            try:
+                summary = json.loads(evidence.content)
+            except json.JSONDecodeError:
+                continue
+            counts = summary.get("classification_counts")
+            if (
+                summary.get("analysis_type") == "fici"
+                and summary.get("conflict_detected") is True
+                and isinstance(counts, dict)
+                and isinstance(counts.get("synergy", 0), int)
+                and counts.get("synergy", 0) > 0
+                and isinstance(counts.get("antagonism", 0), int)
+                and counts.get("antagonism", 0) > 0
+            ):
+                quote = '"conflict_detected":true'
+                if quote not in evidence.content:
+                    continue
+                return cls._open_conflict_draft(
+                    ((evidence, quote),),
+                    text=(
+                        "The validated aggregate contains an open conflict: "
+                        "both synergy and antagonism classifications are present."
+                    ),
+                )
+
+        evidence_items = tuple(ledger.items)
+        opposing_patterns = (
+            (r"\bsynerg(?:y|ism|istic)\b", r"\bantagon(?:ism|istic)\b"),
+            (r"\bdecreas(?:e|ed|es|ing)\b", r"\bincreas(?:e|ed|es|ing)\b"),
+        )
+        for left_pattern, right_pattern in opposing_patterns:
+            for left in evidence_items:
+                left_quote = cls._quote_with_pattern(left.content, left_pattern)
+                if left_quote is None:
+                    continue
+                for right in evidence_items:
+                    if right is left:
+                        continue
+                    right_quote = cls._quote_with_pattern(right.content, right_pattern)
+                    if right_quote is not None:
+                        return cls._open_conflict_draft(
+                            ((left, left_quote), (right, right_quote)),
+                            text=(
+                                "The two cited frozen sources contain an open "
+                                "conflict; both opposing observations are retained."
+                            ),
+                        )
+        return None
+
+    @staticmethod
+    def _quote_with_pattern(content: str, pattern: str) -> str | None:
+        matches: list[str] = []
+        for segment in re.split(r"(?<=[.!?])\s+|\n+", content):
+            stripped = segment.strip()
+            if len(stripped) >= 8 and re.search(pattern, stripped, re.IGNORECASE):
+                matches.append(stripped[:240])
+        return matches[-1] if matches else None
+
+    @staticmethod
+    def _open_conflict_draft(
+        evidence_quotes: tuple[tuple[ToolEvidence, str], ...],
+        *,
+        text: str,
+    ) -> dict[str, Any]:
+        return {
+            "refusal": False,
+            "refusal_reason": None,
+            "claims": [
+                {
+                    "claim_id": "contract-smoke-open-conflict",
+                    "text": text,
+                    "scope": (
+                        "Contract-smoke only; the conflict remains open and is "
+                        "limited to the cited frozen evaluation evidence."
+                    ),
+                    "citations": [
+                        {
+                            "source_id": evidence.source_id,
+                            "chunk_id": evidence.chunk_id,
+                            "support_quote": quote,
+                        }
+                        for evidence, quote in evidence_quotes
+                    ],
+                }
+            ],
+        }
 
     @staticmethod
     def _refusal(reason: str) -> str:

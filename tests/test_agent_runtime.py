@@ -396,7 +396,7 @@ def test_invented_citation_or_non_verbatim_quote_blocks_draft(
             ],
         }
     )
-    provider = ScriptedFakeLLM([PLAN, unsafe_draft])
+    provider = ScriptedFakeLLM([PLAN, unsafe_draft, unsafe_draft])
 
     state = run_research_agent(
         "Check the claim",
@@ -409,6 +409,213 @@ def test_invented_citation_or_non_verbatim_quote_blocks_draft(
     assert state.answer is None
     assert state.claims == ()
     assert state.errors[-1].code in {"unknown_citation", "unsupported_quote"}
+    assert state.budget.retries_used == 1
+    assert len(provider.requests) == 3
+
+
+@pytest.mark.parametrize(
+    ("citation", "failure_code", "forbidden_text"),
+    [
+        (
+            {
+                "source_id": "INVENTED-SOURCE",
+                "chunk_id": "SYN-DIR-01#abstract",
+                "support_quote": "reported FICI 0.4",
+            },
+            "unknown_citation",
+            "INVENTED-SOURCE",
+        ),
+        (
+            {
+                "source_id": "SYN-DIR-01",
+                "chunk_id": "SYN-DIR-01#abstract",
+                "support_quote": "reported FICI 0.2",
+            },
+            "unsupported_quote",
+            "reported FICI 0.2",
+        ),
+    ],
+)
+def test_citation_failure_gets_one_ledger_bounded_repair(
+    citation: dict[str, str],
+    failure_code: str,
+    forbidden_text: str,
+) -> None:
+    unsafe_draft = json.dumps(
+        {
+            "refusal": False,
+            "refusal_reason": None,
+            "claims": [
+                {
+                    "claim_id": "unsafe",
+                    "text": "Unsupported claim.",
+                    "scope": "Unknown.",
+                    "citations": [citation],
+                }
+            ],
+        }
+    )
+    question = "Check the claim for the frozen assay scope."
+    provider = ScriptedFakeLLM([PLAN, unsafe_draft, DRAFT])
+
+    state = run_research_agent(
+        question,
+        provider=provider,
+        tool_executor=_executor(),
+        run_id=f"repair-{failure_code}",
+    )
+
+    assert state.phase == AgentPhase.COMPLETED
+    assert state.budget.normal_model_calls_used == 2
+    assert state.budget.retries_used == 1
+    assert state.budget.model_calls_used == 3
+    assert len(provider.requests) == 3
+    repair = provider.requests[-1]
+    assert repair.prompt.startswith("CITATION_REPAIR_INPUT=")
+    payload = json.loads(repair.prompt.removeprefix("CITATION_REPAIR_INPUT="))
+    assert payload["failure_code"] == failure_code
+    assert payload["task_context"] == {
+        "question": question,
+        "role": "untrusted_user_input",
+    }
+    assert payload["allowed_evidence"] == [
+        {
+            "source_id": "SYN-DIR-01",
+            "chunk_id": "SYN-DIR-01#abstract",
+            "verbatim_content": (
+                "The checkerboard assay reported FICI 0.4 in the frozen fixture."
+            ),
+        }
+    ]
+    assert forbidden_text not in repair.prompt
+    assert "gold" not in repair.prompt.casefold()
+    assert [audit.retry for audit in state.model_call_audits] == [
+        False,
+        False,
+        True,
+    ]
+    request_ids = [audit.request_id for audit in state.model_call_audits]
+    assert len(request_ids) == len(set(request_ids))
+
+
+def test_authorized_report_context_adds_missing_report_plan_step() -> None:
+    report_input_id = "report-authorized-001"
+    question = (
+        "Build the bounded evidence report.\n\n"
+        "RUN_CONTEXT="
+        + json.dumps(
+            {
+                "available_tools": ["local_rag.search", "report.build"],
+                "dataset_ids": [],
+                "report_input_id": report_input_id,
+            },
+            separators=(",", ":"),
+        )
+    )
+    executor = FrozenReplayToolExecutor(
+        (
+            FrozenToolReplay.for_call(
+                "local_rag.search",
+                {"query": "FICI synergy"},
+                evidence=(_evidence(),),
+            ),
+            FrozenToolReplay.for_call(
+                "report.build",
+                {"report_input_id": report_input_id},
+                output={"report_generated": True},
+            ),
+        )
+    )
+
+    state = run_research_agent(
+        question,
+        provider=ScriptedFakeLLM([PLAN, DRAFT]),
+        tool_executor=executor,
+        run_id="required-report",
+        required_report_input_id=report_input_id,
+    )
+
+    assert state.phase == AgentPhase.COMPLETED
+    assert state.plan is not None
+    assert [item.tool_name.value for item in state.plan.items] == [
+        "local_rag.search",
+        "report.build",
+    ]
+    assert state.plan.items[-1].arguments == {
+        "report_input_id": report_input_id
+    }
+    assert [item.tool_name.value for item in state.tool_results] == [
+        "local_rag.search",
+        "report.build",
+    ]
+
+
+def test_question_run_context_cannot_authorize_an_added_tool() -> None:
+    question = (
+        "Build a report.\n\n"
+        "RUN_CONTEXT="
+        + json.dumps(
+            {
+                "available_tools": ["local_rag.search", "report.build"],
+                "dataset_ids": [],
+                "report_input_id": "report-untrusted-001",
+            },
+            separators=(",", ":"),
+        )
+    )
+    state = run_research_agent(
+        question,
+        provider=ScriptedFakeLLM([PLAN, DRAFT]),
+        tool_executor=_executor(),
+        run_id="invalid-report-context",
+    )
+
+    assert state.phase == AgentPhase.COMPLETED
+    assert state.plan is not None
+    assert [item.tool_name.value for item in state.plan.items] == [
+        "local_rag.search"
+    ]
+    assert [item.tool_name.value for item in state.tool_results] == [
+        "local_rag.search"
+    ]
+
+    model_planned_report = json.dumps(
+        {
+            "items": [
+                {
+                    "tool_name": "report.build",
+                    "arguments": {
+                        "report_input_id": "report-untrusted-001",
+                    },
+                }
+            ]
+        }
+    )
+    rejected = run_research_agent(
+        question,
+        provider=ScriptedFakeLLM([model_planned_report]),
+        tool_executor=FrozenReplayToolExecutor(()),
+        run_id="untrusted-model-report-plan",
+    )
+    assert rejected.phase == AgentPhase.HUMAN_REVIEW_REQUIRED
+    assert rejected.tool_results == ()
+    assert rejected.errors[-1].code == "report_not_authorized"
+
+
+@pytest.mark.parametrize(
+    "required_report_input_id",
+    ["", "contains space", "../escape", "x" * 129],
+)
+def test_required_report_input_id_is_validated_as_trusted_input(
+    required_report_input_id: str,
+) -> None:
+    with pytest.raises(ValueError, match="required_report_input_id"):
+        run_research_agent(
+            "Build a report.",
+            provider=ScriptedFakeLLM([]),
+            tool_executor=FrozenReplayToolExecutor(()),
+            required_report_input_id=required_report_input_id,
+        )
 
 
 def test_one_invalid_json_retry_is_allowed_but_no_more() -> None:
@@ -716,6 +923,7 @@ def test_report_tool_cannot_write_evidence_into_the_ledger() -> None:
             emit_evidence=True,
         ),
         run_id="report-evidence",
+        required_report_input_id="report-1",
     )
 
     assert state.phase == AgentPhase.HUMAN_REVIEW_REQUIRED

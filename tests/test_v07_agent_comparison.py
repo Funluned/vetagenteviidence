@@ -265,6 +265,32 @@ def test_nonapproved_review_projects_only_safe_refusal(comparison_inputs) -> Non
     assert case.dual.actual.answer == SAFE_REFUSAL
     assert case.single.actual.claim_ids == ("claim-1",)
     assert case.single.actual.retrieved_ids == case.dual.actual.retrieved_ids
+    assert case.single.actual.task_completed is True
+    assert case.dual.actual.task_completed is True
+
+
+def test_zero_call_reviewer_cannot_upgrade_failed_research(comparison_inputs) -> None:
+    loaded, case, fixture, baseline = comparison_inputs
+    research = ScriptedFakeProvider([], cost_cny=0.0)
+    reviewer = ScriptedFakeProvider([], cost_cny=0.0)
+
+    report = run_v07_agent_comparison(
+        (case,),
+        {case.id: loaded.expected[case.id]},
+        (fixture,),
+        rules_baseline=baseline,
+        research_provider=research,
+        reviewer_provider=reviewer,
+        execution_mode="fake",
+    )
+    result = report.cases[0]
+
+    assert result.research_state.phase == AgentPhase.FAILED
+    assert result.single.actual.task_completed is False
+    assert result.review.status == EvidenceReviewStatus.HUMAN_REVIEW_REQUIRED
+    assert result.review.call_audits == ()
+    assert result.dual.actual.phase == AgentPhase.HUMAN_REVIEW_REQUIRED
+    assert result.dual.actual.task_completed is False
 
 
 def test_model_name_and_version_must_match_across_roles(comparison_inputs) -> None:
@@ -369,3 +395,58 @@ def test_tool_resilience_runs_success_failure_success_through_full_agent() -> No
     ].value == 1.0
     assert result.single.score.passed is True
     assert result.dual.score.passed is True
+
+
+def test_comparison_namespaces_duplicate_fixture_runs_deterministically() -> None:
+    loaded = load_v07_evaluation(
+        V07_ROOT / "cases.json",
+        V07_ROOT / "expected.json",
+    )
+    cases = loaded.dataset.cases[:2]
+    duplicate_fixture_run_id = "run-0123456789abcdefabcd"
+    fixtures = tuple(
+        build_v07_agent_fixture(case).model_copy(
+            update={"run_id": duplicate_fixture_run_id}
+        )
+        for case in cases
+    )
+    fixtures_by_id = {fixture.case_id: fixture for fixture in fixtures}
+    baseline = V07BaselineReport.model_validate_json(
+        (V07_ROOT / "baselines" / "rules_v1.json").read_text(encoding="utf-8")
+    )
+
+    def run_once(generated_at: datetime):
+        def provider_factory(selected_case, _role):
+            return V07ContractSmokeProvider(fixtures_by_id[selected_case.id])
+
+        return run_v07_agent_comparison(
+            cases,
+            {case.id: loaded.expected[case.id] for case in cases},
+            fixtures,
+            rules_baseline=baseline,
+            research_provider=provider_factory,
+            reviewer_provider=provider_factory,
+            execution_mode="fake",
+            generated_at=generated_at,
+        )
+
+    first = run_once(datetime(2026, 8, 2, tzinfo=timezone.utc))
+    second = run_once(datetime(2026, 8, 3, tzinfo=timezone.utc))
+
+    assert first.result_sha256 == second.result_sha256
+    run_ids = [
+        run_id
+        for item in first.cases
+        for run_id in (item.research_state.run_id, item.review.run_id)
+    ]
+    assert duplicate_fixture_run_id not in run_ids
+    assert len(run_ids) == len(set(run_ids))
+    request_ids = [
+        audit.request_id
+        for item in first.cases
+        for audit in (
+            *item.research_state.model_call_audits,
+            *item.review.call_audits,
+        )
+    ]
+    assert len(request_ids) == len(set(request_ids))

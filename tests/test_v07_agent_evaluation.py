@@ -351,6 +351,30 @@ def test_frozen_experiment_analysis_uses_only_opaque_authorized_ids(
     assert unauthorized.failure.code == "dataset_not_authorized"
 
 
+def test_fici_summary_exposes_only_aggregate_conflict_facts(
+    loaded: LoadedV07Evaluation,
+) -> None:
+    fixture = _fixture(loaded, "CON-02")
+    assert fixture.analysis is not None
+    with V07FrozenToolExecutor(fixture) as executor:
+        result = executor.execute(
+            _call(
+                "conflict-analysis",
+                "experiment.fici",
+                {"dataset_id": fixture.analysis.dataset_id},
+            )
+        )
+
+    assert result.output["classification_counts"] == {
+        "synergy": 1,
+        "antagonism": 1,
+    }
+    assert result.output["conflict_detected"] is True
+    rendered = result.evidence[0].content
+    assert "drug_a_mic_alone" not in rendered
+    assert "row_number" not in rendered
+
+
 def test_tool_03_retains_literature_rejects_partial_csv_and_builds_report(
     loaded: LoadedV07Evaluation,
 ) -> None:
@@ -544,6 +568,218 @@ def test_citation_semantics_are_scored_beyond_runtime_quote_validation(
     assert not score.passed
 
 
+@pytest.mark.parametrize("case_id", ["CON-01", "CON-03"])
+def test_literature_conflict_scoring_requires_both_cited_sides(
+    loaded: LoadedV07Evaluation,
+    case_id: str,
+) -> None:
+    case = _case(loaded, case_id)
+    fixture = build_v07_agent_fixture(case)
+    evidence = fixture.rag_evidence
+    assert len(evidence) == 2
+
+    def _claim(item, outcome: str, index: int) -> AgentClaim:
+        return AgentClaim(
+            claim_id=f"conflict-{index}",
+            text=f"The cited frozen source reports {outcome}.",
+            scope="Limited to the cited frozen source.",
+            citations=(
+                AgentCitation(
+                    source_id=item.source_id,
+                    chunk_id=item.chunk_id,
+                    support_quote=(
+                        "synergistic activity"
+                        if "synergistic activity" in item.content
+                        else (
+                            "antagonistic activity"
+                            if "antagonistic activity" in item.content
+                            else "NF-kB activation"
+                        )
+                    ),
+                ),
+            ),
+        )
+
+    claims = (
+        _claim(evidence[0], "one side", 1),
+        _claim(evidence[1], "the other side", 2),
+    )
+    gold = project_v07_agent_gold(case, loaded.expected[case.id], fixture)
+    one_sided_state = AgentState(
+        run_id=fixture.run_id,
+        question=fixture.provider_question,
+        phase=AgentPhase.COMPLETED,
+        stop_reason=AgentStopReason.COMPLETED,
+        evidence_ledger=EvidenceLedger(items=evidence),
+        claims=claims[:1],
+        answer=claims[0].text,
+    )
+    one_sided = score_v07_agent_case(
+        case,
+        fixture,
+        gold,
+        project_agent_state(case, one_sided_state, fixture),
+    )
+
+    assert "direct_source_ids" in one_sided.mismatches
+    assert "conflict_ids" in one_sided.mismatches
+    if case_id == "CON-01":
+        assert "interaction_outcomes" in one_sided.mismatches
+
+    both_sides_state = one_sided_state.model_copy(
+        update={
+            "claims": claims,
+            "answer": "The two cited frozen sources remain in open conflict.",
+        }
+    )
+    both_sides = score_v07_agent_case(
+        case,
+        fixture,
+        gold,
+        project_agent_state(case, both_sides_state, fixture),
+    )
+    assert both_sides.passed
+
+    for unresolved_answer in (
+        "The conflict could not be resolved and remains open.",
+        "The conflict remains unresolved.",
+        "两侧证据的冲突尚未解决。",
+    ):
+        unresolved_state = both_sides_state.model_copy(
+            update={"answer": unresolved_answer}
+        )
+        unresolved = score_v07_agent_case(
+            case,
+            fixture,
+            gold,
+            project_agent_state(case, unresolved_state, fixture),
+        )
+        assert unresolved.passed
+
+    for resolved_answer in (
+        "The conflict was resolved and the observations were reconciled.",
+        "There is no inconsistency between the cited observations.",
+        "There is no unresolved conflict between the cited observations.",
+        "The conflict is not unresolved.",
+        "两侧证据的冲突已经解决。",
+    ):
+        resolved_state = both_sides_state.model_copy(
+            update={"answer": resolved_answer}
+        )
+        resolved = score_v07_agent_case(
+            case,
+            fixture,
+            gold,
+            project_agent_state(case, resolved_state, fixture),
+        )
+        assert "conflict_ids" in resolved.mismatches
+
+    weak_claims = tuple(
+        claim.model_copy(
+            update={
+                "citations": (
+                    claim.citations[0].model_copy(
+                        update={"support_quote": evidence[index].title}
+                    ),
+                )
+            }
+        )
+        for index, claim in enumerate(claims)
+    )
+    weak_state = both_sides_state.model_copy(update={"claims": weak_claims})
+    weak = score_v07_agent_case(
+        case,
+        fixture,
+        gold,
+        project_agent_state(case, weak_state, fixture),
+    )
+    assert "direct_source_ids" in weak.mismatches
+    assert "conflict_ids" in weak.mismatches
+
+
+def test_fici_conflict_requires_structured_summary_and_completed_research(
+    loaded: LoadedV07Evaluation,
+) -> None:
+    case = _case(loaded, "CON-02")
+    fixture = build_v07_agent_fixture(case)
+    assert fixture.analysis is not None
+    with V07FrozenToolExecutor(fixture) as executor:
+        analysis = executor.execute(
+            _call(
+                "fici-conflict",
+                "experiment.fici",
+                {"dataset_id": fixture.analysis.dataset_id},
+            )
+        )
+    summary = analysis.evidence[0]
+    claim = AgentClaim(
+        claim_id="fici-conflict",
+        text="The validated aggregate contains conflicting FICI classes.",
+        scope="Limited to the validated frozen aggregate.",
+        citations=(
+            AgentCitation(
+                source_id=summary.source_id,
+                chunk_id=summary.chunk_id,
+                support_quote='"conflict_detected":true',
+            ),
+        ),
+    )
+    completed_state = AgentState(
+        run_id=fixture.run_id,
+        question=fixture.provider_question,
+        phase=AgentPhase.COMPLETED,
+        stop_reason=AgentStopReason.COMPLETED,
+        evidence_ledger=EvidenceLedger(items=analysis.evidence),
+        claims=(claim,),
+        answer=claim.text,
+        tool_results=(analysis,),
+    )
+    gold = project_v07_agent_gold(case, loaded.expected[case.id], fixture)
+    completed = score_v07_agent_case(
+        case,
+        fixture,
+        gold,
+        project_agent_state(case, completed_state, fixture),
+    )
+    assert completed.passed
+
+    invalid_quote_claim = claim.model_copy(
+        update={
+            "citations": (
+                claim.citations[0].model_copy(
+                    update={"support_quote": "conflict flag not in summary"}
+                ),
+            )
+        }
+    )
+    invalid_quote_state = completed_state.model_copy(
+        update={"claims": (invalid_quote_claim,)}
+    )
+    invalid_quote = score_v07_agent_case(
+        case,
+        fixture,
+        gold,
+        project_agent_state(case, invalid_quote_state, fixture),
+    )
+    assert "conflict_ids" in invalid_quote.mismatches
+
+    refused_state = completed_state.model_copy(
+        update={
+            "phase": AgentPhase.INSUFFICIENT_EVIDENCE,
+            "stop_reason": AgentStopReason.INSUFFICIENT_EVIDENCE,
+            "claims": (),
+            "answer": "insufficient_evidence",
+        }
+    )
+    refused = score_v07_agent_case(
+        case,
+        fixture,
+        gold,
+        project_agent_state(case, refused_state, fixture),
+    )
+    assert "conflict_ids" in refused.mismatches
+
+
 def test_tool_state_projection_and_gold_checks_for_tool_01_02_03(
     loaded: LoadedV07Evaluation,
 ) -> None:
@@ -595,8 +831,9 @@ def test_tool_state_projection_and_gold_checks_for_tool_01_02_03(
     state_02 = AgentState(
         run_id=fixture_02.run_id,
         question=fixture_02.provider_question,
-        phase=AgentPhase.HUMAN_REVIEW_REQUIRED,
-        stop_reason=AgentStopReason.HUMAN_REVIEW_REQUIRED,
+        phase=AgentPhase.INSUFFICIENT_EVIDENCE,
+        stop_reason=AgentStopReason.INSUFFICIENT_EVIDENCE,
+        answer="insufficient_evidence",
         evidence_ledger=EvidenceLedger(items=evidence_02),
         tool_results=results_02,
     )
@@ -609,6 +846,21 @@ def test_tool_state_projection_and_gold_checks_for_tool_01_02_03(
     assert actual_02.replay_request_count == 3
     assert actual_02.partial_results_preserved
     assert actual_02.retrieved_ids == ("source-001", "source-002")
+    handoff_state_02 = state_02.model_copy(
+        update={
+            "phase": AgentPhase.HUMAN_REVIEW_REQUIRED,
+            "stop_reason": AgentStopReason.HUMAN_REVIEW_REQUIRED,
+            "answer": "human_review_required",
+        }
+    )
+    handoff_actual_02 = project_agent_state(case_02, handoff_state_02, fixture_02)
+    handoff_score_02 = score_v07_agent_case(
+        case_02, fixture_02, gold_02, handoff_actual_02
+    )
+    assert handoff_actual_02.phase == AgentPhase.HUMAN_REVIEW_REQUIRED
+    assert handoff_actual_02.task_completed is False
+    assert handoff_actual_02.model_calls == 0
+    assert handoff_score_02.mismatches == ("task_completion_rate",)
 
     case_03 = _case(loaded, "TOOL-03")
     fixture_03 = build_v07_agent_fixture(case_03)
@@ -652,8 +904,8 @@ def test_tool_state_projection_and_gold_checks_for_tool_01_02_03(
     state_03 = AgentState(
         run_id=fixture_03.run_id,
         question=fixture_03.provider_question,
-        phase=AgentPhase.HUMAN_REVIEW_REQUIRED,
-        stop_reason=AgentStopReason.HUMAN_REVIEW_REQUIRED,
+        phase=AgentPhase.COMPLETED,
+        stop_reason=AgentStopReason.COMPLETED,
         evidence_ledger=EvidenceLedger(
             items=(*literature.evidence, *analysis.evidence)
         ),

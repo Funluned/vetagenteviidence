@@ -36,10 +36,16 @@ VetResearch Workbench 基于 VetEvidence AI v0.1，把科研问题、可核查�
   必须拒答。Reviewer 只能检查同一份检索结果，不能偷偷重搜或加入新证据；
 - 27 题 Fake 合同烟测只验证编排、预算、审计和单／双 Agent 对比是否接通，
   `Fake` 不是 LLM，分数不能写成模型效果；
-- 已在修复后的同一版本上用 DeepSeek V4 Pro 一次跑完 27 个冻结合成场景：
-  规则 `20/27`、真实单 Agent `24/27`、真实双 Agent `24/27`。双 Agent 的三项
-  核心质量指标均未优于单 Agent，却增加 `¥0.2586836` 的保守记账和约 19.19 秒
-  单题中位耗时，因此只保留为实验模式；
+- 此前阶段 4B 曾在当时同一代码与提示词版本上用 DeepSeek V4 Pro 一次跑完
+  27 个冻结合成场景。历史正式报告
+  保留 v1 scorer 的原始记录：规则 `20/27`、真实单 Agent `24/27`、真实双 Agent
+  `24/27`；报告内容及原哈希均未改写。2026-08-02 使用修正后的 scorer 对同一份
+  历史 actual 离线重算，单／双 Agent 均为 `22/27`，没有重新调用模型；
+- 修正后的冲突评分要求同时引用有效的两侧来源、保留各自方向，并在最终结论中
+  明确保持开放冲突；FICI 冲突必须来自结构化分析事实。`human_review_required`
+  只表示安全转人工，不再自动升级为 Research 任务完成；
+- 双 Agent 的三项核心质量指标均未优于单 Agent，却增加 `¥0.2586836` 的保守记账
+  和约 19.19 秒单题中位耗时，因此只保留为实验模式；
 - 全批 83 次请求中 74 次得到可用输出、1 次为空、8 次网络超时。预算审计总记账
   `¥0.5482916`，其中 `¥0.3619676` 有 Token 回执，`¥0.186324` 是无响应请求的
   最坏情况预留，不等于已确认账单；
@@ -499,14 +505,25 @@ Provider、Research Agent 和 Evidence Reviewer 已实现并完成全 27 题受�
 .\.venv\Scripts\python.exe scripts\run_v07_agent_evaluation.py --check-baseline
 ```
 
-该 Fake 基线为规则 `20/27`、单 Agent `17/27`、双 Agent `17/27`，真实模型
-调用、网络、Token 和 API 费用均为 0。Fake 不是 LLM，这些分数只能检查工程
-合同，不能表示 DeepSeek 效果。修复后的同一版本全 27 题正式结果为规则
-`20/27`、真实单 Agent `24/27`、真实双 Agent `24/27`；双 Agent 没有改善
-Citation Precision、Unsupported Claim Rate 或 Abstention Accuracy，因此不
-作为默认有效设计。验收同时发现冲突证据 scorer 覆盖不完整、30 秒超时和全局
-调用 ID 不唯一，成绩必须连同这些边界解释。此前五题首测和 `TOOL-02` 定向复测
-只作为历史缺陷证据保留，不与正式成绩拼接。真实模式可先用
+修复后的 Fake 基线仍为规则 `20/27`、单 Agent `17/27`、双 Agent `17/27`，冲突
+场景为 `3/3`；稳定结果 SHA-256 为
+`40e1fb1a5f5f6a71a4b02bd2864ccd4b6a7ef0b74342b61d001f63b99a768a89`。它的真实
+模型调用、网络、Token 和 API 费用均为 0。Fake 不是 LLM，这些分数只能检查
+工程合同，不能表示 DeepSeek 效果。
+
+历史正式报告继续原样记录 v1 scorer 下的规则 `20/27`、真实单 Agent `24/27`、
+真实双 Agent `24/27` 和原哈希。修正 scorer 对同一历史 actual 的离线重算为
+单／双 Agent 均 `22/27`，失败题均为 `DIR-01`、`CON-01`、`CON-02`、`HIT-03`、
+`TOOL-03`；Task Completion 单／双均为 `24/27`，旧口径分别是 `26/27` 与
+`27/27`。该重算不覆盖历史 JSON，也没有重新调用模型。工程修复还包括：DeepSeek
+超时默认 `120` 秒并限制在 `30—300` 秒、CLI 显式审计该值、HTTP 隐式重试保持
+为 0；新报告的调用 ID 全局唯一；账本外引用只允许一次限定在现有账本内的重写；
+`report.build` 作为独立 trusted 工具授权。当前零费用验证为相关专项 `100 passed`、
+全量 `628 passed, 1 skipped`；3 份历史真实报告均可读取且文件未改，刷新后的
+Fake 基线也可读取并复跑匹配。本轮已完成提交前验证，修复后没有真实复测。双
+Agent 仍没有改善 Citation Precision、Unsupported
+Claim Rate 或 Abstention Accuracy，因此不作为默认有效设计。此前五题首测和
+`TOOL-02` 定向复测只作为历史缺陷证据保留，不与正式成绩拼接。真实模式可先用
 `--provider deepseek --dry-run` 查看调用上限；只有同时给出题目、
 `--confirm-paid-run`、正数 `--max-cost-cny` 和环境变量 Key，程序才可能发出请求。
 完整结果、费用和边界见

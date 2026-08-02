@@ -9,6 +9,7 @@ there is intentionally no SDK dependency or configurable third-party URL.
 from __future__ import annotations
 
 import json
+import math
 import os
 import threading
 import time
@@ -25,6 +26,11 @@ from .agent_providers import (
     GenerationResponse,
     ProviderFailure,
     ProviderUsage,
+)
+from .deepseek_contract import (
+    DEEPSEEK_DEFAULT_TIMEOUT_SECONDS,
+    DEEPSEEK_MAX_TIMEOUT_SECONDS,
+    DEEPSEEK_MIN_TIMEOUT_SECONDS,
 )
 
 
@@ -213,6 +219,7 @@ class DeepSeekAuditRecord:
     attempts: int
     http_status: int | None
     estimated_max_cost_cny_per_attempt: Decimal
+    timeout_seconds: float = DEEPSEEK_DEFAULT_TIMEOUT_SECONDS
     conservative_unverified_cost_cny: Decimal = Decimal("0")
     settled_cost_cny: Decimal = Decimal("0")
     attempt_outcomes: tuple[str, ...] = ()
@@ -232,7 +239,7 @@ class DeepSeekProvider:
         model_name: str = "deepseek-v4-pro",
         budget: DeepSeekRunBudget | None = None,
         transport: httpx.BaseTransport | None = None,
-        timeout_seconds: float = 30.0,
+        timeout_seconds: float = DEEPSEEK_DEFAULT_TIMEOUT_SECONDS,
         max_retries: int = 0,
         retry_backoff_seconds: float = 0.25,
         default_max_tokens: int = 2048,
@@ -261,8 +268,17 @@ class DeepSeekProvider:
             timeout_seconds, (int, float)
         ):
             raise TypeError("timeout_seconds must be a number")
-        if timeout_seconds <= 0:
-            raise ValueError("timeout_seconds must be positive")
+        if (
+            not math.isfinite(timeout_seconds)
+            or not DEEPSEEK_MIN_TIMEOUT_SECONDS
+            <= timeout_seconds
+            <= DEEPSEEK_MAX_TIMEOUT_SECONDS
+        ):
+            raise ValueError(
+                "timeout_seconds must be between "
+                f"{DEEPSEEK_MIN_TIMEOUT_SECONDS:g} and "
+                f"{DEEPSEEK_MAX_TIMEOUT_SECONDS:g}"
+            )
         if isinstance(retry_backoff_seconds, bool) or not isinstance(
             retry_backoff_seconds, (int, float)
         ):
@@ -378,6 +394,7 @@ class DeepSeekProvider:
             attempts=attempts,
             http_status=http_status,
             estimated_max_cost_cny_per_attempt=estimated_cost,
+            timeout_seconds=self._timeout_seconds,
             conservative_unverified_cost_cny=charged_cost_cny,
             settled_cost_cny=charged_cost_cny,
             attempt_outcomes=attempt_outcomes,
@@ -717,6 +734,7 @@ class DeepSeekProvider:
                     attempts=attempts,
                     http_status=200,
                     estimated_max_cost_cny_per_attempt=estimated_cost,
+                    timeout_seconds=self._timeout_seconds,
                     conservative_unverified_cost_cny=(
                         conservative_unverified_cost
                     ),
@@ -886,6 +904,9 @@ def _with_latency(
 __all__ = [
     "DEEPSEEK_API_BASE_URL",
     "DEEPSEEK_CHAT_COMPLETIONS_URL",
+    "DEEPSEEK_DEFAULT_TIMEOUT_SECONDS",
+    "DEEPSEEK_MAX_TIMEOUT_SECONDS",
+    "DEEPSEEK_MIN_TIMEOUT_SECONDS",
     "DEEPSEEK_PRICING_SNAPSHOT",
     "DEEPSEEK_PRICING_SNAPSHOT_DATE",
     "DEEPSEEK_PRICING_SNAPSHOT_ID",

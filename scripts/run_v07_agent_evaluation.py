@@ -9,6 +9,11 @@ from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from typing import Sequence
 
+from vetevidence.deepseek_contract import (
+    DEEPSEEK_DEFAULT_TIMEOUT_SECONDS,
+    DEEPSEEK_MAX_TIMEOUT_SECONDS,
+    DEEPSEEK_MIN_TIMEOUT_SECONDS,
+)
 from vetevidence.v07_agent_comparison import (
     V07AgentComparisonReport,
     run_v07_agent_comparison,
@@ -77,6 +82,14 @@ def _parser() -> argparse.ArgumentParser:
         metavar="CNY",
         help="Shared hard CNY ceiling for every DeepSeek call in this command.",
     )
+    parser.add_argument(
+        "--timeout-seconds",
+        metavar="SECONDS",
+        help=(
+            "Per-attempt DeepSeek HTTP timeout; defaults to 120 seconds and "
+            "must be between 30 and 300 seconds. This does not enable HTTP retries."
+        ),
+    )
     parser.add_argument("--cases", type=Path, default=DEFAULT_CASES)
     parser.add_argument("--expected", type=Path, default=DEFAULT_EXPECTED)
     parser.add_argument(
@@ -116,6 +129,26 @@ def _parse_cost(raw: str | None) -> Decimal | None:
     if not amount.is_finite() or amount <= 0:
         raise ValueError("--max-cost-cny must be greater than zero")
     return amount
+
+
+def _parse_timeout(raw: str | None) -> float:
+    if raw is None:
+        return DEEPSEEK_DEFAULT_TIMEOUT_SECONDS
+    try:
+        amount = Decimal(raw)
+    except (InvalidOperation, ValueError):
+        raise ValueError("--timeout-seconds must be a decimal number") from None
+    if (
+        not amount.is_finite()
+        or amount < Decimal(str(DEEPSEEK_MIN_TIMEOUT_SECONDS))
+        or amount > Decimal(str(DEEPSEEK_MAX_TIMEOUT_SECONDS))
+    ):
+        raise ValueError(
+            "--timeout-seconds must be between "
+            f"{DEEPSEEK_MIN_TIMEOUT_SECONDS:g} and "
+            f"{DEEPSEEK_MAX_TIMEOUT_SECONDS:g}"
+        )
+    return float(amount)
 
 
 def _selected_cases(
@@ -194,6 +227,7 @@ def _dry_run_payload(
     model: str,
     case_count: int,
     max_cost_cny: Decimal | None,
+    timeout_seconds: float,
 ) -> dict[str, object]:
     return {
         "provider": "deepseek",
@@ -204,6 +238,12 @@ def _dry_run_payload(
         "hard_max_model_calls_per_case": HARD_MAX_MODEL_CALLS_PER_CASE,
         "hard_max_model_calls_total": case_count * HARD_MAX_MODEL_CALLS_PER_CASE,
         "max_cost_cny": str(max_cost_cny) if max_cost_cny is not None else None,
+        "timeout_seconds": timeout_seconds,
+        "timeout_seconds_allowed_range": {
+            "minimum": DEEPSEEK_MIN_TIMEOUT_SECONDS,
+            "maximum": DEEPSEEK_MAX_TIMEOUT_SECONDS,
+        },
+        "max_http_retries_per_model_call": 0,
         "synthetic_boundary": SYNTHETIC_BOUNDARY,
         "will_read_api_key": False,
         "will_construct_provider": False,
@@ -222,9 +262,12 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     try:
         max_cost_cny = _parse_cost(args.max_cost_cny)
+        timeout_seconds = _parse_timeout(args.timeout_seconds)
     except ValueError as exc:
         return _error(str(exc))
 
+    if args.timeout_seconds is not None and args.provider != "deepseek":
+        return _error("--timeout-seconds is only available with --provider deepseek")
     if args.dry_run and args.provider != "deepseek":
         return _error("--dry-run is only available with --provider deepseek")
     if args.check_baseline and args.provider != "fake":
@@ -260,6 +303,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                     model=args.model,
                     case_count=len(selected),
                     max_cost_cny=max_cost_cny,
+                    timeout_seconds=timeout_seconds,
                 ),
                 ensure_ascii=False,
                 sort_keys=True,
@@ -327,6 +371,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         provider = DeepSeekProvider(
             model_name=args.model,
             budget=shared_budget,
+            timeout_seconds=timeout_seconds,
             max_retries=0,
         )
         research_provider = provider
@@ -368,27 +413,31 @@ def main(argv: Sequence[str] | None = None) -> int:
         return _error(f"could not write result: {exc}")
 
     usage = report.actual_spend.total_actual
+    summary: dict[str, object] = {
+        "status": "written",
+        "provider": args.provider,
+        "model": (
+            V07ContractSmokeProvider.model_name
+            if args.provider == "fake"
+            else args.model
+        ),
+        "case_count": len(selected),
+        "result_sha256": report.result_sha256,
+        "output": str(output),
+        "real_model_calls": usage.real_model_calls,
+        "network_calls": usage.actual_http_attempts,
+        "costs_by_currency": {
+            currency: str(amount)
+            for currency, amount in usage.costs_by_currency.items()
+        },
+        "synthetic_boundary": SYNTHETIC_BOUNDARY,
+    }
+    if args.provider == "deepseek":
+        summary["timeout_seconds"] = timeout_seconds
+        summary["max_http_retries_per_model_call"] = 0
     print(
         json.dumps(
-            {
-                "status": "written",
-                "provider": args.provider,
-                "model": (
-                    V07ContractSmokeProvider.model_name
-                    if args.provider == "fake"
-                    else args.model
-                ),
-                "case_count": len(selected),
-                "result_sha256": report.result_sha256,
-                "output": str(output),
-                "real_model_calls": usage.real_model_calls,
-                "network_calls": usage.actual_http_attempts,
-                "costs_by_currency": {
-                    currency: str(amount)
-                    for currency, amount in usage.costs_by_currency.items()
-                },
-                "synthetic_boundary": SYNTHETIC_BOUNDARY,
-            },
+            summary,
             ensure_ascii=False,
             sort_keys=True,
         )

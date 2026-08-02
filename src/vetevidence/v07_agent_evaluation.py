@@ -33,6 +33,8 @@ from vetevidence.experiment_analysis import (
     analyze_growth_curve_csv,
 )
 from vetevidence.local_rag import EvidenceSource, LocalRAGIndex
+from vetevidence.models import CitedAnswer, PubMedArticle, ResearchResult
+from vetevidence.providers import RuleBasedEvidenceProvider
 from vetevidence.v07_evaluation import (
     V07CategorySummary,
     V07EvaluationCase,
@@ -41,7 +43,11 @@ from vetevidence.v07_evaluation import (
     V07_METRICS,
 )
 from vetevidence.v07_rag_evaluation import build_v07_rag_query
-from vetevidence.workbench_pipeline import experiment_analysis_matches_question
+from vetevidence.workbench_pipeline import (
+    assess_evidence,
+    build_experiment_conditions,
+    experiment_analysis_matches_question,
+)
 
 
 _RATE_METRICS = (
@@ -53,6 +59,40 @@ _RATE_METRICS = (
 )
 _EXTERNAL_LOCATOR = re.compile(
     r"(?:https?://|file://|[A-Za-z]:[\\/]|\\\\[^\\\s]+\\|(?:^|\s)/(?:[^/\s]+/)+)",
+    re.IGNORECASE,
+)
+_OPEN_CONFLICT_PATTERN = re.compile(
+    r"\b(?:open\s+)?conflict(?:s|ed|ing)?\b|"
+    r"\bcontradict(?:s|ed|ory|ion)?\b|"
+    r"\binconsisten(?:t|cy)\b|"
+    r"\bnot\s+consistent\b|"
+    r"\b(?:opposing|discordant|divergent)\b|"
+    r"(?:开放)?冲突|矛盾|不一致|方向相反|分类相反|不能合并|无法合并",
+    re.IGNORECASE,
+)
+_UNRESOLVED_CONFLICT_PATTERN = re.compile(
+    r"\b(?:conflict|contradiction|inconsistency)\b.{0,32}"
+    r"\b(?:unresolved|not\s+resolved|cannot\s+be\s+resolved|"
+    r"could\s+not\s+be\s+resolved|remains?\s+open)\b|"
+    r"\b(?:unresolved|not\s+resolved)\b.{0,20}\bconflict\b|"
+    r"(?:冲突|矛盾|不一致).{0,8}(?:尚未|未|无法|不能)(?:解决|消除|化解|闭合)",
+    re.IGNORECASE,
+)
+_NEGATED_UNRESOLVED_PATTERN = re.compile(
+    r"\bno\s+unresolved\s+(?:conflict|contradiction|inconsistency)\b|"
+    r"\b(?:conflict|contradiction|inconsistency)\b.{0,16}"
+    r"\b(?:is\s+)?not\s+unresolved\b|"
+    r"(?:不存在|没有|无).{0,6}(?:未解决|尚未解决)(?:的)?(?:冲突|矛盾|不一致)",
+    re.IGNORECASE,
+)
+_NEGATED_CONFLICT_PATTERN = re.compile(
+    r"\b(?:no|without)\s+(?:open\s+)?"
+    r"(?:conflict|contradiction|inconsistency)\b|"
+    r"\bnot\s+(?:conflicting|contradictory|inconsistent)\b|"
+    r"\b(?:conflict|contradiction|inconsistency)\b.{0,24}"
+    r"\b(?:resolved|reconciled|closed)\b|"
+    r"(?:没有|不存在|无)(?:明显)?(?:冲突|矛盾|不一致)|"
+    r"(?:冲突|矛盾|不一致).{0,8}(?:已)?(?:解决|消除|化解|闭合)",
     re.IGNORECASE,
 )
 
@@ -677,6 +717,30 @@ class V07FrozenToolExecutor:
             "invalid_row_count": analysis.invalid_row_count,
             "errors": list(analysis.errors),
         }
+        if analysis.analysis_type == "fici":
+            classification_counts = Counter(
+                row.classification
+                for row in analysis.rows
+                if row.valid and row.classification is not None
+            )
+            summary.update(
+                {
+                    "classification_counts": {
+                        classification: classification_counts[classification]
+                        for classification in (
+                            "synergy",
+                            "additive",
+                            "indifferent",
+                            "antagonism",
+                        )
+                        if classification_counts[classification]
+                    },
+                    "conflict_detected": bool(
+                        classification_counts["synergy"]
+                        and classification_counts["antagonism"]
+                    ),
+                }
+            )
         source_id = _opaque_id("analysis", fixture.dataset_id)
         evidence = ToolEvidence(
             source_id=source_id,
@@ -919,11 +983,12 @@ def project_agent_state(
         for result in state.tool_results
         if result.failure is not None
     ]
+    # A safe stop is not automatically a completed research task.  In
+    # particular, budget exhaustion and human-review handoff must remain
+    # distinguishable from either a supported result or a valid abstention.
     task_completed = state.phase in {
         AgentPhase.COMPLETED,
         AgentPhase.INSUFFICIENT_EVIDENCE,
-        AgentPhase.BUDGET_EXCEEDED,
-        AgentPhase.HUMAN_REVIEW_REQUIRED,
     }
     return V07AgentActual(
         phase=state.phase,
@@ -1037,6 +1102,167 @@ def _citation_support(
     return support
 
 
+def _literature_conflict_observations(
+    case: V07EvaluationCase,
+    fixture: V07AgentFixture,
+    actual: V07AgentActual,
+    citation_support: Mapping[tuple[str, str, str], bool],
+) -> tuple[tuple[str, ...], dict[str, str], tuple[str, ...]]:
+    """Derive open literature conflicts from sources the Agent actually cited.
+
+    The same deterministic qualification and conflict pipeline used by the
+    rules baseline is applied only to cited source aliases.  Merely retrieving
+    both sides into the evidence ledger is therefore insufficient.
+    """
+
+    if actual.phase != AgentPhase.COMPLETED:
+        return (), {}, ()
+    citation_quotes: dict[str, list[str]] = {}
+    for citation in actual.citations:
+        key = (citation.claim_id, citation.source_id, citation.chunk_id)
+        if not citation_support.get(key, False):
+            continue
+        original = fixture.original_by_alias.get(citation.source_id)
+        if original is not None:
+            citation_quotes.setdefault(original, []).append(citation.support_quote)
+    cited_originals = set(citation_quotes)
+    raw_articles = case.input.get("articles", [])
+    if not cited_originals or not isinstance(raw_articles, list):
+        return (), {}, ()
+    articles = [
+        PubMedArticle.model_validate(raw)
+        for raw in raw_articles
+        if isinstance(raw, Mapping) and _source_id(raw) in cited_originals
+    ]
+    if not articles:
+        return (), {}, ()
+    provider = RuleBasedEvidenceProvider()
+    research = ResearchResult(
+        query=case.question.text,
+        articles=articles,
+        evidence=[provider.extract(article) for article in articles],
+        answer=CitedAnswer(question=case.question.text, answer_markdown=""),
+        provider_name=provider.name,
+    )
+    conditions = build_experiment_conditions(research, question=case.question)
+    supported_conditions = []
+    for condition in conditions:
+        if condition.pmid is None:
+            continue
+        candidate_texts = tuple(
+            text
+            for text in (
+                condition.qualification.supporting_quote,
+                condition.key_result,
+                condition.source_quote,
+            )
+            if text
+        )
+        if any(
+            quote in candidate or candidate in quote
+            for quote in citation_quotes.get(condition.pmid, [])
+            for candidate in candidate_texts
+        ):
+            supported_conditions.append(condition)
+    assessment = assess_evidence(supported_conditions, question=case.question)
+    aliases = fixture.alias_by_original
+    direct_ids = tuple(
+        sorted(
+            aliases[condition.pmid]
+            for condition in supported_conditions
+            if condition.pmid in aliases
+            and condition.qualification.grade.value == "direct_interaction"
+        )
+    )
+    outcomes = {
+        aliases[condition.pmid]: condition.qualification.interaction_outcome.value
+        for condition in supported_conditions
+        if condition.pmid in aliases
+        and condition.qualification.grade.value == "direct_interaction"
+        and condition.qualification.interaction_outcome is not None
+    }
+    conflict_ids = ()
+    if _states_open_conflict(actual):
+        conflict_ids = tuple(
+            sorted(
+                conflict.id
+                for conflict in assessment.conflicts
+                if conflict.resolution_status.value == "open"
+            )
+        )
+    return direct_ids, outcomes, conflict_ids
+
+
+def _states_open_conflict(actual: V07AgentActual) -> bool:
+    output = "\n".join(
+        [actual.answer or "", *(citation.claim_text for citation in actual.citations)]
+    )
+    if _NEGATED_UNRESOLVED_PATTERN.search(output):
+        return False
+    if _UNRESOLVED_CONFLICT_PATTERN.search(output):
+        return True
+    return bool(_OPEN_CONFLICT_PATTERN.search(output)) and not bool(
+        _NEGATED_CONFLICT_PATTERN.search(output)
+    )
+
+
+def _experiment_conflict_ids(actual: V07AgentActual) -> tuple[str, ...]:
+    """Recognize a FICI conflict only from internally consistent tool facts."""
+
+    if actual.phase != AgentPhase.COMPLETED:
+        return ()
+    for evidence in actual.evidence:
+        if evidence.source_type != "frozen_experiment_summary":
+            continue
+        try:
+            summary = json.loads(evidence.content)
+        except (json.JSONDecodeError, TypeError):
+            continue
+        if not isinstance(summary, Mapping) or summary.get("analysis_type") != "fici":
+            continue
+        counts = summary.get("classification_counts")
+        detected = summary.get("conflict_detected")
+        if not isinstance(counts, Mapping) or not isinstance(detected, bool):
+            continue
+        synergy = counts.get("synergy", 0)
+        antagonism = counts.get("antagonism", 0)
+        cites_summary_verbatim = any(
+            citation.source_id == evidence.source_id
+            and citation.chunk_id == evidence.chunk_id
+            and citation.support_quote in evidence.content
+            for citation in actual.citations
+        )
+        if (
+            isinstance(synergy, int)
+            and not isinstance(synergy, bool)
+            and synergy >= 0
+            and isinstance(antagonism, int)
+            and not isinstance(antagonism, bool)
+            and antagonism >= 0
+            and detected == bool(synergy and antagonism)
+            and detected
+            and cites_summary_verbatim
+            and _states_open_conflict(actual)
+        ):
+            return ("conflict-fici",)
+    return ()
+
+
+def _conflict_observations(
+    case: V07EvaluationCase,
+    fixture: V07AgentFixture,
+    actual: V07AgentActual,
+    citation_support: Mapping[tuple[str, str, str], bool],
+) -> tuple[tuple[str, ...], dict[str, str], tuple[str, ...]]:
+    direct_ids, outcomes, literature_conflicts = _literature_conflict_observations(
+        case, fixture, actual, citation_support
+    )
+    conflict_ids = tuple(
+        sorted({*literature_conflicts, *_experiment_conflict_ids(actual)})
+    )
+    return direct_ids, outcomes, conflict_ids
+
+
 def score_v07_agent_case(
     case: V07EvaluationCase,
     fixture: V07AgentFixture,
@@ -1139,6 +1365,21 @@ def score_v07_agent_case(
         "report_generated": actual.report_generated,
         "external_actions": actual.external_actions,
     }
+    if "conflict_ids" in gold.expected:
+        direct_ids, interaction_outcomes, conflict_ids = _conflict_observations(
+            case, fixture, actual, citation_support
+        )
+        if "direct_source_ids" in gold.expected and set(
+            gold.expected["direct_source_ids"]
+        ) != set(direct_ids):
+            mismatches.append("direct_source_ids")
+        if (
+            "interaction_outcomes" in gold.expected
+            and gold.expected["interaction_outcomes"] != interaction_outcomes
+        ):
+            mismatches.append("interaction_outcomes")
+        if set(gold.expected["conflict_ids"]) != set(conflict_ids):
+            mismatches.append("conflict_ids")
     for field, observed in expected_checks.items():
         if field in gold.expected and gold.expected[field] != observed:
             mismatches.append(field)
@@ -1183,7 +1424,10 @@ def aggregate_v07_agent_scores(
         "citation_precision": "micro across emitted claim-citation pairs",
         "unsupported_claim_rate": "micro across emitted atomic claims",
         "abstention_accuracy": "micro across applicable abstention decisions",
-        "task_completion_rate": "micro across applicable completed tasks",
+        "task_completion_rate": (
+            "micro across applicable substantive Research outcomes; "
+            "human-review and budget handoffs are not automatic completion"
+        ),
         "cost": "sum across model-call audit costs",
         "latency": "median per-case wall-clock diagnostic",
     }

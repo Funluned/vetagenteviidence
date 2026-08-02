@@ -4,12 +4,36 @@
 
 VetResearch Workbench v0.7 的免费规则＋本地关键词检索路径保持不变；没有模型
 Key 的用户仍可使用。隔离的 DeepSeek V4 Provider、有限状态 Research Agent
-和只读 Evidence Reviewer 已在本地实现，27 题 Fake 合同烟测及单／双 Agent
-同源对比已固化。Fake 不是 LLM，只证明工程链路。经大壮单独批准后，已在修复后
-同一版本上完成 DeepSeek V4 Pro 全 27 题正式工程评测：规则 `20/27`、真实单
-Agent `24/27`、真实双 Agent `24/27`。双 Agent 没有改善三项核心质量指标，
-只保留为实验模式。正式报告、文档与本地验证均已通过；大壮已确认进入提交推送
-收口。孙奇本人从零安装、讲解、修改和排错验收继续延期，不作为当前门禁。
+和只读 Evidence Reviewer 已在本地实现。2026-08-02 已完成一轮不读 Key、
+不联网、不调用模型、费用为 0 的工程修复：纠正冲突评分和 Research 完成语义，
+补齐受限超时、全局调用 ID、账本内定向重写与报告工具授权。历史正式报告与原
+哈希保持不变；同一历史 actual 仅用修正 scorer 离线重算。当前改动已完成提交前
+验证，提交推送按大壮本轮确认执行；修复后没有真实复测。孙奇本人从零安装、讲解、
+修改和排错验收继续延期，不作为当前门禁。
+
+## 2026-08-02 v0.7 Agent 零费用工程修复（本地已完成）
+
+- [x] 历史正式报告不覆盖、不删改：v1 scorer 原始记录仍为规则 `20/27`、真实
+  单 Agent `24/27`、真实双 Agent `24/27`，内容完整性 SHA-256 仍为
+  `1d20b4c079f3b51d8eb3d3668364576302882c0ffb007b8be0fb4f3b70a62727`。
+- [x] 对同一历史 actual 使用修正 scorer 离线重算，单／双 Agent 均为 `22/27`；
+  失败题为 `DIR-01`、`CON-01`、`CON-02`、`HIT-03`、`TOOL-03`。没有重新调用
+  DeepSeek，也没有把 `22/27` 写回历史 JSON。
+- [x] Task Completion 修正为单／双均 `24/27`；旧口径分别为 `26/27`、`27/27`。
+  `human_review_required` 只表示安全转人工，不再冒充 Research 任务完成。
+- [x] 冲突 scorer 现在要求有效引用两侧来源、保留各自相反方向，并在最终结论中
+  明确保留开放冲突；FICI 冲突必须由结构化分析事实支持。
+- [x] DeepSeek 超时默认 `120` 秒，可配置范围固定为 `30—300` 秒，CLI 会显式
+  审计实际值；Provider 的 HTTP 隐式重试仍为 0。
+- [x] 新报告的 `run_id`／`request_id` 全局唯一；账本外引用只允许一次
+  ledger-only bounded redraft；`report.build` 作为独立 trusted 工具授权。
+- [x] 修复后 Fake 仍为规则 `20/27`、单／双 Agent `17/27`，冲突场景 `3/3`；
+  真实模型／网络／Token／费用为 `0 / 0 / 0 / ¥0`，稳定结果 SHA-256 为
+  `40e1fb1a5f5f6a71a4b02bd2864ccd4b6a7ef0b74342b61d001f63b99a768a89`。
+- [x] 相关专项 `100 passed`；全量 `628 passed, 1 skipped`；3 份历史真实报告
+  均可读取且文件未改，刷新后的 Fake 基线也可读取并复跑匹配。
+- [x] 本轮工程修复已完成提交前验证，提交推送已获大壮确认。
+- [ ] 修复后的付费真实复测尚未授权或执行。
 
 ## 2026-08-02 v0.7 DeepSeek 全 27 题正式工程评测（本地已完成）
 
@@ -37,9 +61,8 @@ Agent `24/27`、真实双 Agent `24/27`。双 Agent 没有改善三项核心质�
   被模型误拒答并叠加 Reviewer 超时；`TOOL-03` 为漏规划报告并连续草稿超时。
 - [x] 安全扫描未发现 Key、Authorization／Bearer、私有路径、`SYN-*` 或
   `example.invalid` 泄漏；父进程环境没有遗留 `DEEPSEEK_API_KEY`。
-- [ ] 下一版付费复测前先做零费用工程修复：冲突 scorer 真正核对两侧来源与
-  开放冲突、区分“人工交接”和研究任务成功、V4 Pro 超时受限可配置、全局调用
-  ID 唯一，并增加账本外引用的受限修复路径。当前报告不覆盖、不删改、不重跑。
+- [x] 付费复测前的零费用工程修复已在后续批次完成；本节仍保留历史正式报告的
+  v1 scorer 原始记录。修正口径与验证结果见上一节。
 - [x] Agent 专项 `125 passed`；全量 `602 passed, 1 skipped`；规则、RAG、Fake
   Agent 三套基线、Python 编译、依赖与 Git 差异检查全部通过。
 - [x] 大壮已另行确认提交和推送；远端一致性在推送后核对。
@@ -533,11 +556,11 @@ Agent `24/27`、真实双 Agent `24/27`。双 Agent 没有改善三项核心质�
   CPU 和 CUDA 执行。
 - CPU：实际平台 `CPU`，30 steps，真实温度 6 个样本、势能 6 个样本，
   QC passed；不可变结果目录为
-  `C:\Users\sunqi\AppData\Local\VetEvidence\md-smoke-results\v06-final-cpu-20260730T185000`。
+  `%LOCALAPPDATA%\VetEvidence\md-smoke-results\v06-final-cpu-20260730T185000`。
 - CUDA：实际平台 `CUDA`，设备
   `NVIDIA GeForce RTX 5070 Laptop GPU`，`DeviceIndex=0`、`mixed` 精度，
   30 steps，真实温度 6 个样本、势能 6 个样本，QC passed；不可变结果目录为
-  `C:\Users\sunqi\AppData\Local\VetEvidence\md-smoke-results\v06-final-cuda-20260730T185000`。
+  `%LOCALAPPDATA%\VetEvidence\md-smoke-results\v06-final-cuda-20260730T185000`。
 - v0.6 文档、代码、测试与 smoke 脚本的项目制品契约：
   `tests/test_project_artifacts.py` 为 `4 passed`。
 - 最终全量自动回归：`352 passed`；`pip check` 无依赖冲突，

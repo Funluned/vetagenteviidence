@@ -1,11 +1,15 @@
 from __future__ import annotations
 
+import builtins
+import importlib
 import json
+import os
 from pathlib import Path
 
 import pytest
 
 from scripts import run_v07_agent_evaluation as cli
+import vetevidence.deepseek_contract as deepseek_contract
 from vetevidence.v07_agent_comparison import V07AgentComparisonReport
 
 
@@ -18,6 +22,20 @@ def test_deepseek_dry_run_is_json_only_and_has_no_key_or_provider_access(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     monkeypatch.setattr(cli, "_api_key_configured", _forbid_api_key_read)
+    real_import = builtins.__import__
+
+    def forbid_provider_import(
+        name: str,
+        globals: dict[str, object] | None = None,
+        locals: dict[str, object] | None = None,
+        fromlist: tuple[str, ...] = (),
+        level: int = 0,
+    ) -> object:
+        if name == "vetevidence.deepseek_provider":
+            raise AssertionError("dry-run must not import the real provider module")
+        return real_import(name, globals, locals, fromlist, level)
+
+    monkeypatch.setattr(builtins, "__import__", forbid_provider_import)
 
     result = cli.main(
         [
@@ -31,6 +49,8 @@ def test_deepseek_dry_run_is_json_only_and_has_no_key_or_provider_access(
             "DIR-02",
             "--max-cost-cny",
             "3.50",
+            "--timeout-seconds",
+            "75",
             "--dry-run",
         ]
     )
@@ -46,11 +66,117 @@ def test_deepseek_dry_run_is_json_only_and_has_no_key_or_provider_access(
         "hard_max_model_calls_per_case": 7,
         "hard_max_model_calls_total": 14,
         "max_cost_cny": "3.50",
+        "timeout_seconds": 75.0,
+        "timeout_seconds_allowed_range": {
+            "minimum": cli.DEEPSEEK_MIN_TIMEOUT_SECONDS,
+            "maximum": cli.DEEPSEEK_MAX_TIMEOUT_SECONDS,
+        },
+        "max_http_retries_per_model_call": 0,
         "synthetic_boundary": cli.SYNTHETIC_BOUNDARY,
         "will_read_api_key": False,
         "will_construct_provider": False,
         "will_use_network": False,
     }
+
+
+def test_timeout_contract_reload_has_no_key_or_provider_access(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    real_import = builtins.__import__
+
+    def forbid_sensitive_import(
+        name: str,
+        globals: dict[str, object] | None = None,
+        locals: dict[str, object] | None = None,
+        fromlist: tuple[str, ...] = (),
+        level: int = 0,
+    ) -> object:
+        if name == "vetevidence.deepseek_provider":
+            raise AssertionError("timeout contract imported the real provider")
+        return real_import(name, globals, locals, fromlist, level)
+
+    def forbid_environment_read(*_args: object, **_kwargs: object) -> str:
+        raise AssertionError("timeout contract read an environment value")
+
+    monkeypatch.setattr(builtins, "__import__", forbid_sensitive_import)
+    monkeypatch.setattr(os.environ, "get", forbid_environment_read)
+
+    reloaded = importlib.reload(deepseek_contract)
+
+    assert reloaded.DEEPSEEK_DEFAULT_TIMEOUT_SECONDS == 120.0
+
+
+@pytest.mark.parametrize("raw", ["29.9", "300.1", "NaN", "not-a-number"])
+def test_deepseek_timeout_rejects_out_of_range_or_invalid_values_before_key_access(
+    raw: str,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.setattr(cli, "_api_key_configured", _forbid_api_key_read)
+
+    assert (
+        cli.main(
+            [
+                "--provider",
+                "deepseek",
+                "--case-id",
+                "DIR-01",
+                "--timeout-seconds",
+                raw,
+                "--dry-run",
+            ]
+        )
+        == 2
+    )
+    assert "--timeout-seconds" in capsys.readouterr().err
+
+
+def test_fake_path_rejects_deepseek_timeout_without_key_access(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.setattr(cli, "_api_key_configured", _forbid_api_key_read)
+
+    assert cli.main(["--provider", "fake", "--timeout-seconds", "120"]) == 2
+    assert "only available with --provider deepseek" in capsys.readouterr().err
+
+
+def test_real_cli_passes_bounded_timeout_without_enabling_http_retries(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import vetevidence.deepseek_provider as deepseek_module
+
+    captured: dict[str, object] = {}
+
+    class ProviderConstructionObserved(RuntimeError):
+        pass
+
+    def capture_provider(**kwargs: object) -> None:
+        captured.update(kwargs)
+        raise ProviderConstructionObserved
+
+    monkeypatch.setattr(cli, "_api_key_configured", lambda: True)
+    monkeypatch.setattr(deepseek_module, "DeepSeekProvider", capture_provider)
+
+    with pytest.raises(ProviderConstructionObserved):
+        cli.main(
+            [
+                "--provider",
+                "deepseek",
+                "--case-id",
+                "DIR-01",
+                "--confirm-paid-run",
+                "--max-cost-cny",
+                "1",
+                "--timeout-seconds",
+                "95.5",
+            ]
+        )
+
+    assert captured["timeout_seconds"] == 95.5
+    assert captured["max_retries"] == 0
+    assert captured["model_name"] == "deepseek-v4-pro"
+    assert captured["budget"].limit_cny == 1  # type: ignore[union-attr]
 
 
 @pytest.mark.parametrize(

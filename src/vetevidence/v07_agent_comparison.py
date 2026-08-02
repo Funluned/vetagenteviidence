@@ -695,6 +695,7 @@ def _dual_actual(
     base: V07AgentActual,
     review_audits: Sequence[EvidenceReviewCallAudit],
     *,
+    research_task_completed: bool,
     total_latency_ms: float,
 ) -> V07AgentActual:
     non_zero = {
@@ -714,6 +715,9 @@ def _dual_actual(
     )
     return base.model_copy(
         update={
+            # Reviewer disposition is a separate safety outcome.  It cannot
+            # upgrade an incomplete shared Research run into a completed task.
+            "task_completed": research_task_completed,
             "model_calls": base.model_calls + len(review_audits),
             "real_model_calls": base.real_model_calls
             + sum(not audit.fake for audit in review_audits),
@@ -815,6 +819,46 @@ def _validate_call_models(
             raise ValueError(
                 "provider response model name/version differs across comparison roles"
             )
+
+
+def _comparison_run_id(evaluation_input_sha256: str, ordinal: int) -> str:
+    """Return a deterministic, report-scoped run ID for one case.
+
+    Fixture run IDs describe provider-visible inputs and can legitimately
+    collide when two cases have the same question/context.  The comparison
+    namespace instead includes the full immutable input hash plus the case
+    ordinal, so fake replays remain deterministic without random identifiers.
+    """
+
+    return f"comparison-{evaluation_input_sha256}-{ordinal:04d}"
+
+
+def _validate_global_trace_identity(
+    cases: Sequence[V07AgentComparisonCase],
+) -> None:
+    """Require one identity per logical run/call in newly built reports.
+
+    Audit copies and provider settlement slices intentionally repeat the same
+    call identity, so only the canonical Research and Review audit sequences
+    participate in this invariant.  Historical schema-1.0 reports remain
+    loadable; the guarantee applies to reports produced by this orchestrator.
+    """
+
+    run_ids: list[str] = []
+    request_ids: list[str] = []
+    for item in cases:
+        run_ids.extend((item.research_state.run_id, item.review.run_id))
+        request_ids.extend(
+            audit.request_id
+            for audit in (
+                *item.research_state.model_call_audits,
+                *item.review.call_audits,
+            )
+        )
+    if len(run_ids) != len(set(run_ids)):
+        raise ValueError("comparison run IDs must be globally unique")
+    if len(request_ids) != len(set(request_ids)):
+        raise ValueError("comparison request IDs must be globally unique")
 
 
 def _build_report(
@@ -922,7 +966,7 @@ def run_v07_agent_comparison(
     research_usage_items: list[V07BranchUsage] = []
     review_usage_items: list[V07BranchUsage] = []
 
-    for case in case_tuple:
+    for ordinal, case in enumerate(case_tuple, start=1):
         fixture = fixtures_by_id[case.id]
         gold = project_v07_agent_gold(case, expected_by_id[case.id], fixture)
         research = _resolve_provider(research_provider, case, "research")
@@ -945,8 +989,9 @@ def run_v07_agent_comparison(
                 fixture.provider_question,
                 provider=research,
                 tool_executor=executor,
-                run_id=fixture.run_id,
+                run_id=_comparison_run_id(input_sha256, ordinal),
                 budget=_resolve_budget(research_budget, case, AgentBudget),
+                required_report_input_id=fixture.run_context.report_input_id,
             )
         research_latency_ms = (perf_counter() - started) * 1_000.0
         research_slice = _capture_slice(
@@ -989,7 +1034,7 @@ def run_v07_agent_comparison(
             research_state,
             reviewer_provider=reviewer,
             research_provider=revision,
-            run_id=f"{fixture.run_id}:review",
+            run_id=f"{research_state.run_id}:review",
             budget=_resolve_budget(review_budget, case, EvidenceReviewBudget),
         )
         review_latency_ms = (perf_counter() - review_started) * 1_000.0
@@ -1013,6 +1058,7 @@ def run_v07_agent_comparison(
         dual_actual = _dual_actual(
             dual_base,
             review.call_audits,
+            research_task_completed=single_actual.task_completed,
             total_latency_ms=research_latency_ms + review_latency_ms,
         )
         review_usage = _usage_from_audits(
@@ -1099,6 +1145,7 @@ def run_v07_agent_comparison(
             "synthetic fixtures into scientific evidence."
         ),
     )
+    _validate_global_trace_identity(comparison_cases)
     return _build_report(
         evaluation_input_sha256=input_sha256,
         gold_review_status=gold_review_status,

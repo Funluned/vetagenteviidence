@@ -2,17 +2,51 @@
 
 ## 当前阶段
 
-VetResearch Workbench v0.7 的免费规则＋本地关键词检索路径保持不变；没有模型
-Key 的用户仍可使用。隔离的 DeepSeek V4 Provider、有限状态 Research Agent
-和只读 Evidence Reviewer 已在本地实现。经大壮确认 `¥5` 上限完成修正后五题
-真实复测，单／双 Agent 均为 `2/5`，精确记账 `¥0.1118206`。随后已用零费用
-工程修复补齐草稿 schema 恢复、问题级证据门禁、检索实体词和草稿截断恢复；
-Fake 单／双 Agent 为 `24/27`，全量 `642 passed, 1 skipped`。随后三题真实复测
-实耗 `¥0.0270374`：`HIT-03` 通过，`DIR-01`、`TOOL-03` 因草稿提示缺少 DeepSeek
-JSON Output 要求的字面量 `json` 而收到 HTTP 400；该确定性问题已在本地修复，
-最终两题真实复测单／双 Agent 均为 `2/2`，7 次 HTTP 200 调用精确记账
-`¥0.0634410`；`TOOL-03` 的 2048→4096 有界截断恢复已被真实触发并成功。孙奇
-本人从零安装、讲解、修改和排错验收继续延期，不作为当前门禁。
+VetResearch Workbench v0.7.0 正在进行发布收口。免费规则＋本地关键词检索路径
+保持不变；没有模型 Key 的用户仍可使用。第一次修正 scorer 的全 27 题真实运行
+得到单 Agent `26/27`、双 Agent `25/27`，并暴露 `INJ-02` 控制文本误准入和
+`DIR-01` Reviewer 截断缺口。两项零费用确定性修复后，Fake 单／双 Agent 为
+`25/27`，Windows 全量为 `648 passed, 1 skipped`。修复后第二次全 27 题真实运行
+得到单 Agent `23/27`、双 Agent `24/27`；它是独立新批次，不与第一次全量或历史
+定向结果拼分。第二次已证明 `INJ-02` 和 `DIR-01` 单／双均通过，同时暴露
+`CON-02`、`TOOL-02`、`TOOL-03` 的模型波动或检索完整性边界。阶段 6 文档、版本
+和发布材料仍在本地收口；Docker、远端 CI、提交、推送、合并、Tag 和 Release
+均未在本轮写成已完成。孙奇本人从零安装、讲解、修改和排错验收继续延期到
+GitHub 工程稳定后。
+
+## 2026-08-02 v0.7.0 发布收口两次全 27 题真实运行（本地已完成）
+
+- [x] 第一次全量报告为
+  `data/eval/v0.7/results/agent_deepseek_deepseek-v4-pro_20260802T082341665388Z.json`；
+  输入 SHA-256 为
+  `583ab368d37dfaecd61be6cc64d9641b0befcdbfbc23d453b64abc41282f8f3f`，结果
+  SHA-256 为 `93a1fc3c5f2fba419ea8e8c7c84f813df00a94ebfc17bffc46f0ddf82f9ab533`。
+- [x] 第一次单／双 Agent 为 `26/27`、`25/27`；70 次请求均为 HTTP 200，
+  67 次 `stop`、3 次 `length`，精确费用 `¥0.4456658`。该原始报告永久保留，
+  不因后续修复覆盖或重算。
+- [x] 第一次全量后完成两项零费用修复：注入控制文本仍作为 `untrusted_evidence`
+  留痕但强制降为 `out_of_scope`；Reviewer 首次明确截断时只允许一次
+  2048→4096 有界恢复。Fake 单／双更新为 `25/27`，稳定 SHA-256 为
+  `053f2d35f64d74f46ec83f4af96f697f2e1e424ec7eb0221805c67a07cd18d90`；
+  Windows 全量 `648 passed, 1 skipped`，规则、RAG、Fake 基线匹配。
+- [x] 第二次全量报告为
+  `data/eval/v0.7/results/agent_deepseek_deepseek-v4-pro_20260802T085911981817Z.json`；
+  输入 SHA-256 为
+  `901b7d507c483c38cc60d2ac33476dda9908f178ace936cf7676a960c87f92cb`，结果
+  SHA-256 为 `3962523562e38944eb09b6d997ac96b055377d3184fc05a7be0a298dd83568c0`。
+- [x] 第二次单 Agent `23/27`，失败 `CON-02`、`CIT-01`、`TOOL-02`、
+  `TOOL-03`；双 Agent `24/27`，失败 `CON-02`、`TOOL-02`、`TOOL-03`。
+  71 次请求均为 HTTP 200，69 次 `stop`、2 次 `length`，Provider HTTP 自动
+  重试为 0。本次精确费用 `¥0.4318394`，两次全量累计 `¥0.8775052`。
+- [x] 第二次 input/output/reasoning Token 为 `64,663 / 55,318 / 49,388`；
+  单／双 Recall 为 `.8/.8`、Citation Precision 为 `.75/1.0`、Unsupported
+  Claim Rate 为 `.25/0`、Abstention Accuracy 为 `.92/.96`、Task Completion
+  为 `1/1`；单题中位耗时为 `9.75 s / 23.38 s`。
+- [x] `INJ-02`、`DIR-01` 单／双均通过，证明两项确定性修复在真实 Provider 上
+  生效。`TOOL-02` 首次 Reviewer 截断后真实完成 2048→4096 恢复，但因检索
+  不完整仍安全拒答；恢复成功不等于任务证据完整。
+- [ ] 阶段 6 的 Docker 实际验证、远端 CI、提交、推送、合并、Tag 和 Release
+  仍待后续门禁；阶段 5 本人验收继续延期。
 
 ## 2026-08-02 v0.7 五题真实复测与第二轮零费用修复（本地已完成）
 

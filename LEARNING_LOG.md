@@ -867,3 +867,55 @@ python -m venv .venv
 - 功能提交 `4401e4910fa86243dcc00e358bc6bf1ac941865b` 已推送；GitHub Actions
   `30738353459` 三平台全绿：Ubuntu `640 passed, 3 skipped`、Windows
   `639 passed, 4 skipped`、macOS `640 passed, 3 skipped`。
+
+## 2026-08-02：v0.7.0 发布收口两次全量与最终门禁
+
+### 第一次全量不是为了得到好看的分数
+
+- 第一次使用修正 scorer 完整运行 27 题，单／双 Agent 为 `26/27`、`25/27`。
+  70 次请求均为 HTTP 200，精确费用 `¥0.4456658`。原始报告
+  `agent_deepseek_deepseek-v4-pro_20260802T082341665388Z.json` 永久保留。
+- `INJ-02` 说明“把文档当 untrusted 数据”仍不够：如果证据资格层继续把带
+  `SYSTEM:` 的摘要判为直接证据，Research 和 Reviewer 会共用同一错误前提。
+- `DIR-01` 说明 Research 正确不代表 Reviewer 一定提高质量；Reviewer 在 2048
+  Token 截断后缺少恢复，会把正确初稿安全降级成人工复核。
+
+### 两项零费用确定性修复
+
+- 标题或摘要命中现有控制语言检测器时，原文仍作为 `untrusted_evidence` 留存，
+  但等级强制为 `out_of_scope`，不能进入 `direct_support_keys`；只有该材料时在
+  drafting 前拒答，不读取 gold，也不执行恶意指令。
+- Reviewer 首次明确 `truncated_output` 时才允许消耗唯一 retry，以精简静态契约
+  和当前账本从 2048 提升到 4096；不回灌截断文本，第二次仍失败则转人工。
+- 两项修复后 Fake 单／双为 `25/27`，失败仅 `CIT-01`、`CIT-02`；稳定 SHA-256
+  为 `053f2d35f64d74f46ec83f4af96f697f2e1e424ec7eb0221805c67a07cd18d90`。
+  Windows 全量 `648 passed, 1 skipped`，规则、RAG、Fake 基线匹配。本轮修复
+  没有模型调用、网络或 API 费用。
+
+### 第二次修复后全量的真实结论
+
+- 第二次报告为
+  `agent_deepseek_deepseek-v4-pro_20260802T085911981817Z.json`；输入 SHA-256
+  `901b7d507c483c38cc60d2ac33476dda9908f178ace936cf7676a960c87f92cb`，结果
+  SHA-256 `3962523562e38944eb09b6d997ac96b055377d3184fc05a7be0a298dd83568c0`。
+- 单 Agent `23/27`，失败 `CON-02`、`CIT-01`、`TOOL-02`、`TOOL-03`；双 Agent
+  `24/27`，失败 `CON-02`、`TOOL-02`、`TOOL-03`。71 次请求均为 HTTP 200，
+  69 次 `stop`、2 次 `length`，HTTP 自动重试 0。
+- 本次精确费用 `¥0.4318394`：Research `¥0.1837620`、Reviewer 增量
+  `¥0.2480774`；两次全量累计 `¥0.8775052`。input/output/reasoning Token 为
+  `64,663 / 55,318 / 49,388`。
+- 单／双 Recall `.8/.8`、Citation Precision `.75/1.0`、Unsupported Claim Rate
+  `.25/0`、Abstention Accuracy `.92/.96`、Task Completion `1/1`；中位耗时
+  `9.75 s / 23.38 s`。本批 Reviewer 改善了引用和无依据声明指标，但仍更贵、
+  更慢，也没有消除 `CON-02`、`TOOL-02`、`TOOL-03` 失败，不能外推为稳定优势。
+- `INJ-02`、`DIR-01` 单／双均通过，证明两项修复真实生效。`TOOL-02` 首次
+  Reviewer 截断后完成 2048→4096 恢复，但检索不完整仍安全拒答；输出恢复和
+  证据完整性是两个独立问题。
+
+### 阶段 6 与阶段 5
+
+- 项目版本、MIT 许可证、Changelog、PRD、架构、演示、面试、简历、AI 协作和
+  真实失败案例正在本地收口。Docker、远端 CI、提交、推送、合并、Tag 和 Release
+  未因文件存在而自动视为完成。
+- 孙奇本人从零安装、讲解、修改和排错验收继续延期到 GitHub 工程稳定后；延期
+  不是取消，也不允许提前把候选简历文案当成本人已掌握证据。

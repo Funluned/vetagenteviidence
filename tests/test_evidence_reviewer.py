@@ -30,6 +30,8 @@ from vetevidence.agent_tools import (
 )
 from vetevidence.evidence_reviewer import (
     EVIDENCE_REVIEWER_SYSTEM_PROMPT,
+    INITIAL_REVIEW_MAX_OUTPUT_TOKENS,
+    MAX_REVIEW_OUTPUT_TOKENS_PER_CALL,
     RESEARCH_REVISION_SYSTEM_PROMPT,
     SAFE_REFUSAL,
     EvidenceReviewBudget,
@@ -873,6 +875,122 @@ def test_retryable_provider_failure_consumes_the_only_retry_and_is_audited() -> 
     assert len(result.call_audits) == 2
     assert result.call_audits[0].failure_code == "temporary_unavailable"
     assert result.call_audits[0].response_succeeded is False
+    assert [
+        request.generation_parameters["max_tokens"]
+        for request in reviewer.requests
+    ] == [2_048, 2_048]
+
+
+def test_reviewer_output_cap_cannot_exceed_bounded_recovery_limit() -> None:
+    with pytest.raises(ValueError):
+        EvidenceReviewBudget(
+            max_output_tokens_per_call=(
+                MAX_REVIEW_OUTPUT_TOKENS_PER_CALL + 1
+            )
+        )
+
+
+def test_reviewer_truncation_uses_one_bounded_2048_to_4096_retry() -> None:
+    truncated = ProviderFailure(
+        code="truncated_output",
+        message="Scripted reviewer output reached max_tokens.",
+        retryable=False,
+    )
+    reviewer = ScriptedReviewerProvider([truncated, APPROVED])
+
+    result = run_evidence_review(
+        _research_state(),
+        reviewer_provider=reviewer,
+        run_id="reviewer-truncation-recovery",
+    )
+
+    assert result.status == EvidenceReviewStatus.APPROVED
+    assert result.budget.review_calls_used == 1
+    assert result.budget.retries_used == 1
+    assert result.budget.model_calls_used == 2
+    assert [
+        request.generation_parameters["max_tokens"]
+        for request in reviewer.requests
+    ] == [
+        INITIAL_REVIEW_MAX_OUTPUT_TOKENS,
+        MAX_REVIEW_OUTPUT_TOKENS_PER_CALL,
+    ]
+    assert "REVIEW_TRUNCATION_RECOVERY_INPUT=" in reviewer.requests[1].prompt
+    assert "Scripted reviewer output" not in reviewer.requests[1].prompt
+    assert [audit.retry for audit in result.call_audits] == [False, True]
+    assert result.call_audits[0].failure_code == "truncated_output"
+
+
+def test_second_reviewer_truncation_fails_closed_without_third_call() -> None:
+    truncated = ProviderFailure(
+        code="truncated_output",
+        message="Scripted reviewer output reached max_tokens.",
+        retryable=False,
+    )
+    reviewer = ScriptedReviewerProvider([truncated, truncated, APPROVED])
+
+    result = run_evidence_review(
+        _research_state(),
+        reviewer_provider=reviewer,
+        run_id="reviewer-second-truncation",
+    )
+
+    assert result.status == EvidenceReviewStatus.HUMAN_REVIEW_REQUIRED
+    assert result.final_answer == SAFE_REFUSAL
+    assert result.errors[-1].code == "truncated_output"
+    assert len(reviewer.requests) == 2
+    assert result.budget.review_calls_used == 1
+    assert result.budget.retries_used == 1
+    assert result.budget.model_calls_used == 2
+    assert [
+        request.generation_parameters["max_tokens"]
+        for request in reviewer.requests
+    ] == [2_048, 4_096]
+
+
+def test_reviewer_truncation_without_retry_budget_fails_before_second_call() -> None:
+    truncated = ProviderFailure(
+        code="truncated_output",
+        message="Scripted reviewer output reached max_tokens.",
+        retryable=False,
+    )
+    reviewer = ScriptedReviewerProvider([truncated])
+
+    result = run_evidence_review(
+        _research_state(),
+        reviewer_provider=reviewer,
+        run_id="reviewer-truncation-no-retry",
+        budget=EvidenceReviewBudget(max_retries=0),
+    )
+
+    assert result.status == EvidenceReviewStatus.HUMAN_REVIEW_REQUIRED
+    assert result.errors[-1].code == "review_retry_limit"
+    assert len(reviewer.requests) == 1
+    assert reviewer.requests[0].generation_parameters["max_tokens"] == 2_048
+    assert result.budget.retries_used == 0
+    assert result.budget.model_calls_used == 1
+
+
+def test_reviewer_truncation_over_usage_budget_fails_before_retry() -> None:
+    truncated = ProviderFailure(
+        code="truncated_output",
+        message="Scripted reviewer output reached max_tokens.",
+        retryable=False,
+    )
+    reviewer = ScriptedReviewerProvider([truncated])
+
+    result = run_evidence_review(
+        _research_state(),
+        reviewer_provider=reviewer,
+        run_id="reviewer-truncation-budget-exhausted",
+        budget=EvidenceReviewBudget(max_total_tokens=29),
+    )
+
+    assert result.status == EvidenceReviewStatus.HUMAN_REVIEW_REQUIRED
+    assert result.errors[-1].code == "review_usage_budget_exceeded"
+    assert len(reviewer.requests) == 1
+    assert result.budget.total_tokens_used == 30
+    assert result.budget.retries_used == 0
 
 
 def test_strict_json_rejects_extra_tool_output_and_never_reads_environment(

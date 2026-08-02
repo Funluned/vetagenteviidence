@@ -27,6 +27,7 @@ from vetevidence.agent_tools import (
     ToolExecutionResult,
     ToolFailure,
     ValidatedToolCall,
+    contains_prompt_injection,
 )
 from vetevidence.experiment_analysis import (
     ExperimentAnalysisResult,
@@ -328,6 +329,11 @@ def _article_evidence(
         title=clean_title or "",
         abstract=abstract.strip(),
     )
+    evidence_grade = AgentEvidenceGrade(qualification.grade.value)
+    if contains_prompt_injection(abstract) or (
+        isinstance(title, str) and contains_prompt_injection(title)
+    ):
+        evidence_grade = AgentEvidenceGrade.OUT_OF_SCOPE
     return ToolEvidence(
         source_id=alias,
         chunk_id=f"{alias}:abstract",
@@ -335,7 +341,7 @@ def _article_evidence(
         source_type=source_type,
         title=clean_title,
         locator=None,
-        evidence_grade=AgentEvidenceGrade(qualification.grade.value),
+        evidence_grade=evidence_grade,
     )
 
 

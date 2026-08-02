@@ -1,4 +1,11 @@
-# 项目复盘
+# 项目复盘（v0.1 历史记录）
+
+> 本文冻结的是 v0.1 时点的复盘，其中“GitHub 未上传”“尚未接入 LLM Provider”
+> 和“Docker 未验证”等描述不是 v0.7.0 当前状态。当前能力、真实 Agent 失败与
+> 发布边界请分别查看 [README](../README.md)、
+> [v0.7.0 Agent 评测](V0.7_AGENT_EVALUATION.md) 和
+> [真实 Agent 失败与修复案例](REAL_AGENT_FAILURE_CASE.md)。保留本文是为了呈现
+> 项目如何从早期规则原型迭代，而不是覆盖历史事实。
 
 ## 做对的事
 

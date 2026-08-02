@@ -12,6 +12,10 @@ def test_required_delivery_artifacts_exist() -> None:
         ".gitattributes",
         "Dockerfile",
         ".dockerignore",
+        "LICENSE",
+        "CHANGELOG.md",
+        "docs/AI_COLLABORATION.md",
+        "docs/REAL_AGENT_FAILURE_CASE.md",
         "docs/PRD.md",
         "docs/ARCHITECTURE.md",
         "docs/DATABASE_CONNECTORS.md",
@@ -106,12 +110,18 @@ def test_sha256_pinned_3dmol_asset_disables_git_eol_conversion() -> None:
 
 def test_dockerfile_has_runtime_and_health_contracts() -> None:
     dockerfile = (PROJECT_ROOT / "Dockerfile").read_text(encoding="utf-8")
+    dockerignore = (PROJECT_ROOT / ".dockerignore").read_text(encoding="utf-8")
 
     assert dockerfile.startswith("FROM python:3.11-slim")
+    assert "COPY pyproject.toml README.md LICENSE ./" in dockerfile
+    assert "COPY --chown=appuser:appuser data ./data" in dockerfile
     assert "USER appuser" in dockerfile
     assert "HEALTHCHECK" in dockerfile
     assert "0.0.0.0" in dockerfile
     assert "8501" in dockerfile
+    assert "data/cache/" in dockerignore
+    assert "data/eval/" in dockerignore
+    assert ".streamlit/secrets.toml" in dockerignore
 
 
 def test_readme_document_links_exist() -> None:
@@ -125,8 +135,14 @@ def test_readme_document_links_exist() -> None:
 def test_workbench_release_metadata_and_readme_contract() -> None:
     pyproject = (PROJECT_ROOT / "pyproject.toml").read_text(encoding="utf-8")
     readme = (PROJECT_ROOT / "README.md").read_text(encoding="utf-8")
+    license_text = (PROJECT_ROOT / "LICENSE").read_text(encoding="utf-8")
+    changelog = (PROJECT_ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
 
-    assert 'version = "0.6.0"' in pyproject
+    assert 'version = "0.7.0"' in pyproject
+    assert 'license = { file = "LICENSE" }' in pyproject
+    assert license_text.startswith("MIT License\n")
+    assert "Copyright (c) 2026 Sunqi" in license_text
+    assert "## [0.7.0] - 2026-08-02" in changelog
     assert "VetResearch Workbench" in readme
     assert "FICI" in readme
     assert "生长曲线" in readme

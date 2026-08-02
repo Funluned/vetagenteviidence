@@ -5,13 +5,44 @@
 VetResearch Workbench v0.7 的免费规则＋本地关键词检索路径保持不变；没有模型
 Key 的用户仍可使用。隔离的 DeepSeek V4 Provider、有限状态 Research Agent
 和只读 Evidence Reviewer 已在本地实现，27 题 Fake 合同烟测及单／双 Agent
-同源对比已固化。Fake 不是 LLM，只证明工程链路。经大壮单独批准后，已完成
-DeepSeek V4 Pro 五题首测；首测暴露的 `TOOL-02` 多路规划与 Reviewer 可见性
-缺陷已修复，并完成该题真实定向复测。两轮累计 17 次模型调用，实际费用
-`¥0.0765120`。最终本地回归、文档收口和安全复核均已通过。功能提交
-`cb819f32eb8eb1d00898e89229e6fc181a89eb35` 已推送，远端 SHA 与本地一致；
-GitHub Actions `30710480196` 三平台全绿。本批远端工程收口完成。孙奇本人从零
-安装、讲解、修改和排错验收继续延期，不作为当前门禁。
+同源对比已固化。Fake 不是 LLM，只证明工程链路。经大壮单独批准后，已在修复后
+同一版本上完成 DeepSeek V4 Pro 全 27 题正式工程评测：规则 `20/27`、真实单
+Agent `24/27`、真实双 Agent `24/27`。双 Agent 没有改善三项核心质量指标，
+只保留为实验模式。正式报告、文档与本地验证均已通过；大壮已确认进入提交推送
+收口。孙奇本人从零安装、讲解、修改和排错验收继续延期，不作为当前门禁。
+
+## 2026-08-02 v0.7 DeepSeek 全 27 题正式工程评测（本地已完成）
+
+- [x] 先完成零费用 dry-run：27 题通常 81 次逻辑调用，全部重试／修订走满时
+  硬上限 189 次；真实运行使用共享 `¥3` 费用上限。
+- [x] 正式报告为
+  `data/eval/v0.7/results/agent_deepseek_deepseek-v4-pro_20260802T030725971226Z.json`，
+  内容完整性 SHA-256 为
+  `1d20b4c079f3b51d8eb3d3668364576302882c0ffb007b8be0fb4f3b70a62727`。
+- [x] 报告通过 Pydantic、内容哈希、27 ID／九类各 3、输入与规则基线哈希、
+  共享 Research、`retrieval_reused` 和双分支费用组合校验。
+- [x] 规则 `20/27`，真实单 Agent `24/27`，真实双 Agent `24/27`。单／双的
+  Recall `5/5`、Citation Precision `2/2`、Unsupported Claim `0/2`、Abstention
+  `23/25` 完全相同；Task Completion 为 `26/27` 与 `27/27`。
+- [x] 双 Agent 相对单 Agent 增加 `¥0.2586836` 保守记账和 `19.19 s` 单题中位
+  耗时，却没有改善 Citation Precision、Unsupported Claim 或 Abstention，
+  不满足放行门槛。Task Completion 的一题变化只是失败态安全交接人工，不是
+  Reviewer 完成了研究任务。
+- [x] 共 83 次模型请求／HTTP 尝试：74 次可用成功、1 次空输出、8 次
+  `transport_error`。收到响应的 75 次均确认实际模型为 `deepseek-v4-pro`；
+  8 次无响应只能确认请求模型。
+- [x] 总保守记账 `¥0.5482916`：有 Token 回执的精确部分 `¥0.3619676`，无响应
+  请求最坏情况预留 `¥0.186324`。最终账单以 DeepSeek 控制台为准。
+- [x] 失败题原样保留：`DIR-01` 为账本外引用被安全拦截；`CON-01` 为冲突证据
+  被模型误拒答并叠加 Reviewer 超时；`TOOL-03` 为漏规划报告并连续草稿超时。
+- [x] 安全扫描未发现 Key、Authorization／Bearer、私有路径、`SYN-*` 或
+  `example.invalid` 泄漏；父进程环境没有遗留 `DEEPSEEK_API_KEY`。
+- [ ] 下一版付费复测前先做零费用工程修复：冲突 scorer 真正核对两侧来源与
+  开放冲突、区分“人工交接”和研究任务成功、V4 Pro 超时受限可配置、全局调用
+  ID 唯一，并增加账本外引用的受限修复路径。当前报告不覆盖、不删改、不重跑。
+- [x] Agent 专项 `125 passed`；全量 `602 passed, 1 skipped`；规则、RAG、Fake
+  Agent 三套基线、Python 编译、依赖与 Git 差异检查全部通过。
+- [x] 大壮已另行确认提交和推送；远端一致性在推送后核对。
 
 ## 2026-08-02 v0.7 DeepSeek 五题首测与 TOOL-02 定向复测（本地已完成）
 

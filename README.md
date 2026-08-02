@@ -36,10 +36,13 @@ VetResearch Workbench 基于 VetEvidence AI v0.1，把科研问题、可核查�
   必须拒答。Reviewer 只能检查同一份检索结果，不能偷偷重搜或加入新证据；
 - 27 题 Fake 合同烟测只验证编排、预算、审计和单／双 Agent 对比是否接通，
   `Fake` 不是 LLM，分数不能写成模型效果；
-- 已在明确费用上限下用 DeepSeek V4 Pro 运行五个合成代表场景：同题规则
-  `3/5`、真实单 Agent `4/5`、真实双 Agent `4/5`。首测暴露 `TOOL-02` 多路规划
-  与 Reviewer 可见性缺陷，修复后的单题复测中单／双 Agent 均通过；两轮累计
-  17 次模型调用、实际费用 `¥0.0765120`；
+- 已在修复后的同一版本上用 DeepSeek V4 Pro 一次跑完 27 个冻结合成场景：
+  规则 `20/27`、真实单 Agent `24/27`、真实双 Agent `24/27`。双 Agent 的三项
+  核心质量指标均未优于单 Agent，却增加 `¥0.2586836` 的保守记账和约 19.19 秒
+  单题中位耗时，因此只保留为实验模式；
+- 全批 83 次请求中 74 次得到可用输出、1 次为空、8 次网络超时。预算审计总记账
+  `¥0.5482916`，其中 `¥0.3619676` 有 Token 回执，`¥0.186324` 是无响应请求的
+  最坏情况预留，不等于已确认账单；
 - 即使完全不配置 `DEEPSEEK_API_KEY`，免费规则和本地关键词检索仍可正常使用。
 
 ### VetResearch Workbench v0.6
@@ -486,9 +489,9 @@ v0.7 阶段 3A 建立了可替换 Provider 契约和本地 SQLite 检索，并�
 来源哈希和评测链可复跑；不能写成“语义 RAG 已有效”。因此工作台默认使用
 关键词模式，另外两种只作为实验入口。完整口径见
 [v0.7 本地 RAG 离线基线](docs/V0.7_RAG_EVALUATION.md)。隔离的 DeepSeek
-Provider、Research Agent 和 Evidence Reviewer 已实现并完成受控真实小样本
-评测，但仍不进入 Streamlit 免费路径。没有 Key 的用户可以使用现有规则、导入
-材料和本地检索；实时 PubMed 获取仍需要可用网络，但不产生模型 API 费用。
+Provider、Research Agent 和 Evidence Reviewer 已实现并完成全 27 题受控真实
+工程评测，但仍不进入 Streamlit 免费路径。没有 Key 的用户可以使用现有规则、
+导入材料和本地检索；实时 PubMed 获取仍需要可用网络，但不产生模型 API 费用。
 
 27 题零费用 Agent 合同烟测可复跑：
 
@@ -498,9 +501,12 @@ Provider、Research Agent 和 Evidence Reviewer 已实现并完成受控真实�
 
 该 Fake 基线为规则 `20/27`、单 Agent `17/27`、双 Agent `17/27`，真实模型
 调用、网络、Token 和 API 费用均为 0。Fake 不是 LLM，这些分数只能检查工程
-合同，不能表示 DeepSeek 效果。真实五题首测为规则 `3/5`、单／双 Agent
-`4/5`；修复后仅复测原失败的 `TOOL-02`，该题单／双均通过。由于其余四题没有
-在修复后的版本重跑，两份报告不拼成正式 `5/5`。真实模式可先用
+合同，不能表示 DeepSeek 效果。修复后的同一版本全 27 题正式结果为规则
+`20/27`、真实单 Agent `24/27`、真实双 Agent `24/27`；双 Agent 没有改善
+Citation Precision、Unsupported Claim Rate 或 Abstention Accuracy，因此不
+作为默认有效设计。验收同时发现冲突证据 scorer 覆盖不完整、30 秒超时和全局
+调用 ID 不唯一，成绩必须连同这些边界解释。此前五题首测和 `TOOL-02` 定向复测
+只作为历史缺陷证据保留，不与正式成绩拼接。真实模式可先用
 `--provider deepseek --dry-run` 查看调用上限；只有同时给出题目、
 `--confirm-paid-run`、正数 `--max-cost-cny` 和环境变量 Key，程序才可能发出请求。
 完整结果、费用和边界见

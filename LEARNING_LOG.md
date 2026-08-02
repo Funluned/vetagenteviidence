@@ -793,3 +793,74 @@ python -m venv .venv
   macOS `626 passed, 3 skipped`。
 - 本轮没有读取 Key、调用模型或产生费用，已完成提交前验证；修复后没有真实复测。
   是否真实定向复测必须再次取得费用授权。
+
+## 2026-08-02：五题真实复测与第二轮 Agent 零费用修复
+
+### 真实复测告诉我们的事实
+
+- 经大壮确认 `¥5` 硬上限，定向运行 `DIR-01`、`CON-01`、`CON-02`、`HIT-03`、
+  `TOOL-03`。16 次请求均为 HTTP 200，无 HTTP 自动重试和网络超时；程序侧精确
+  记账 `¥0.1118206`，最终外部账单仍以 DeepSeek 控制台为准。
+- 单／双 Agent 都是 `2/5`。冲突题 `CON-01`、`CON-02` 已通过，证明前一轮
+  scorer、FICI 结构化冲突事实与开放冲突提示修复确实生效；Reviewer 增量
+  `¥0.020025`，仍未增加通过题数。
+- `DIR-01` 不是没找到证据，而是两次草稿 JSON 都未通过严格 schema；报告只保留
+  响应哈希，不能凭空声称具体错了哪个字段。
+- `HIT-03` 暴露的是分层信息丢失：现有规则已把 docking/predicted/might 判为
+  contextual，但 ToolEvidence 没带这个等级，Research 和 Reviewer 只检查 ID 与
+  逐字引句，因此把有 caveat 的计算预测放行。
+- `TOOL-03` 有两个独立问题：规划 query 只复述中文流程句，未带菌种、药物和结局
+  实体，导致本地文献命中 0；随后 drafting 的 2048 output Token 全部被 reasoning
+  占满，返回 `truncated_output`。报告工具和 120 秒超时本身已经生效。
+
+### 第二轮修复原则
+
+- 草稿 schema 重试使用统一、精确的字段与互斥形态契约；重试输入只含原问题、
+  当前账本、失败码和静态契约，不回灌错误模型输出或 gold，且仍共享唯一 retry。
+- 复用现有 `qualify_literature_evidence()`，根据题目和原文在进入模型前给证据标记
+  `direct_interaction/contextual/out_of_scope`；合法实验摘要单独标记
+  `validated_experiment`。这条链路不读取 expected 或 gold。
+- 已启用问题级分级却没有直接证据时，Research 在 drafting 前完成证据不足拒答；
+  混合账本中的每条目标结论必须至少引用一条直接证据，Reviewer 在模型调用前执行
+  同一检查。投影层也不再把任意 contextual claim 计为 admitted。
+- 对检索调用，运行时确定性补齐问题中明确给出的 Population、Intervention、
+  Comparator、Outcomes；这解决流程问题挤掉实体关键词的波动，不依赖模型记忆。
+- 首次 drafting 截断才允许使用现有唯一 retry；恢复提示更精简，不携带截断文本，
+  该次 max_tokens 在预算硬上限内由 2048 提升到 4096。第二次仍截断、retry 已耗尽
+  或费用预留不足时继续 fail closed，不会出现第四次调用。
+
+### 零费用验证与下一步
+
+- 新 Fake 基线为规则 `20/27`、单／双 Agent `24/27`；`HIT-03` 已在 drafting 前
+  安全拒答，`TOOL-03` 实际检索到 `source-001`、生成报告并通过。剩余
+  `CIT-01`、`CIT-02`、`INJ-02` 是合同 Fake 不做语义判断的既有边界。
+- 新稳定结果 SHA-256 为
+  `d94a1a87a869d72b342897125c54bb1c5fa73a1e7a0874ad39a39e6738aed76c`；Fake 的
+  真实模型、网络、Token 和模型费用均为 0。规则与 RAG 基线未变且复跑匹配。
+- 全量回归 `642 passed, 1 skipped`。
+
+### 第二轮三题真实复测与 HTTP 400 根因
+
+- 经新的 `¥5` 共享硬上限确认，复测 `DIR-01`、`HIT-03`、`TOOL-03`。共 6 次
+  HTTP 尝试，其中 4 次为 200、2 次为 400；无 HTTP 自动重试，精确费用
+  `¥0.0270374`。单／双 Agent 均为 `1/3`，`HIT-03` 按预期安全拒答并通过。
+- `DIR-01` 与 `TOOL-03` 的规划成功，drafting 请求在生成前被 DeepSeek 以 400
+  拒绝，因此这两次没有 Token 费用。报告内部结果 SHA-256 为
+  `97432480e00d9df1117e390fe20a642fbff01971b3e2550b19538953572df950`。
+- 从报告状态离线重建两个 drafting 请求后，请求体哈希与 Provider 审计完全一致；
+  两个请求都不包含字面量 `json`。DeepSeek JSON Output 官方约束要求 system 或
+  user prompt 必须包含该词，因此这里是确定性接口合同缺口，不是模型答错。
+- 草稿 system prompt 已补回 `Return strict JSON only.`，并增加请求级回归断言。
+  这项修复没有再次调用模型；`DIR-01`、`TOOL-03` 仍须在新的费用确认后复测。
+
+### 最终两题真实复测
+
+- 经大壮确认 `¥1` 共享硬上限，最终复测 `DIR-01`、`TOOL-03`。7 次请求全部
+  HTTP 200、无 Provider 自动重试和未核实费用，精确记账 `¥0.0634410`；报告
+  内部结果 SHA-256 为
+  `105b4d8c85a0d61dc9328c683c09fcc3955b73be4213c7e7e21410420ccf8242`。
+- 单／双 Agent 均为 `2/2`，Reviewer 都批准。`DIR-01` 首次草稿成功并只引用
+  直接交互证据。
+- `TOOL-03` 首次草稿的 2048 output Token 全部被 reasoning 使用，随后真实消耗
+  唯一 retry，以 4096 上限成功恢复。它证明有界截断恢复在真实 V4 Pro 上有效，
+  同时仍保持“第二次失败就关闭”的费用和安全边界。

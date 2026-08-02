@@ -1,0 +1,2564 @@
+{
+  "schema_version": "1.0",
+  "dataset_version": "v0.7.0",
+  "evaluation_input_sha256": "5cf08b0bdf8d1f1acd3a9bea9aa0c529d2321bbf8ff0b61d497864bb55450b39",
+  "gold_review_status": "engineering_gold_pending_domain_expert_review",
+  "boundaries": [
+    "All 3 selected cases are synthetic engineering fixtures; no result establishes clinical or scientific truth.",
+    "Fake mode validates orchestration and provider contracts only; it does not validate model quality.",
+    "Real mode means real provider API calls only; it does not turn synthetic fixtures into scientific evidence."
+  ],
+  "generated_at": "2026-08-02T07:29:07.955872Z",
+  "execution_mode": "real",
+  "rules_baseline": {
+    "baseline_path": "data/eval/v0.7/baselines/rules_v1.json",
+    "provider": "rules_v1",
+    "deterministic_result_sha256": "d316f911fffc39a4190e11d4173e2d2ecfe2bfddad3bbc0ef42e63a470886823",
+    "implementation_sha256": "5c4d78a3d8bfaeab9c5e228e3fbf37788a167cb3a85bc7b2ccdba99069706300",
+    "total": 27,
+    "passed": 20,
+    "failed": 7,
+    "pass_rate": 0.7407407407407407,
+    "system_profile": {
+      "provider": "rules_v1",
+      "evidence_admission_rule": "interaction-evidence-v2",
+      "llm_enabled": false,
+      "model_calls": 0,
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "llm_api_cost_usd": 0.0,
+      "network_calls": 0,
+      "implementation_sha256": "5c4d78a3d8bfaeab9c5e228e3fbf37788a167cb3a85bc7b2ccdba99069706300"
+    }
+  },
+  "single_aggregate": {
+    "total": 3,
+    "passed": 1,
+    "failed": 2,
+    "by_category": {
+      "direct_evidence": {
+        "total": 1,
+        "passed": 0,
+        "failed": 1,
+        "pass_rate": 0.0
+      },
+      "retrieval_not_supportive": {
+        "total": 1,
+        "passed": 1,
+        "failed": 0,
+        "pass_rate": 1.0
+      },
+      "tool_resilience": {
+        "total": 1,
+        "passed": 0,
+        "failed": 1,
+        "pass_rate": 0.0
+      }
+    },
+    "metrics": {
+      "retrieval_recall_at_k": {
+        "status": "measured",
+        "value": 1.0,
+        "numerator": 1.0,
+        "denominator": 1.0,
+        "unit": "ratio",
+        "scope": "micro across declared gold source IDs",
+        "not_applicable_cases": 2
+      },
+      "citation_precision": {
+        "status": "not_applicable",
+        "value": null,
+        "numerator": null,
+        "denominator": null,
+        "unit": "ratio",
+        "scope": "micro across emitted claim-citation pairs",
+        "not_applicable_cases": 3
+      },
+      "unsupported_claim_rate": {
+        "status": "not_applicable",
+        "value": null,
+        "numerator": null,
+        "denominator": null,
+        "unit": "ratio",
+        "scope": "micro across emitted atomic claims",
+        "not_applicable_cases": 3
+      },
+      "abstention_accuracy": {
+        "status": "measured",
+        "value": 0.6666666666666666,
+        "numerator": 2.0,
+        "denominator": 3.0,
+        "unit": "ratio",
+        "scope": "micro across applicable abstention decisions",
+        "not_applicable_cases": 0
+      },
+      "task_completion_rate": {
+        "status": "measured",
+        "value": 0.3333333333333333,
+        "numerator": 1.0,
+        "denominator": 3.0,
+        "unit": "ratio",
+        "scope": "micro across applicable substantive Research outcomes; human-review and budget handoffs are not automatic completion",
+        "not_applicable_cases": 0
+      },
+      "cost": {
+        "status": "measured",
+        "value": 0.020374,
+        "numerator": null,
+        "denominator": null,
+        "unit": "CNY",
+        "scope": "sum across model-call audit costs",
+        "not_applicable_cases": 0
+      },
+      "latency": {
+        "status": "measured",
+        "value": 8256.806099998357,
+        "numerator": null,
+        "denominator": null,
+        "unit": "ms",
+        "scope": "median per-case wall-clock diagnostic",
+        "not_applicable_cases": 0
+      }
+    }
+  },
+  "dual_aggregate": {
+    "total": 3,
+    "passed": 1,
+    "failed": 2,
+    "by_category": {
+      "direct_evidence": {
+        "total": 1,
+        "passed": 0,
+        "failed": 1,
+        "pass_rate": 0.0
+      },
+      "retrieval_not_supportive": {
+        "total": 1,
+        "passed": 1,
+        "failed": 0,
+        "pass_rate": 1.0
+      },
+      "tool_resilience": {
+        "total": 1,
+        "passed": 0,
+        "failed": 1,
+        "pass_rate": 0.0
+      }
+    },
+    "metrics": {
+      "retrieval_recall_at_k": {
+        "status": "measured",
+        "value": 1.0,
+        "numerator": 1.0,
+        "denominator": 1.0,
+        "unit": "ratio",
+        "scope": "micro across declared gold source IDs",
+        "not_applicable_cases": 2
+      },
+      "citation_precision": {
+        "status": "not_applicable",
+        "value": null,
+        "numerator": null,
+        "denominator": null,
+        "unit": "ratio",
+        "scope": "micro across emitted claim-citation pairs",
+        "not_applicable_cases": 3
+      },
+      "unsupported_claim_rate": {
+        "status": "not_applicable",
+        "value": null,
+        "numerator": null,
+        "denominator": null,
+        "unit": "ratio",
+        "scope": "micro across emitted atomic claims",
+        "not_applicable_cases": 3
+      },
+      "abstention_accuracy": {
+        "status": "measured",
+        "value": 0.6666666666666666,
+        "numerator": 2.0,
+        "denominator": 3.0,
+        "unit": "ratio",
+        "scope": "micro across applicable abstention decisions",
+        "not_applicable_cases": 0
+      },
+      "task_completion_rate": {
+        "status": "measured",
+        "value": 0.3333333333333333,
+        "numerator": 1.0,
+        "denominator": 3.0,
+        "unit": "ratio",
+        "scope": "micro across applicable substantive Research outcomes; human-review and budget handoffs are not automatic completion",
+        "not_applicable_cases": 0
+      },
+      "cost": {
+        "status": "measured",
+        "value": 0.0270374,
+        "numerator": null,
+        "denominator": null,
+        "unit": "CNY",
+        "scope": "sum across model-call audit costs",
+        "not_applicable_cases": 0
+      },
+      "latency": {
+        "status": "measured",
+        "value": 18059.28589999894,
+        "numerator": null,
+        "denominator": null,
+        "unit": "ms",
+        "scope": "median per-case wall-clock diagnostic",
+        "not_applicable_cases": 0
+      }
+    }
+  },
+  "metric_deltas": {
+    "abstention_accuracy": {
+      "preferred_direction": "higher",
+      "single_value": 0.6666666666666666,
+      "dual_value": 0.6666666666666666,
+      "dual_minus_single": 0.0,
+      "unit": "ratio"
+    },
+    "citation_precision": {
+      "preferred_direction": "higher",
+      "single_value": null,
+      "dual_value": null,
+      "dual_minus_single": null,
+      "unit": "ratio"
+    },
+    "cost": {
+      "preferred_direction": "lower",
+      "single_value": 0.020374,
+      "dual_value": 0.0270374,
+      "dual_minus_single": 0.0066634,
+      "unit": "CNY"
+    },
+    "latency": {
+      "preferred_direction": "lower",
+      "single_value": 8256.806099998357,
+      "dual_value": 18059.28589999894,
+      "dual_minus_single": 9802.479800000583,
+      "unit": "ms"
+    },
+    "retrieval_recall_at_k": {
+      "preferred_direction": "higher",
+      "single_value": 1.0,
+      "dual_value": 1.0,
+      "dual_minus_single": 0.0,
+      "unit": "ratio"
+    },
+    "task_completion_rate": {
+      "preferred_direction": "higher",
+      "single_value": 0.3333333333333333,
+      "dual_value": 0.3333333333333333,
+      "dual_minus_single": 0.0,
+      "unit": "ratio"
+    },
+    "unsupported_claim_rate": {
+      "preferred_direction": "lower",
+      "single_value": null,
+      "dual_value": null,
+      "dual_minus_single": null,
+      "unit": "ratio"
+    }
+  },
+  "actual_spend": {
+    "shared_research": {
+      "logical_model_calls": 5,
+      "provider_reported_model_calls": 5,
+      "real_model_calls": 5,
+      "logical_network_calls": 5,
+      "actual_http_attempts": 5,
+      "input_tokens": 2264,
+      "output_tokens": 2581,
+      "reasoning_tokens": 2375,
+      "costs_by_currency": {
+        "CNY": "0.020374"
+      },
+      "cost_accounting_source": "provider_settled_audit",
+      "latency_ms": 37263.614899995446
+    },
+    "reviewer_and_revision": {
+      "logical_model_calls": 1,
+      "provider_reported_model_calls": 1,
+      "real_model_calls": 1,
+      "logical_network_calls": 1,
+      "actual_http_attempts": 1,
+      "input_tokens": 1199,
+      "output_tokens": 638,
+      "reasoning_tokens": 552,
+      "costs_by_currency": {
+        "CNY": "0.0066634"
+      },
+      "cost_accounting_source": "mixed",
+      "latency_ms": 9803.13500000193
+    },
+    "total_actual": {
+      "logical_model_calls": 6,
+      "provider_reported_model_calls": 6,
+      "real_model_calls": 6,
+      "logical_network_calls": 6,
+      "actual_http_attempts": 6,
+      "input_tokens": 3463,
+      "output_tokens": 3219,
+      "reasoning_tokens": 2927,
+      "costs_by_currency": {
+        "CNY": "0.0270374"
+      },
+      "cost_accounting_source": "mixed",
+      "latency_ms": 47066.749899997376
+    },
+    "accounting_rule": "shared Research is charged once; reviewer and revision are incremental"
+  },
+  "cases": [
+    {
+      "id": "DIR-01",
+      "category": "direct_evidence",
+      "shared_hashes": {
+        "research_state_sha256": "0ec84680c0716667c29c615aa4ba1a277db017c0fa3887a9223787c5ecaa461c",
+        "initial_draft_sha256": "48e142d92a5396d365fee8ce389506d4ff85ed535e02067dd04a68946ed74b94",
+        "evidence_ledger_sha256": "d4907118a8fb2c4f8efca461fe9724d0e11457e8572bc3555dd43f4eced5e5a9",
+        "tool_trace_sha256": "9242003fd543840d706aa7770761ae3567add9e638670ee7cd3909f046ef97ae"
+      },
+      "research_state": {
+        "run_id": "comparison-5cf08b0bdf8d1f1acd3a9bea9aa0c529d2321bbf8ff0b61d497864bb55450b39-0001",
+        "question": "Question: quercetin 与 amoxicillin 对 Streptococcus agalactiae 是否具有协同作用？\nPopulation: Streptococcus agalactiae\nIntervention: quercetin\nComparator: amoxicillin\nOutcomes: FICI | synergy\n\nRUN_CONTEXT={\"available_tools\":[\"pubmed.search\"],\"dataset_ids\":[],\"report_input_id\":null}",
+        "phase": "failed",
+        "stop_reason": "failed",
+        "budget": {
+          "max_plan_items": 3,
+          "max_tool_calls": 4,
+          "max_normal_model_calls": 2,
+          "max_retries": 1,
+          "max_total_tokens": 32000,
+          "max_output_tokens_per_call": 4096,
+          "max_cost_amount": "5",
+          "cost_currency": "CNY",
+          "normal_model_calls_used": 2,
+          "retries_used": 0,
+          "tool_calls_used": 1,
+          "total_tokens_used": 1257,
+          "cost_amount_used": "0.005358"
+        },
+        "plan": {
+          "items": [
+            {
+              "step_id": "comparison-5cf08b0bdf8d1f1acd3a9bea9aa0c529d2321bbf8ff0b61d497864bb55450b39-0001:tool:1",
+              "tool_name": "pubmed.search",
+              "arguments": {
+                "query": "quercetin AND amoxicillin AND \"Streptococcus agalactiae\" AND (synergy OR FICI) FICI | synergy",
+                "max_results": 5
+              }
+            }
+          ]
+        },
+        "evidence_ledger": {
+          "items": [
+            {
+              "source_id": "source-001",
+              "chunk_id": "source-001:abstract",
+              "content": "Title: Synthetic checkerboard result for the target combination\nAbstract: Checkerboard experiments showed synergistic activity of quercetin and amoxicillin against Streptococcus agalactiae, with FICI = 0.4.",
+              "source_type": "frozen_pubmed_abstract",
+              "title": "Synthetic checkerboard result for the target combination",
+              "locator": null,
+              "evidence_role": "untrusted_evidence",
+              "evidence_grade": "direct_interaction"
+            },
+            {
+              "source_id": "source-002",
+              "chunk_id": "source-002:abstract",
+              "content": "Title: Synthetic quercetin monotherapy background\nAbstract: Quercetin reduced growth of Streptococcus agalactiae in a single-drug assay.",
+              "source_type": "frozen_pubmed_abstract",
+              "title": "Synthetic quercetin monotherapy background",
+              "locator": null,
+              "evidence_role": "untrusted_evidence",
+              "evidence_grade": "contextual"
+            }
+          ]
+        },
+        "claims": [],
+        "answer": null,
+        "model_call_audits": [
+          {
+            "purpose": "planning",
+            "attempt": 1,
+            "retry": false,
+            "request_id": "comparison-5cf08b0bdf8d1f1acd3a9bea9aa0c529d2321bbf8ff0b61d497864bb55450b39-0001:planning:1",
+            "prompt_sha256": "05af35041ceae72840987d93859be7ee2cc2aaf04513bae88b0cb66e71802368",
+            "generation_parameters_sha256": "a82cb6b74584047525138dd0a98f37ceaeec1ebe93b14710206095ad7e307a4f",
+            "response_text_sha256": "a165221b0878061280a7029e4cc3d51d4b7bd9a495c8c5ad54016d571813cc8f",
+            "provider_name": "deepseek",
+            "model_name": "deepseek-v4-pro",
+            "model_version": "DeepSeek-V4-Pro",
+            "response_succeeded": true,
+            "failure_code": null,
+            "fake": false,
+            "network_used": true,
+            "latency_ms": 7578.08759999898,
+            "usage": {
+              "input_tokens": 728,
+              "output_tokens": 529,
+              "reasoning_tokens": 481,
+              "provider_reported_model_calls": 1,
+              "cost_amount": "0.005358",
+              "cost_currency": "CNY"
+            }
+          },
+          {
+            "purpose": "drafting",
+            "attempt": 1,
+            "retry": false,
+            "request_id": "comparison-5cf08b0bdf8d1f1acd3a9bea9aa0c529d2321bbf8ff0b61d497864bb55450b39-0001:drafting:1",
+            "prompt_sha256": "3914d1e269080ab935ad932be3fa13e21d10cf2feae48c2eed197f6d0f1819b6",
+            "generation_parameters_sha256": "48d6ba78fc453aa940674d665c04e67a85b2a12468498f99e56884ba5ab37240",
+            "response_text_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "provider_name": "deepseek",
+            "model_name": "deepseek-v4-pro",
+            "model_version": "DeepSeek-V4-Pro",
+            "response_succeeded": false,
+            "failure_code": "invalid_request",
+            "fake": false,
+            "network_used": true,
+            "latency_ms": 163.90789999786648,
+            "usage": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "reasoning_tokens": 0,
+              "provider_reported_model_calls": 1,
+              "cost_amount": "0.0",
+              "cost_currency": "CNY"
+            }
+          }
+        ],
+        "tool_results": [
+          {
+            "call_id": "comparison-5cf08b0bdf8d1f1acd3a9bea9aa0c529d2321bbf8ff0b61d497864bb55450b39-0001:tool:1",
+            "tool_name": "pubmed.search",
+            "call_signature_sha256": "8809ded2459afa0637115916863606c33b1af0d660c9ce7014df3a09c760a690",
+            "status": "succeeded",
+            "evidence": [
+              {
+                "source_id": "source-001",
+                "chunk_id": "source-001:abstract",
+                "content": "Title: Synthetic checkerboard result for the target combination\nAbstract: Checkerboard experiments showed synergistic activity of quercetin and amoxicillin against Streptococcus agalactiae, with FICI = 0.4.",
+                "source_type": "frozen_pubmed_abstract",
+                "title": "Synthetic checkerboard result for the target combination",
+                "locator": null,
+                "evidence_role": "untrusted_evidence",
+                "evidence_grade": "direct_interaction"
+              },
+              {
+                "source_id": "source-002",
+                "chunk_id": "source-002:abstract",
+                "content": "Title: Synthetic quercetin monotherapy background\nAbstract: Quercetin reduced growth of Streptococcus agalactiae in a single-drug assay.",
+                "source_type": "frozen_pubmed_abstract",
+                "title": "Synthetic quercetin monotherapy background",
+                "locator": null,
+                "evidence_role": "untrusted_evidence",
+                "evidence_grade": "contextual"
+              }
+            ],
+            "output": {
+              "retrieved_count": 2
+            },
+            "failure": null,
+            "frozen_replay": true,
+            "network_used": false,
+            "external_actions": 0
+          }
+        ],
+        "transitions": [
+          {
+            "from_phase": "created",
+            "to_phase": "planning",
+            "reason": "start_planning"
+          },
+          {
+            "from_phase": "planning",
+            "to_phase": "plan_validated",
+            "reason": "plan_validated"
+          },
+          {
+            "from_phase": "plan_validated",
+            "to_phase": "executing_tools",
+            "reason": "execute_validated_plan"
+          },
+          {
+            "from_phase": "executing_tools",
+            "to_phase": "evidence_validated",
+            "reason": "evidence_validated"
+          },
+          {
+            "from_phase": "evidence_validated",
+            "to_phase": "drafting",
+            "reason": "draft_from_current_ledger"
+          },
+          {
+            "from_phase": "drafting",
+            "to_phase": "failed",
+            "reason": "invalid_request"
+          }
+        ],
+        "errors": [
+          {
+            "stage": "drafting",
+            "code": "invalid_request",
+            "message": "Provider reported a structured failure."
+          }
+        ]
+      },
+      "single": {
+        "actual": {
+          "phase": "failed",
+          "task_state": "failed",
+          "task_completed": false,
+          "target_claim_abstained": true,
+          "admission_status": "blocked_no_direct_evidence",
+          "retrieved_ids": [
+            "source-001",
+            "source-002"
+          ],
+          "evidence": [
+            {
+              "source_id": "source-001",
+              "chunk_id": "source-001:abstract",
+              "content": "Title: Synthetic checkerboard result for the target combination\nAbstract: Checkerboard experiments showed synergistic activity of quercetin and amoxicillin against Streptococcus agalactiae, with FICI = 0.4.",
+              "source_type": "frozen_pubmed_abstract",
+              "title": "Synthetic checkerboard result for the target combination",
+              "locator": null,
+              "evidence_role": "untrusted_evidence",
+              "evidence_grade": "direct_interaction"
+            },
+            {
+              "source_id": "source-002",
+              "chunk_id": "source-002:abstract",
+              "content": "Title: Synthetic quercetin monotherapy background\nAbstract: Quercetin reduced growth of Streptococcus agalactiae in a single-drug assay.",
+              "source_type": "frozen_pubmed_abstract",
+              "title": "Synthetic quercetin monotherapy background",
+              "locator": null,
+              "evidence_role": "untrusted_evidence",
+              "evidence_grade": "contextual"
+            }
+          ],
+          "citations": [],
+          "claim_ids": [],
+          "failed_batch_count": 0,
+          "replay_request_count": 1,
+          "partial_results_preserved": false,
+          "error_type": null,
+          "analysis_type": null,
+          "analysis_valid": null,
+          "analysis_admitted": null,
+          "valid_row_count": null,
+          "invalid_row_count": null,
+          "report_generated": false,
+          "model_calls": 2,
+          "real_model_calls": 2,
+          "network_calls": 2,
+          "external_actions": 0,
+          "input_tokens": 728,
+          "output_tokens": 529,
+          "cost_amount": "0.005358",
+          "cost_currency": "CNY",
+          "latency_ms": 7771.745699999883,
+          "answer": null
+        },
+        "score": {
+          "id": "DIR-01",
+          "category": "direct_evidence",
+          "passed": false,
+          "mismatches": [
+            "abstention_accuracy",
+            "task_completion_rate",
+            "admission_status"
+          ],
+          "applicable_metrics": [
+            "retrieval_recall_at_k",
+            "citation_precision",
+            "unsupported_claim_rate",
+            "abstention_accuracy",
+            "task_completion_rate",
+            "cost",
+            "latency"
+          ],
+          "actual": {
+            "phase": "failed",
+            "task_state": "failed",
+            "task_completed": false,
+            "target_claim_abstained": true,
+            "admission_status": "blocked_no_direct_evidence",
+            "retrieved_ids": [
+              "source-001",
+              "source-002"
+            ],
+            "evidence": [
+              {
+                "source_id": "source-001",
+                "chunk_id": "source-001:abstract",
+                "content": "Title: Synthetic checkerboard result for the target combination\nAbstract: Checkerboard experiments showed synergistic activity of quercetin and amoxicillin against Streptococcus agalactiae, with FICI = 0.4.",
+                "source_type": "frozen_pubmed_abstract",
+                "title": "Synthetic checkerboard result for the target combination",
+                "locator": null,
+                "evidence_role": "untrusted_evidence",
+                "evidence_grade": "direct_interaction"
+              },
+              {
+                "source_id": "source-002",
+                "chunk_id": "source-002:abstract",
+                "content": "Title: Synthetic quercetin monotherapy background\nAbstract: Quercetin reduced growth of Streptococcus agalactiae in a single-drug assay.",
+                "source_type": "frozen_pubmed_abstract",
+                "title": "Synthetic quercetin monotherapy background",
+                "locator": null,
+                "evidence_role": "untrusted_evidence",
+                "evidence_grade": "contextual"
+              }
+            ],
+            "citations": [],
+            "claim_ids": [],
+            "failed_batch_count": 0,
+            "replay_request_count": 1,
+            "partial_results_preserved": false,
+            "error_type": null,
+            "analysis_type": null,
+            "analysis_valid": null,
+            "analysis_admitted": null,
+            "valid_row_count": null,
+            "invalid_row_count": null,
+            "report_generated": false,
+            "model_calls": 2,
+            "real_model_calls": 2,
+            "network_calls": 2,
+            "external_actions": 0,
+            "input_tokens": 728,
+            "output_tokens": 529,
+            "cost_amount": "0.005358",
+            "cost_currency": "CNY",
+            "latency_ms": 7771.745699999883,
+            "answer": null
+          },
+          "metric_observations": {
+            "retrieval_recall_at_k": {
+              "value": 1.0,
+              "numerator": 1.0,
+              "denominator": 1.0,
+              "unit": "ratio"
+            },
+            "abstention_accuracy": {
+              "value": 0.0,
+              "numerator": 0.0,
+              "denominator": 1.0,
+              "unit": "ratio"
+            },
+            "task_completion_rate": {
+              "value": 0.0,
+              "numerator": 0.0,
+              "denominator": 1.0,
+              "unit": "ratio"
+            },
+            "cost": {
+              "value": 0.005358,
+              "numerator": null,
+              "denominator": null,
+              "unit": "CNY"
+            },
+            "latency": {
+              "value": 7771.745699999883,
+              "numerator": null,
+              "denominator": null,
+              "unit": "ms"
+            }
+          }
+        },
+        "usage": {
+          "logical_model_calls": 2,
+          "provider_reported_model_calls": 2,
+          "real_model_calls": 2,
+          "logical_network_calls": 2,
+          "actual_http_attempts": 2,
+          "input_tokens": 728,
+          "output_tokens": 529,
+          "reasoning_tokens": 481,
+          "costs_by_currency": {
+            "CNY": "0.005358"
+          },
+          "cost_accounting_source": "provider_settled_audit",
+          "latency_ms": 7771.745699999883
+        }
+      },
+      "dual": {
+        "actual": {
+          "phase": "human_review_required",
+          "task_state": "awaiting_review",
+          "task_completed": false,
+          "target_claim_abstained": true,
+          "admission_status": "blocked_no_direct_evidence",
+          "retrieved_ids": [
+            "source-001",
+            "source-002"
+          ],
+          "evidence": [
+            {
+              "source_id": "source-001",
+              "chunk_id": "source-001:abstract",
+              "content": "Title: Synthetic checkerboard result for the target combination\nAbstract: Checkerboard experiments showed synergistic activity of quercetin and amoxicillin against Streptococcus agalactiae, with FICI = 0.4.",
+              "source_type": "frozen_pubmed_abstract",
+              "title": "Synthetic checkerboard result for the target combination",
+              "locator": null,
+              "evidence_role": "untrusted_evidence",
+              "evidence_grade": "direct_interaction"
+            },
+            {
+              "source_id": "source-002",
+              "chunk_id": "source-002:abstract",
+              "content": "Title: Synthetic quercetin monotherapy background\nAbstract: Quercetin reduced growth of Streptococcus agalactiae in a single-drug assay.",
+              "source_type": "frozen_pubmed_abstract",
+              "title": "Synthetic quercetin monotherapy background",
+              "locator": null,
+              "evidence_role": "untrusted_evidence",
+              "evidence_grade": "contextual"
+            }
+          ],
+          "citations": [],
+          "claim_ids": [],
+          "failed_batch_count": 0,
+          "replay_request_count": 1,
+          "partial_results_preserved": false,
+          "error_type": null,
+          "analysis_type": null,
+          "analysis_valid": null,
+          "analysis_admitted": null,
+          "valid_row_count": null,
+          "invalid_row_count": null,
+          "report_generated": false,
+          "model_calls": 2,
+          "real_model_calls": 2,
+          "network_calls": 2,
+          "external_actions": 0,
+          "input_tokens": 728,
+          "output_tokens": 529,
+          "cost_amount": "0.005358",
+          "cost_currency": "CNY",
+          "latency_ms": 7772.06809999916,
+          "answer": "human_review_required"
+        },
+        "score": {
+          "id": "DIR-01",
+          "category": "direct_evidence",
+          "passed": false,
+          "mismatches": [
+            "abstention_accuracy",
+            "task_completion_rate",
+            "admission_status"
+          ],
+          "applicable_metrics": [
+            "retrieval_recall_at_k",
+            "citation_precision",
+            "unsupported_claim_rate",
+            "abstention_accuracy",
+            "task_completion_rate",
+            "cost",
+            "latency"
+          ],
+          "actual": {
+            "phase": "human_review_required",
+            "task_state": "awaiting_review",
+            "task_completed": false,
+            "target_claim_abstained": true,
+            "admission_status": "blocked_no_direct_evidence",
+            "retrieved_ids": [
+              "source-001",
+              "source-002"
+            ],
+            "evidence": [
+              {
+                "source_id": "source-001",
+                "chunk_id": "source-001:abstract",
+                "content": "Title: Synthetic checkerboard result for the target combination\nAbstract: Checkerboard experiments showed synergistic activity of quercetin and amoxicillin against Streptococcus agalactiae, with FICI = 0.4.",
+                "source_type": "frozen_pubmed_abstract",
+                "title": "Synthetic checkerboard result for the target combination",
+                "locator": null,
+                "evidence_role": "untrusted_evidence",
+                "evidence_grade": "direct_interaction"
+              },
+              {
+                "source_id": "source-002",
+                "chunk_id": "source-002:abstract",
+                "content": "Title: Synthetic quercetin monotherapy background\nAbstract: Quercetin reduced growth of Streptococcus agalactiae in a single-drug assay.",
+                "source_type": "frozen_pubmed_abstract",
+                "title": "Synthetic quercetin monotherapy background",
+                "locator": null,
+                "evidence_role": "untrusted_evidence",
+                "evidence_grade": "contextual"
+              }
+            ],
+            "citations": [],
+            "claim_ids": [],
+            "failed_batch_count": 0,
+            "replay_request_count": 1,
+            "partial_results_preserved": false,
+            "error_type": null,
+            "analysis_type": null,
+            "analysis_valid": null,
+            "analysis_admitted": null,
+            "valid_row_count": null,
+            "invalid_row_count": null,
+            "report_generated": false,
+            "model_calls": 2,
+            "real_model_calls": 2,
+            "network_calls": 2,
+            "external_actions": 0,
+            "input_tokens": 728,
+            "output_tokens": 529,
+            "cost_amount": "0.005358",
+            "cost_currency": "CNY",
+            "latency_ms": 7772.06809999916,
+            "answer": "human_review_required"
+          },
+          "metric_observations": {
+            "retrieval_recall_at_k": {
+              "value": 1.0,
+              "numerator": 1.0,
+              "denominator": 1.0,
+              "unit": "ratio"
+            },
+            "abstention_accuracy": {
+              "value": 0.0,
+              "numerator": 0.0,
+              "denominator": 1.0,
+              "unit": "ratio"
+            },
+            "task_completion_rate": {
+              "value": 0.0,
+              "numerator": 0.0,
+              "denominator": 1.0,
+              "unit": "ratio"
+            },
+            "cost": {
+              "value": 0.005358,
+              "numerator": null,
+              "denominator": null,
+              "unit": "CNY"
+            },
+            "latency": {
+              "value": 7772.06809999916,
+              "numerator": null,
+              "denominator": null,
+              "unit": "ms"
+            }
+          }
+        },
+        "usage": {
+          "logical_model_calls": 2,
+          "provider_reported_model_calls": 2,
+          "real_model_calls": 2,
+          "logical_network_calls": 2,
+          "actual_http_attempts": 2,
+          "input_tokens": 728,
+          "output_tokens": 529,
+          "reasoning_tokens": 481,
+          "costs_by_currency": {
+            "CNY": "0.005358"
+          },
+          "cost_accounting_source": "mixed",
+          "latency_ms": 7772.06809999916
+        }
+      },
+      "review_incremental_usage": {
+        "logical_model_calls": 0,
+        "provider_reported_model_calls": 0,
+        "real_model_calls": 0,
+        "logical_network_calls": 0,
+        "actual_http_attempts": 0,
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "reasoning_tokens": 0,
+        "costs_by_currency": {
+          "CNY": "0"
+        },
+        "cost_accounting_source": "runtime_compatibility",
+        "latency_ms": 0.3223999992769677
+      },
+      "review": {
+        "run_id": "comparison-5cf08b0bdf8d1f1acd3a9bea9aa0c529d2321bbf8ff0b61d497864bb55450b39-0001:review",
+        "status": "human_review_required",
+        "safe_refusal": true,
+        "final_answer": "human_review_required",
+        "shared_research_state_sha256": "0ec84680c0716667c29c615aa4ba1a277db017c0fa3887a9223787c5ecaa461c",
+        "shared_draft_sha256": "48e142d92a5396d365fee8ce389506d4ff85ed535e02067dd04a68946ed74b94",
+        "shared_evidence_ledger_sha256": "d4907118a8fb2c4f8efca461fe9724d0e11457e8572bc3555dd43f4eced5e5a9",
+        "shared_tool_trace_sha256": "9242003fd543840d706aa7770761ae3567add9e638670ee7cd3909f046ef97ae",
+        "initial_draft": {
+          "refusal": true,
+          "refusal_reason": "insufficient_evidence",
+          "claims": []
+        },
+        "final_draft": {
+          "refusal": true,
+          "refusal_reason": "human_review_required",
+          "claims": []
+        },
+        "final_draft_sha256": "7798e7a6b6e1f2bd624bb12d07b420d8bdadde82466e00981518f49ad3825cf8",
+        "audit_candidate_draft": {
+          "refusal": true,
+          "refusal_reason": "insufficient_evidence",
+          "claims": []
+        },
+        "audit_candidate_draft_sha256": "48e142d92a5396d365fee8ce389506d4ff85ed535e02067dd04a68946ed74b94",
+        "verdicts": [],
+        "call_audits": [],
+        "budget": {
+          "max_review_calls": 2,
+          "max_revision_calls": 1,
+          "max_retries": 1,
+          "max_output_tokens_per_call": 2048,
+          "max_total_tokens": 32000,
+          "max_cost_amount": "5",
+          "cost_currency": "CNY",
+          "review_calls_used": 0,
+          "revision_calls_used": 0,
+          "retries_used": 0,
+          "total_tokens_used": 0,
+          "cost_amount_used": "0",
+          "costs_by_currency": {}
+        },
+        "errors": [
+          {
+            "code": "research_state_not_reviewable",
+            "message": "Only completed or evidence-insufficient research states can be reviewed."
+          }
+        ]
+      },
+      "research_call_audits": [
+        {
+          "purpose": "planning",
+          "attempt": 1,
+          "retry": false,
+          "request_id": "comparison-5cf08b0bdf8d1f1acd3a9bea9aa0c529d2321bbf8ff0b61d497864bb55450b39-0001:planning:1",
+          "prompt_sha256": "05af35041ceae72840987d93859be7ee2cc2aaf04513bae88b0cb66e71802368",
+          "generation_parameters_sha256": "a82cb6b74584047525138dd0a98f37ceaeec1ebe93b14710206095ad7e307a4f",
+          "response_text_sha256": "a165221b0878061280a7029e4cc3d51d4b7bd9a495c8c5ad54016d571813cc8f",
+          "provider_name": "deepseek",
+          "model_name": "deepseek-v4-pro",
+          "model_version": "DeepSeek-V4-Pro",
+          "response_succeeded": true,
+          "failure_code": null,
+          "fake": false,
+          "network_used": true,
+          "latency_ms": 7578.08759999898,
+          "usage": {
+            "input_tokens": 728,
+            "output_tokens": 529,
+            "reasoning_tokens": 481,
+            "provider_reported_model_calls": 1,
+            "cost_amount": "0.005358",
+            "cost_currency": "CNY"
+          }
+        },
+        {
+          "purpose": "drafting",
+          "attempt": 1,
+          "retry": false,
+          "request_id": "comparison-5cf08b0bdf8d1f1acd3a9bea9aa0c529d2321bbf8ff0b61d497864bb55450b39-0001:drafting:1",
+          "prompt_sha256": "3914d1e269080ab935ad932be3fa13e21d10cf2feae48c2eed197f6d0f1819b6",
+          "generation_parameters_sha256": "48d6ba78fc453aa940674d665c04e67a85b2a12468498f99e56884ba5ab37240",
+          "response_text_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "provider_name": "deepseek",
+          "model_name": "deepseek-v4-pro",
+          "model_version": "DeepSeek-V4-Pro",
+          "response_succeeded": false,
+          "failure_code": "invalid_request",
+          "fake": false,
+          "network_used": true,
+          "latency_ms": 163.90789999786648,
+          "usage": {
+            "input_tokens": 0,
+            "output_tokens": 0,
+            "reasoning_tokens": 0,
+            "provider_reported_model_calls": 1,
+            "cost_amount": "0.0",
+            "cost_currency": "CNY"
+          }
+        }
+      ],
+      "review_call_audits": [],
+      "provider_audit_slices": [
+        {
+          "binding": "research",
+          "provider_name": "deepseek",
+          "model_name": "deepseek-v4-pro",
+          "model_version": "DeepSeek-V4-Pro",
+          "provider_audit_available": true,
+          "http_attempts": 2,
+          "settled_cost_cny": "0.005358",
+          "records": [
+            {
+              "request_id": "comparison-5cf08b0bdf8d1f1acd3a9bea9aa0c529d2321bbf8ff0b61d497864bb55450b39-0001:planning:1",
+              "requested_model": "deepseek-v4-pro",
+              "actual_model": "deepseek-v4-pro",
+              "request_body_sha256": "51ca9ecb02c7c897a47fc932265142da7e144e2a3ac72017f7ff68ec24d0a561",
+              "response_id": "532437a4-1eef-4b2b-847e-a37d92b12225",
+              "created": 1785655699,
+              "system_fingerprint": "fp_9954b31ca7_prod0820_fp8_kvcache_20260402",
+              "finish_reason": "stop",
+              "usage": {
+                "prompt_tokens": 728,
+                "prompt_cache_hit_tokens": 0,
+                "prompt_cache_miss_tokens": 728,
+                "completion_tokens": 529,
+                "reasoning_tokens": 481,
+                "total_tokens": 1257,
+                "raw_usage_json": "{\"completion_tokens\":529,\"completion_tokens_details\":{\"reasoning_tokens\":481},\"prompt_cache_hit_tokens\":0,\"prompt_cache_miss_tokens\":728,\"prompt_tokens\":728,\"prompt_tokens_details\":{\"cached_tokens\":0},\"total_tokens\":1257}",
+                "exact_cost_cny": "0.005358",
+                "cost_basis": "reported_cache_split",
+                "pricing_snapshot_id": "deepseek-cny-2026-08-01",
+                "pricing_snapshot_date": "2026-08-01",
+                "pricing_source_url": "https://api-docs.deepseek.com/zh-cn/quick_start/pricing/"
+              },
+              "attempts": 1,
+              "http_status": 200,
+              "estimated_max_cost_cny_per_attempt": "0.022794",
+              "timeout_seconds": 120.0,
+              "conservative_unverified_cost_cny": "0",
+              "settled_cost_cny": "0.005358",
+              "attempt_outcomes": [
+                "success"
+              ],
+              "failure_code": null
+            },
+            {
+              "request_id": "comparison-5cf08b0bdf8d1f1acd3a9bea9aa0c529d2321bbf8ff0b61d497864bb55450b39-0001:drafting:1",
+              "requested_model": "deepseek-v4-pro",
+              "actual_model": null,
+              "request_body_sha256": "b9cdf15791cda90987b1ad5d1f786bc26785f4afed8ed25c22377daf82ef68d2",
+              "response_id": null,
+              "created": null,
+              "system_fingerprint": null,
+              "finish_reason": null,
+              "usage": null,
+              "attempts": 1,
+              "http_status": 400,
+              "estimated_max_cost_cny_per_attempt": "0.021588",
+              "timeout_seconds": 120.0,
+              "conservative_unverified_cost_cny": "0",
+              "settled_cost_cny": "0",
+              "attempt_outcomes": [
+                "http_400"
+              ],
+              "failure_code": "invalid_request"
+            }
+          ]
+        },
+        {
+          "binding": "research_revision+reviewer",
+          "provider_name": "deepseek",
+          "model_name": "deepseek-v4-pro",
+          "model_version": "DeepSeek-V4-Pro",
+          "provider_audit_available": true,
+          "http_attempts": 0,
+          "settled_cost_cny": null,
+          "records": []
+        }
+      ],
+      "retrieval_reused": true
+    },
+    {
+      "id": "HIT-03",
+      "category": "retrieval_not_supportive",
+      "shared_hashes": {
+        "research_state_sha256": "427cb64c3de13dd26833af6d8db1c77de66c113394cedc28ae305c61814f0119",
+        "initial_draft_sha256": "48e142d92a5396d365fee8ce389506d4ff85ed535e02067dd04a68946ed74b94",
+        "evidence_ledger_sha256": "22cc8f574a39ba05f2cd4cc84fd822ab08d3650a3ceae32a12a89b2e105fceb2",
+        "tool_trace_sha256": "2314cc2f15610ccfa954dea8333aff7b119cf2933504590d6bc7376bb21d45b6"
+      },
+      "research_state": {
+        "run_id": "comparison-5cf08b0bdf8d1f1acd3a9bea9aa0c529d2321bbf8ff0b61d497864bb55450b39-0002",
+        "question": "Question: quercetin 与 amoxicillin 对 Streptococcus agalactiae 是否协同？\nPopulation: Streptococcus agalactiae\nIntervention: quercetin\nComparator: amoxicillin\nOutcomes: synergy\n\nRUN_CONTEXT={\"available_tools\":[\"local_rag.search\"],\"dataset_ids\":[],\"report_input_id\":null}",
+        "phase": "insufficient_evidence",
+        "stop_reason": "insufficient_evidence",
+        "budget": {
+          "max_plan_items": 3,
+          "max_tool_calls": 4,
+          "max_normal_model_calls": 2,
+          "max_retries": 1,
+          "max_total_tokens": 32000,
+          "max_output_tokens_per_call": 4096,
+          "max_cost_amount": "5",
+          "cost_currency": "CNY",
+          "normal_model_calls_used": 1,
+          "retries_used": 0,
+          "tool_calls_used": 2,
+          "total_tokens_used": 1258,
+          "cost_amount_used": "0.003472"
+        },
+        "plan": {
+          "items": [
+            {
+              "step_id": "comparison-5cf08b0bdf8d1f1acd3a9bea9aa0c529d2321bbf8ff0b61d497864bb55450b39-0002:tool:1",
+              "tool_name": "local_rag.search",
+              "arguments": {
+                "query": "quercetin amoxicillin synergy Streptococcus agalactiae",
+                "limit": 3
+              }
+            },
+            {
+              "step_id": "comparison-5cf08b0bdf8d1f1acd3a9bea9aa0c529d2321bbf8ff0b61d497864bb55450b39-0002:tool:2",
+              "tool_name": "local_rag.search",
+              "arguments": {
+                "query": "quercetin combined with amoxicillin against group B Streptococcus synergy Streptococcus agalactiae",
+                "limit": 3
+              }
+            }
+          ]
+        },
+        "evidence_ledger": {
+          "items": [
+            {
+              "source_id": "source-001",
+              "chunk_id": "source-001:abstract",
+              "content": "Title: Synthetic docking prediction\nAbstract: Molecular docking predicted that quercetin and amoxicillin might show synergistic activity against Streptococcus agalactiae; no wet-lab interaction result was reported.",
+              "source_type": "frozen_local_document",
+              "title": "Synthetic docking prediction",
+              "locator": null,
+              "evidence_role": "untrusted_evidence",
+              "evidence_grade": "contextual"
+            }
+          ]
+        },
+        "claims": [],
+        "answer": "insufficient_evidence",
+        "model_call_audits": [
+          {
+            "purpose": "planning",
+            "attempt": 1,
+            "retry": false,
+            "request_id": "comparison-5cf08b0bdf8d1f1acd3a9bea9aa0c529d2321bbf8ff0b61d497864bb55450b39-0002:planning:1",
+            "prompt_sha256": "2a4393bc757a53f77043bfc5f03c1c8035a923a248fae3749143804b890b63aa",
+            "generation_parameters_sha256": "a82cb6b74584047525138dd0a98f37ceaeec1ebe93b14710206095ad7e307a4f",
+            "response_text_sha256": "9068a98cd214a328c67263f386b6cb1497fb7682bf2317a454016b79d5886279",
+            "provider_name": "deepseek",
+            "model_name": "deepseek-v4-pro",
+            "model_version": "DeepSeek-V4-Pro",
+            "response_succeeded": true,
+            "failure_code": null,
+            "fake": false,
+            "network_used": true,
+            "latency_ms": 8189.744899998914,
+            "usage": {
+              "input_tokens": 724,
+              "output_tokens": 534,
+              "reasoning_tokens": 474,
+              "provider_reported_model_calls": 1,
+              "cost_amount": "0.003472",
+              "cost_currency": "CNY"
+            }
+          }
+        ],
+        "tool_results": [
+          {
+            "call_id": "comparison-5cf08b0bdf8d1f1acd3a9bea9aa0c529d2321bbf8ff0b61d497864bb55450b39-0002:tool:1",
+            "tool_name": "local_rag.search",
+            "call_signature_sha256": "9944e032ed4c6eceb0ca4fef8c406f72d20eec1d1d7e9212a3b3c5cfeb1789ff",
+            "status": "succeeded",
+            "evidence": [
+              {
+                "source_id": "source-001",
+                "chunk_id": "source-001:abstract",
+                "content": "Title: Synthetic docking prediction\nAbstract: Molecular docking predicted that quercetin and amoxicillin might show synergistic activity against Streptococcus agalactiae; no wet-lab interaction result was reported.",
+                "source_type": "frozen_local_document",
+                "title": "Synthetic docking prediction",
+                "locator": null,
+                "evidence_role": "untrusted_evidence",
+                "evidence_grade": "contextual"
+              }
+            ],
+            "output": {
+              "retrieved_count": 1,
+              "retrieval_mode": "keyword"
+            },
+            "failure": null,
+            "frozen_replay": true,
+            "network_used": false,
+            "external_actions": 0
+          },
+          {
+            "call_id": "comparison-5cf08b0bdf8d1f1acd3a9bea9aa0c529d2321bbf8ff0b61d497864bb55450b39-0002:tool:2",
+            "tool_name": "local_rag.search",
+            "call_signature_sha256": "f9acdbfdb8e33a97cfc3ccd6c905459845b33017f4f01230866803644e64c43a",
+            "status": "succeeded",
+            "evidence": [
+              {
+                "source_id": "source-001",
+                "chunk_id": "source-001:abstract",
+                "content": "Title: Synthetic docking prediction\nAbstract: Molecular docking predicted that quercetin and amoxicillin might show synergistic activity against Streptococcus agalactiae; no wet-lab interaction result was reported.",
+                "source_type": "frozen_local_document",
+                "title": "Synthetic docking prediction",
+                "locator": null,
+                "evidence_role": "untrusted_evidence",
+                "evidence_grade": "contextual"
+              }
+            ],
+            "output": {
+              "retrieved_count": 1,
+              "retrieval_mode": "keyword"
+            },
+            "failure": null,
+            "frozen_replay": true,
+            "network_used": false,
+            "external_actions": 0
+          }
+        ],
+        "transitions": [
+          {
+            "from_phase": "created",
+            "to_phase": "planning",
+            "reason": "start_planning"
+          },
+          {
+            "from_phase": "planning",
+            "to_phase": "plan_validated",
+            "reason": "plan_validated"
+          },
+          {
+            "from_phase": "plan_validated",
+            "to_phase": "executing_tools",
+            "reason": "execute_validated_plan"
+          },
+          {
+            "from_phase": "executing_tools",
+            "to_phase": "evidence_validated",
+            "reason": "evidence_validated"
+          },
+          {
+            "from_phase": "evidence_validated",
+            "to_phase": "insufficient_evidence",
+            "reason": "no_direct_interaction_evidence"
+          }
+        ],
+        "errors": [
+          {
+            "stage": "evidence_validated",
+            "code": "no_direct_interaction_evidence",
+            "message": "Question-graded evidence contains no direct interaction or validated experiment support."
+          }
+        ]
+      },
+      "single": {
+        "actual": {
+          "phase": "insufficient_evidence",
+          "task_state": "awaiting_review",
+          "task_completed": true,
+          "target_claim_abstained": true,
+          "admission_status": "blocked_no_direct_evidence",
+          "retrieved_ids": [
+            "source-001"
+          ],
+          "evidence": [
+            {
+              "source_id": "source-001",
+              "chunk_id": "source-001:abstract",
+              "content": "Title: Synthetic docking prediction\nAbstract: Molecular docking predicted that quercetin and amoxicillin might show synergistic activity against Streptococcus agalactiae; no wet-lab interaction result was reported.",
+              "source_type": "frozen_local_document",
+              "title": "Synthetic docking prediction",
+              "locator": null,
+              "evidence_role": "untrusted_evidence",
+              "evidence_grade": "contextual"
+            }
+          ],
+          "citations": [],
+          "claim_ids": [],
+          "failed_batch_count": 0,
+          "replay_request_count": 0,
+          "partial_results_preserved": false,
+          "error_type": null,
+          "analysis_type": null,
+          "analysis_valid": null,
+          "analysis_admitted": null,
+          "valid_row_count": null,
+          "invalid_row_count": null,
+          "report_generated": false,
+          "model_calls": 1,
+          "real_model_calls": 1,
+          "network_calls": 1,
+          "external_actions": 0,
+          "input_tokens": 724,
+          "output_tokens": 534,
+          "cost_amount": "0.003472",
+          "cost_currency": "CNY",
+          "latency_ms": 8256.806099998357,
+          "answer": "insufficient_evidence"
+        },
+        "score": {
+          "id": "HIT-03",
+          "category": "retrieval_not_supportive",
+          "passed": true,
+          "mismatches": [],
+          "applicable_metrics": [
+            "abstention_accuracy",
+            "task_completion_rate",
+            "cost",
+            "latency"
+          ],
+          "actual": {
+            "phase": "insufficient_evidence",
+            "task_state": "awaiting_review",
+            "task_completed": true,
+            "target_claim_abstained": true,
+            "admission_status": "blocked_no_direct_evidence",
+            "retrieved_ids": [
+              "source-001"
+            ],
+            "evidence": [
+              {
+                "source_id": "source-001",
+                "chunk_id": "source-001:abstract",
+                "content": "Title: Synthetic docking prediction\nAbstract: Molecular docking predicted that quercetin and amoxicillin might show synergistic activity against Streptococcus agalactiae; no wet-lab interaction result was reported.",
+                "source_type": "frozen_local_document",
+                "title": "Synthetic docking prediction",
+                "locator": null,
+                "evidence_role": "untrusted_evidence",
+                "evidence_grade": "contextual"
+              }
+            ],
+            "citations": [],
+            "claim_ids": [],
+            "failed_batch_count": 0,
+            "replay_request_count": 0,
+            "partial_results_preserved": false,
+            "error_type": null,
+            "analysis_type": null,
+            "analysis_valid": null,
+            "analysis_admitted": null,
+            "valid_row_count": null,
+            "invalid_row_count": null,
+            "report_generated": false,
+            "model_calls": 1,
+            "real_model_calls": 1,
+            "network_calls": 1,
+            "external_actions": 0,
+            "input_tokens": 724,
+            "output_tokens": 534,
+            "cost_amount": "0.003472",
+            "cost_currency": "CNY",
+            "latency_ms": 8256.806099998357,
+            "answer": "insufficient_evidence"
+          },
+          "metric_observations": {
+            "abstention_accuracy": {
+              "value": 1.0,
+              "numerator": 1.0,
+              "denominator": 1.0,
+              "unit": "ratio"
+            },
+            "task_completion_rate": {
+              "value": 1.0,
+              "numerator": 1.0,
+              "denominator": 1.0,
+              "unit": "ratio"
+            },
+            "cost": {
+              "value": 0.003472,
+              "numerator": null,
+              "denominator": null,
+              "unit": "CNY"
+            },
+            "latency": {
+              "value": 8256.806099998357,
+              "numerator": null,
+              "denominator": null,
+              "unit": "ms"
+            }
+          }
+        },
+        "usage": {
+          "logical_model_calls": 1,
+          "provider_reported_model_calls": 1,
+          "real_model_calls": 1,
+          "logical_network_calls": 1,
+          "actual_http_attempts": 1,
+          "input_tokens": 724,
+          "output_tokens": 534,
+          "reasoning_tokens": 474,
+          "costs_by_currency": {
+            "CNY": "0.003472"
+          },
+          "cost_accounting_source": "provider_settled_audit",
+          "latency_ms": 8256.806099998357
+        }
+      },
+      "dual": {
+        "actual": {
+          "phase": "insufficient_evidence",
+          "task_state": "awaiting_review",
+          "task_completed": true,
+          "target_claim_abstained": true,
+          "admission_status": "blocked_no_direct_evidence",
+          "retrieved_ids": [
+            "source-001"
+          ],
+          "evidence": [
+            {
+              "source_id": "source-001",
+              "chunk_id": "source-001:abstract",
+              "content": "Title: Synthetic docking prediction\nAbstract: Molecular docking predicted that quercetin and amoxicillin might show synergistic activity against Streptococcus agalactiae; no wet-lab interaction result was reported.",
+              "source_type": "frozen_local_document",
+              "title": "Synthetic docking prediction",
+              "locator": null,
+              "evidence_role": "untrusted_evidence",
+              "evidence_grade": "contextual"
+            }
+          ],
+          "citations": [],
+          "claim_ids": [],
+          "failed_batch_count": 0,
+          "replay_request_count": 0,
+          "partial_results_preserved": false,
+          "error_type": null,
+          "analysis_type": null,
+          "analysis_valid": null,
+          "analysis_admitted": null,
+          "valid_row_count": null,
+          "invalid_row_count": null,
+          "report_generated": false,
+          "model_calls": 2,
+          "real_model_calls": 2,
+          "network_calls": 2,
+          "external_actions": 0,
+          "input_tokens": 1923,
+          "output_tokens": 1172,
+          "cost_amount": "0.0101354",
+          "cost_currency": "CNY",
+          "latency_ms": 18059.28589999894,
+          "answer": "insufficient_evidence"
+        },
+        "score": {
+          "id": "HIT-03",
+          "category": "retrieval_not_supportive",
+          "passed": true,
+          "mismatches": [],
+          "applicable_metrics": [
+            "abstention_accuracy",
+            "task_completion_rate",
+            "cost",
+            "latency"
+          ],
+          "actual": {
+            "phase": "insufficient_evidence",
+            "task_state": "awaiting_review",
+            "task_completed": true,
+            "target_claim_abstained": true,
+            "admission_status": "blocked_no_direct_evidence",
+            "retrieved_ids": [
+              "source-001"
+            ],
+            "evidence": [
+              {
+                "source_id": "source-001",
+                "chunk_id": "source-001:abstract",
+                "content": "Title: Synthetic docking prediction\nAbstract: Molecular docking predicted that quercetin and amoxicillin might show synergistic activity against Streptococcus agalactiae; no wet-lab interaction result was reported.",
+                "source_type": "frozen_local_document",
+                "title": "Synthetic docking prediction",
+                "locator": null,
+                "evidence_role": "untrusted_evidence",
+                "evidence_grade": "contextual"
+              }
+            ],
+            "citations": [],
+            "claim_ids": [],
+            "failed_batch_count": 0,
+            "replay_request_count": 0,
+            "partial_results_preserved": false,
+            "error_type": null,
+            "analysis_type": null,
+            "analysis_valid": null,
+            "analysis_admitted": null,
+            "valid_row_count": null,
+            "invalid_row_count": null,
+            "report_generated": false,
+            "model_calls": 2,
+            "real_model_calls": 2,
+            "network_calls": 2,
+            "external_actions": 0,
+            "input_tokens": 1923,
+            "output_tokens": 1172,
+            "cost_amount": "0.0101354",
+            "cost_currency": "CNY",
+            "latency_ms": 18059.28589999894,
+            "answer": "insufficient_evidence"
+          },
+          "metric_observations": {
+            "abstention_accuracy": {
+              "value": 1.0,
+              "numerator": 1.0,
+              "denominator": 1.0,
+              "unit": "ratio"
+            },
+            "task_completion_rate": {
+              "value": 1.0,
+              "numerator": 1.0,
+              "denominator": 1.0,
+              "unit": "ratio"
+            },
+            "cost": {
+              "value": 0.0101354,
+              "numerator": null,
+              "denominator": null,
+              "unit": "CNY"
+            },
+            "latency": {
+              "value": 18059.28589999894,
+              "numerator": null,
+              "denominator": null,
+              "unit": "ms"
+            }
+          }
+        },
+        "usage": {
+          "logical_model_calls": 2,
+          "provider_reported_model_calls": 2,
+          "real_model_calls": 2,
+          "logical_network_calls": 2,
+          "actual_http_attempts": 2,
+          "input_tokens": 1923,
+          "output_tokens": 1172,
+          "reasoning_tokens": 1026,
+          "costs_by_currency": {
+            "CNY": "0.0101354"
+          },
+          "cost_accounting_source": "provider_settled_audit",
+          "latency_ms": 18059.28589999894
+        }
+      },
+      "review_incremental_usage": {
+        "logical_model_calls": 1,
+        "provider_reported_model_calls": 1,
+        "real_model_calls": 1,
+        "logical_network_calls": 1,
+        "actual_http_attempts": 1,
+        "input_tokens": 1199,
+        "output_tokens": 638,
+        "reasoning_tokens": 552,
+        "costs_by_currency": {
+          "CNY": "0.0066634"
+        },
+        "cost_accounting_source": "provider_settled_audit",
+        "latency_ms": 9802.479800000583
+      },
+      "review": {
+        "run_id": "comparison-5cf08b0bdf8d1f1acd3a9bea9aa0c529d2321bbf8ff0b61d497864bb55450b39-0002:review",
+        "status": "approved",
+        "safe_refusal": true,
+        "final_answer": "insufficient_evidence",
+        "shared_research_state_sha256": "427cb64c3de13dd26833af6d8db1c77de66c113394cedc28ae305c61814f0119",
+        "shared_draft_sha256": "48e142d92a5396d365fee8ce389506d4ff85ed535e02067dd04a68946ed74b94",
+        "shared_evidence_ledger_sha256": "22cc8f574a39ba05f2cd4cc84fd822ab08d3650a3ceae32a12a89b2e105fceb2",
+        "shared_tool_trace_sha256": "2314cc2f15610ccfa954dea8333aff7b119cf2933504590d6bc7376bb21d45b6",
+        "initial_draft": {
+          "refusal": true,
+          "refusal_reason": "insufficient_evidence",
+          "claims": []
+        },
+        "final_draft": {
+          "refusal": true,
+          "refusal_reason": "insufficient_evidence",
+          "claims": []
+        },
+        "final_draft_sha256": "48e142d92a5396d365fee8ce389506d4ff85ed535e02067dd04a68946ed74b94",
+        "audit_candidate_draft": {
+          "refusal": true,
+          "refusal_reason": "insufficient_evidence",
+          "claims": []
+        },
+        "audit_candidate_draft_sha256": "48e142d92a5396d365fee8ce389506d4ff85ed535e02067dd04a68946ed74b94",
+        "verdicts": [
+          {
+            "decision": "approved",
+            "rationale": "The draft appropriately refuses to make claims due to insufficient evidence. The only evidence, a synthetic docking prediction, explicitly states no wet-lab interaction was reported, so answering whether synergy exists is not possible. All planned tool calls completed successfully, and there are no claims to evaluate for citation support. The refusal is justified.",
+            "flagged_claim_ids": []
+          }
+        ],
+        "call_audits": [
+          {
+            "role": "reviewer",
+            "round_number": 1,
+            "attempt": 1,
+            "retry": false,
+            "request_id": "comparison-5cf08b0bdf8d1f1acd3a9bea9aa0c529d2321bbf8ff0b61d497864bb55450b39-0002:review:reviewer:1:1",
+            "system_prompt_sha256": "9b4055132f93fe9527236ed4eb55fd5cf759b6379813c03af2e59051e84c3ab7",
+            "prompt_sha256": "fcf274a8cdb7d92ff2cc758cff2164e285171b66b5b5b32b60587a76a7f62cf9",
+            "request_sha256": "491d3c5bbd9681d8e9c55fd0e188058ad703a1d0ee611bfde326945958f1b655",
+            "generation_parameters_sha256": "49688d5bcd0f400409d094aac3c3fd53bd8776cd863d2447a776dd43a7fc2d84",
+            "response_text_sha256": "a614effbd625e098bc2492b6ce276955073e1e6ec2ce6675d72e25ca4250d9bb",
+            "provider_name": "deepseek",
+            "model_name": "deepseek-v4-pro",
+            "model_version": "DeepSeek-V4-Pro",
+            "response_succeeded": true,
+            "failure_code": null,
+            "fake": false,
+            "network_used": true,
+            "latency_ms": 9799.915100000362,
+            "usage": {
+              "input_tokens": 1199,
+              "output_tokens": 638,
+              "reasoning_tokens": 552,
+              "provider_reported_model_calls": 1,
+              "cost_amount": "0.0066634",
+              "cost_currency": "CNY"
+            }
+          }
+        ],
+        "budget": {
+          "max_review_calls": 2,
+          "max_revision_calls": 1,
+          "max_retries": 1,
+          "max_output_tokens_per_call": 2048,
+          "max_total_tokens": 32000,
+          "max_cost_amount": "5",
+          "cost_currency": "CNY",
+          "review_calls_used": 1,
+          "revision_calls_used": 0,
+          "retries_used": 0,
+          "total_tokens_used": 1837,
+          "cost_amount_used": "0.0066634",
+          "costs_by_currency": {
+            "CNY": "0.0066634"
+          }
+        },
+        "errors": []
+      },
+      "research_call_audits": [
+        {
+          "purpose": "planning",
+          "attempt": 1,
+          "retry": false,
+          "request_id": "comparison-5cf08b0bdf8d1f1acd3a9bea9aa0c529d2321bbf8ff0b61d497864bb55450b39-0002:planning:1",
+          "prompt_sha256": "2a4393bc757a53f77043bfc5f03c1c8035a923a248fae3749143804b890b63aa",
+          "generation_parameters_sha256": "a82cb6b74584047525138dd0a98f37ceaeec1ebe93b14710206095ad7e307a4f",
+          "response_text_sha256": "9068a98cd214a328c67263f386b6cb1497fb7682bf2317a454016b79d5886279",
+          "provider_name": "deepseek",
+          "model_name": "deepseek-v4-pro",
+          "model_version": "DeepSeek-V4-Pro",
+          "response_succeeded": true,
+          "failure_code": null,
+          "fake": false,
+          "network_used": true,
+          "latency_ms": 8189.744899998914,
+          "usage": {
+            "input_tokens": 724,
+            "output_tokens": 534,
+            "reasoning_tokens": 474,
+            "provider_reported_model_calls": 1,
+            "cost_amount": "0.003472",
+            "cost_currency": "CNY"
+          }
+        }
+      ],
+      "review_call_audits": [
+        {
+          "role": "reviewer",
+          "round_number": 1,
+          "attempt": 1,
+          "retry": false,
+          "request_id": "comparison-5cf08b0bdf8d1f1acd3a9bea9aa0c529d2321bbf8ff0b61d497864bb55450b39-0002:review:reviewer:1:1",
+          "system_prompt_sha256": "9b4055132f93fe9527236ed4eb55fd5cf759b6379813c03af2e59051e84c3ab7",
+          "prompt_sha256": "fcf274a8cdb7d92ff2cc758cff2164e285171b66b5b5b32b60587a76a7f62cf9",
+          "request_sha256": "491d3c5bbd9681d8e9c55fd0e188058ad703a1d0ee611bfde326945958f1b655",
+          "generation_parameters_sha256": "49688d5bcd0f400409d094aac3c3fd53bd8776cd863d2447a776dd43a7fc2d84",
+          "response_text_sha256": "a614effbd625e098bc2492b6ce276955073e1e6ec2ce6675d72e25ca4250d9bb",
+          "provider_name": "deepseek",
+          "model_name": "deepseek-v4-pro",
+          "model_version": "DeepSeek-V4-Pro",
+          "response_succeeded": true,
+          "failure_code": null,
+          "fake": false,
+          "network_used": true,
+          "latency_ms": 9799.915100000362,
+          "usage": {
+            "input_tokens": 1199,
+            "output_tokens": 638,
+            "reasoning_tokens": 552,
+            "provider_reported_model_calls": 1,
+            "cost_amount": "0.0066634",
+            "cost_currency": "CNY"
+          }
+        }
+      ],
+      "provider_audit_slices": [
+        {
+          "binding": "research",
+          "provider_name": "deepseek",
+          "model_name": "deepseek-v4-pro",
+          "model_version": "DeepSeek-V4-Pro",
+          "provider_audit_available": true,
+          "http_attempts": 1,
+          "settled_cost_cny": "0.003472",
+          "records": [
+            {
+              "request_id": "comparison-5cf08b0bdf8d1f1acd3a9bea9aa0c529d2321bbf8ff0b61d497864bb55450b39-0002:planning:1",
+              "requested_model": "deepseek-v4-pro",
+              "actual_model": "deepseek-v4-pro",
+              "request_body_sha256": "e86fa52415f744b5c93f318b5badd67cd0a1bc65b40e7ebd0c2b5fed248f952a",
+              "response_id": "7776de76-a2ec-4f1b-9f4e-6521c082121d",
+              "created": 1785655707,
+              "system_fingerprint": "fp_9954b31ca7_prod0820_fp8_kvcache_20260402",
+              "finish_reason": "stop",
+              "usage": {
+                "prompt_tokens": 724,
+                "prompt_cache_hit_tokens": 640,
+                "prompt_cache_miss_tokens": 84,
+                "completion_tokens": 534,
+                "reasoning_tokens": 474,
+                "total_tokens": 1258,
+                "raw_usage_json": "{\"completion_tokens\":534,\"completion_tokens_details\":{\"reasoning_tokens\":474},\"prompt_cache_hit_tokens\":640,\"prompt_cache_miss_tokens\":84,\"prompt_tokens\":724,\"prompt_tokens_details\":{\"cached_tokens\":640},\"total_tokens\":1258}",
+                "exact_cost_cny": "0.003472",
+                "cost_basis": "reported_cache_split",
+                "pricing_snapshot_id": "deepseek-cny-2026-08-01",
+                "pricing_snapshot_date": "2026-08-01",
+                "pricing_source_url": "https://api-docs.deepseek.com/zh-cn/quick_start/pricing/"
+              },
+              "attempts": 1,
+              "http_status": 200,
+              "estimated_max_cost_cny_per_attempt": "0.022746",
+              "timeout_seconds": 120.0,
+              "conservative_unverified_cost_cny": "0",
+              "settled_cost_cny": "0.003472",
+              "attempt_outcomes": [
+                "success"
+              ],
+              "failure_code": null
+            }
+          ]
+        },
+        {
+          "binding": "research_revision+reviewer",
+          "provider_name": "deepseek",
+          "model_name": "deepseek-v4-pro",
+          "model_version": "DeepSeek-V4-Pro",
+          "provider_audit_available": true,
+          "http_attempts": 1,
+          "settled_cost_cny": "0.0066634",
+          "records": [
+            {
+              "request_id": "comparison-5cf08b0bdf8d1f1acd3a9bea9aa0c529d2321bbf8ff0b61d497864bb55450b39-0002:review:reviewer:1:1",
+              "requested_model": "deepseek-v4-pro",
+              "actual_model": "deepseek-v4-pro",
+              "request_body_sha256": "3b7817d747ca2c54616e042ebbf634c6cbd2e2ef81939e3ae2a3349d39033779",
+              "response_id": "18cd0428-05cd-4702-92c1-fef333090b6b",
+              "created": 1785655715,
+              "system_fingerprint": "fp_9954b31ca7_prod0820_fp8_kvcache_20260402",
+              "finish_reason": "stop",
+              "usage": {
+                "prompt_tokens": 1199,
+                "prompt_cache_hit_tokens": 256,
+                "prompt_cache_miss_tokens": 943,
+                "completion_tokens": 638,
+                "reasoning_tokens": 552,
+                "total_tokens": 1837,
+                "raw_usage_json": "{\"completion_tokens\":638,\"completion_tokens_details\":{\"reasoning_tokens\":552},\"prompt_cache_hit_tokens\":256,\"prompt_cache_miss_tokens\":943,\"prompt_tokens\":1199,\"prompt_tokens_details\":{\"cached_tokens\":256},\"total_tokens\":1837}",
+                "exact_cost_cny": "0.0066634",
+                "cost_basis": "reported_cache_split",
+                "pricing_snapshot_id": "deepseek-cny-2026-08-01",
+                "pricing_snapshot_date": "2026-08-01",
+                "pricing_source_url": "https://api-docs.deepseek.com/zh-cn/quick_start/pricing/"
+              },
+              "attempts": 1,
+              "http_status": 200,
+              "estimated_max_cost_cny_per_attempt": "0.025923",
+              "timeout_seconds": 120.0,
+              "conservative_unverified_cost_cny": "0",
+              "settled_cost_cny": "0.0066634",
+              "attempt_outcomes": [
+                "success"
+              ],
+              "failure_code": null
+            }
+          ]
+        }
+      ],
+      "retrieval_reused": true
+    },
+    {
+      "id": "TOOL-03",
+      "category": "tool_resilience",
+      "shared_hashes": {
+        "research_state_sha256": "b2ae9a7e3cdb1ed1cdddb9286fa0678b122b33093f167f5a471e43d856bad9b4",
+        "initial_draft_sha256": "48e142d92a5396d365fee8ce389506d4ff85ed535e02067dd04a68946ed74b94",
+        "evidence_ledger_sha256": "6674c25b056b1088a48caf2927566bb39eef19c101d828d928f48fa9ab9ed9cf",
+        "tool_trace_sha256": "7c0aedbfae3dc0df02dc7c3c527a460f5f417032286759db744ad9bf62223b83"
+      },
+      "research_state": {
+        "run_id": "comparison-5cf08b0bdf8d1f1acd3a9bea9aa0c529d2321bbf8ff0b61d497864bb55450b39-0003",
+        "question": "Question: 文献成功但 FICI CSV 含无效行时能否保留文献并拒绝整份实验分析？\nPopulation: Streptococcus agalactiae\nIntervention: quercetin\nComparator: amoxicillin\nOutcomes: synergy | FICI\n\nRUN_CONTEXT={\"available_tools\":[\"local_rag.search\",\"experiment.fici\",\"report.build\"],\"dataset_ids\":[\"dataset-06ecc4a30774e947053b\"],\"report_input_id\":\"report-cf476cb17368e52ea029\"}",
+        "phase": "failed",
+        "stop_reason": "failed",
+        "budget": {
+          "max_plan_items": 3,
+          "max_tool_calls": 4,
+          "max_normal_model_calls": 2,
+          "max_retries": 1,
+          "max_total_tokens": 32000,
+          "max_output_tokens_per_call": 4096,
+          "max_cost_amount": "5",
+          "cost_currency": "CNY",
+          "normal_model_calls_used": 2,
+          "retries_used": 0,
+          "tool_calls_used": 3,
+          "total_tokens_used": 2330,
+          "cost_amount_used": "0.011544"
+        },
+        "plan": {
+          "items": [
+            {
+              "step_id": "comparison-5cf08b0bdf8d1f1acd3a9bea9aa0c529d2321bbf8ff0b61d497864bb55450b39-0003:tool:1",
+              "tool_name": "local_rag.search",
+              "arguments": {
+                "query": "无乳链球菌 槲皮素 阿莫西林 协同作用 FICI Streptococcus agalactiae quercetin amoxicillin synergy | FICI",
+                "limit": 3
+              }
+            },
+            {
+              "step_id": "comparison-5cf08b0bdf8d1f1acd3a9bea9aa0c529d2321bbf8ff0b61d497864bb55450b39-0003:tool:2",
+              "tool_name": "experiment.fici",
+              "arguments": {
+                "dataset_id": "dataset-06ecc4a30774e947053b"
+              }
+            },
+            {
+              "step_id": "comparison-5cf08b0bdf8d1f1acd3a9bea9aa0c529d2321bbf8ff0b61d497864bb55450b39-0003:tool:3",
+              "tool_name": "report.build",
+              "arguments": {
+                "report_input_id": "report-cf476cb17368e52ea029"
+              }
+            }
+          ]
+        },
+        "evidence_ledger": {
+          "items": [
+            {
+              "source_id": "source-001",
+              "chunk_id": "source-001:abstract",
+              "content": "Title: Synthetic direct literature result\nAbstract: Checkerboard assays showed synergistic activity of quercetin and amoxicillin against Streptococcus agalactiae.",
+              "source_type": "frozen_local_document",
+              "title": "Synthetic direct literature result",
+              "locator": null,
+              "evidence_role": "untrusted_evidence",
+              "evidence_grade": "direct_interaction"
+            },
+            {
+              "source_id": "analysis-e6062dbcb4904925cb00",
+              "chunk_id": "analysis-e6062dbcb4904925cb00:summary",
+              "content": "{\"analysis_admitted\":false,\"analysis_type\":\"fici\",\"classification_counts\":{\"synergy\":1},\"conflict_detected\":false,\"errors\":[\"row 3: drug_a_mic_combo must be a finite number; got 'not-a-number'.\"],\"invalid_row_count\":1,\"valid\":false,\"valid_row_count\":1}",
+              "source_type": "frozen_experiment_summary",
+              "title": "Validated experiment summary",
+              "locator": null,
+              "evidence_role": "untrusted_evidence",
+              "evidence_grade": "out_of_scope"
+            }
+          ]
+        },
+        "claims": [],
+        "answer": null,
+        "model_call_audits": [
+          {
+            "purpose": "planning",
+            "attempt": 1,
+            "retry": false,
+            "request_id": "comparison-5cf08b0bdf8d1f1acd3a9bea9aa0c529d2321bbf8ff0b61d497864bb55450b39-0003:planning:1",
+            "prompt_sha256": "949459eeb4029ad8fa9d49b53ce62890847adae06b0d50552cc62e3fb698297e",
+            "generation_parameters_sha256": "4a4bde562d27b2d76d3860951400d0054882df7b372a097f05f1446a1a5f8393",
+            "response_text_sha256": "19e972f0dfc4475751824482b77a6d9570ff67b4309cfc08a7c6561d51b8dbf5",
+            "provider_name": "deepseek",
+            "model_name": "deepseek-v4-pro",
+            "model_version": "DeepSeek-V4-Pro",
+            "response_succeeded": true,
+            "failure_code": null,
+            "fake": false,
+            "network_used": true,
+            "latency_ms": 20824.152199998935,
+            "usage": {
+              "input_tokens": 812,
+              "output_tokens": 1518,
+              "reasoning_tokens": 1420,
+              "provider_reported_model_calls": 1,
+              "cost_amount": "0.011544",
+              "cost_currency": "CNY"
+            }
+          },
+          {
+            "purpose": "drafting",
+            "attempt": 1,
+            "retry": false,
+            "request_id": "comparison-5cf08b0bdf8d1f1acd3a9bea9aa0c529d2321bbf8ff0b61d497864bb55450b39-0003:drafting:1",
+            "prompt_sha256": "6ae5406ad9b4633e09b1931287934bd0c65e8b1662f4231f4fe10e2cf65507ef",
+            "generation_parameters_sha256": "48d6ba78fc453aa940674d665c04e67a85b2a12468498f99e56884ba5ab37240",
+            "response_text_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "provider_name": "deepseek",
+            "model_name": "deepseek-v4-pro",
+            "model_version": "DeepSeek-V4-Pro",
+            "response_succeeded": false,
+            "failure_code": "invalid_request",
+            "fake": false,
+            "network_used": true,
+            "latency_ms": 381.8667000014102,
+            "usage": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "reasoning_tokens": 0,
+              "provider_reported_model_calls": 1,
+              "cost_amount": "0.0",
+              "cost_currency": "CNY"
+            }
+          }
+        ],
+        "tool_results": [
+          {
+            "call_id": "comparison-5cf08b0bdf8d1f1acd3a9bea9aa0c529d2321bbf8ff0b61d497864bb55450b39-0003:tool:1",
+            "tool_name": "local_rag.search",
+            "call_signature_sha256": "7a1d338e2b963d65323618df90e53eed3c0a4cf12820bb4f940057d7e901f42e",
+            "status": "succeeded",
+            "evidence": [
+              {
+                "source_id": "source-001",
+                "chunk_id": "source-001:abstract",
+                "content": "Title: Synthetic direct literature result\nAbstract: Checkerboard assays showed synergistic activity of quercetin and amoxicillin against Streptococcus agalactiae.",
+                "source_type": "frozen_local_document",
+                "title": "Synthetic direct literature result",
+                "locator": null,
+                "evidence_role": "untrusted_evidence",
+                "evidence_grade": "direct_interaction"
+              }
+            ],
+            "output": {
+              "retrieved_count": 1,
+              "retrieval_mode": "keyword"
+            },
+            "failure": null,
+            "frozen_replay": true,
+            "network_used": false,
+            "external_actions": 0
+          },
+          {
+            "call_id": "comparison-5cf08b0bdf8d1f1acd3a9bea9aa0c529d2321bbf8ff0b61d497864bb55450b39-0003:tool:2",
+            "tool_name": "experiment.fici",
+            "call_signature_sha256": "5526fd67c2cb1035b5d34e007a383c452e809fe686d76ae354c2885be4460f37",
+            "status": "succeeded",
+            "evidence": [
+              {
+                "source_id": "analysis-e6062dbcb4904925cb00",
+                "chunk_id": "analysis-e6062dbcb4904925cb00:summary",
+                "content": "{\"analysis_admitted\":false,\"analysis_type\":\"fici\",\"classification_counts\":{\"synergy\":1},\"conflict_detected\":false,\"errors\":[\"row 3: drug_a_mic_combo must be a finite number; got 'not-a-number'.\"],\"invalid_row_count\":1,\"valid\":false,\"valid_row_count\":1}",
+                "source_type": "frozen_experiment_summary",
+                "title": "Validated experiment summary",
+                "locator": null,
+                "evidence_role": "untrusted_evidence",
+                "evidence_grade": "out_of_scope"
+              }
+            ],
+            "output": {
+              "analysis_type": "fici",
+              "valid": false,
+              "analysis_admitted": false,
+              "valid_row_count": 1,
+              "invalid_row_count": 1,
+              "errors": [
+                "row 3: drug_a_mic_combo must be a finite number; got 'not-a-number'."
+              ],
+              "classification_counts": {
+                "synergy": 1
+              },
+              "conflict_detected": false
+            },
+            "failure": null,
+            "frozen_replay": true,
+            "network_used": false,
+            "external_actions": 0
+          },
+          {
+            "call_id": "comparison-5cf08b0bdf8d1f1acd3a9bea9aa0c529d2321bbf8ff0b61d497864bb55450b39-0003:tool:3",
+            "tool_name": "report.build",
+            "call_signature_sha256": "71cb6ae0822854b0ab5259c1fb35cae02a3a1ab18877bb1e0a18416d753bd3fa",
+            "status": "succeeded",
+            "evidence": [],
+            "output": {
+              "report_generated": true
+            },
+            "failure": null,
+            "frozen_replay": true,
+            "network_used": false,
+            "external_actions": 0
+          }
+        ],
+        "transitions": [
+          {
+            "from_phase": "created",
+            "to_phase": "planning",
+            "reason": "start_planning"
+          },
+          {
+            "from_phase": "planning",
+            "to_phase": "plan_validated",
+            "reason": "plan_validated"
+          },
+          {
+            "from_phase": "plan_validated",
+            "to_phase": "executing_tools",
+            "reason": "execute_validated_plan"
+          },
+          {
+            "from_phase": "executing_tools",
+            "to_phase": "evidence_validated",
+            "reason": "evidence_validated"
+          },
+          {
+            "from_phase": "evidence_validated",
+            "to_phase": "drafting",
+            "reason": "draft_from_current_ledger"
+          },
+          {
+            "from_phase": "drafting",
+            "to_phase": "failed",
+            "reason": "invalid_request"
+          }
+        ],
+        "errors": [
+          {
+            "stage": "drafting",
+            "code": "invalid_request",
+            "message": "Provider reported a structured failure."
+          }
+        ]
+      },
+      "single": {
+        "actual": {
+          "phase": "failed",
+          "task_state": "awaiting_review",
+          "task_completed": false,
+          "target_claim_abstained": true,
+          "admission_status": "blocked_no_direct_evidence",
+          "retrieved_ids": [
+            "source-001"
+          ],
+          "evidence": [
+            {
+              "source_id": "source-001",
+              "chunk_id": "source-001:abstract",
+              "content": "Title: Synthetic direct literature result\nAbstract: Checkerboard assays showed synergistic activity of quercetin and amoxicillin against Streptococcus agalactiae.",
+              "source_type": "frozen_local_document",
+              "title": "Synthetic direct literature result",
+              "locator": null,
+              "evidence_role": "untrusted_evidence",
+              "evidence_grade": "direct_interaction"
+            },
+            {
+              "source_id": "analysis-e6062dbcb4904925cb00",
+              "chunk_id": "analysis-e6062dbcb4904925cb00:summary",
+              "content": "{\"analysis_admitted\":false,\"analysis_type\":\"fici\",\"classification_counts\":{\"synergy\":1},\"conflict_detected\":false,\"errors\":[\"row 3: drug_a_mic_combo must be a finite number; got 'not-a-number'.\"],\"invalid_row_count\":1,\"valid\":false,\"valid_row_count\":1}",
+              "source_type": "frozen_experiment_summary",
+              "title": "Validated experiment summary",
+              "locator": null,
+              "evidence_role": "untrusted_evidence",
+              "evidence_grade": "out_of_scope"
+            }
+          ],
+          "citations": [],
+          "claim_ids": [],
+          "failed_batch_count": 0,
+          "replay_request_count": 0,
+          "partial_results_preserved": false,
+          "error_type": null,
+          "analysis_type": "fici",
+          "analysis_valid": false,
+          "analysis_admitted": false,
+          "valid_row_count": 1,
+          "invalid_row_count": 1,
+          "report_generated": true,
+          "model_calls": 2,
+          "real_model_calls": 2,
+          "network_calls": 2,
+          "external_actions": 0,
+          "input_tokens": 812,
+          "output_tokens": 1518,
+          "cost_amount": "0.011544",
+          "cost_currency": "CNY",
+          "latency_ms": 21235.063099997205,
+          "answer": null
+        },
+        "score": {
+          "id": "TOOL-03",
+          "category": "tool_resilience",
+          "passed": false,
+          "mismatches": [
+            "task_completion_rate",
+            "admission_status"
+          ],
+          "applicable_metrics": [
+            "abstention_accuracy",
+            "task_completion_rate",
+            "cost",
+            "latency"
+          ],
+          "actual": {
+            "phase": "failed",
+            "task_state": "awaiting_review",
+            "task_completed": false,
+            "target_claim_abstained": true,
+            "admission_status": "blocked_no_direct_evidence",
+            "retrieved_ids": [
+              "source-001"
+            ],
+            "evidence": [
+              {
+                "source_id": "source-001",
+                "chunk_id": "source-001:abstract",
+                "content": "Title: Synthetic direct literature result\nAbstract: Checkerboard assays showed synergistic activity of quercetin and amoxicillin against Streptococcus agalactiae.",
+                "source_type": "frozen_local_document",
+                "title": "Synthetic direct literature result",
+                "locator": null,
+                "evidence_role": "untrusted_evidence",
+                "evidence_grade": "direct_interaction"
+              },
+              {
+                "source_id": "analysis-e6062dbcb4904925cb00",
+                "chunk_id": "analysis-e6062dbcb4904925cb00:summary",
+                "content": "{\"analysis_admitted\":false,\"analysis_type\":\"fici\",\"classification_counts\":{\"synergy\":1},\"conflict_detected\":false,\"errors\":[\"row 3: drug_a_mic_combo must be a finite number; got 'not-a-number'.\"],\"invalid_row_count\":1,\"valid\":false,\"valid_row_count\":1}",
+                "source_type": "frozen_experiment_summary",
+                "title": "Validated experiment summary",
+                "locator": null,
+                "evidence_role": "untrusted_evidence",
+                "evidence_grade": "out_of_scope"
+              }
+            ],
+            "citations": [],
+            "claim_ids": [],
+            "failed_batch_count": 0,
+            "replay_request_count": 0,
+            "partial_results_preserved": false,
+            "error_type": null,
+            "analysis_type": "fici",
+            "analysis_valid": false,
+            "analysis_admitted": false,
+            "valid_row_count": 1,
+            "invalid_row_count": 1,
+            "report_generated": true,
+            "model_calls": 2,
+            "real_model_calls": 2,
+            "network_calls": 2,
+            "external_actions": 0,
+            "input_tokens": 812,
+            "output_tokens": 1518,
+            "cost_amount": "0.011544",
+            "cost_currency": "CNY",
+            "latency_ms": 21235.063099997205,
+            "answer": null
+          },
+          "metric_observations": {
+            "abstention_accuracy": {
+              "value": 1.0,
+              "numerator": 1.0,
+              "denominator": 1.0,
+              "unit": "ratio"
+            },
+            "task_completion_rate": {
+              "value": 0.0,
+              "numerator": 0.0,
+              "denominator": 1.0,
+              "unit": "ratio"
+            },
+            "cost": {
+              "value": 0.011544,
+              "numerator": null,
+              "denominator": null,
+              "unit": "CNY"
+            },
+            "latency": {
+              "value": 21235.063099997205,
+              "numerator": null,
+              "denominator": null,
+              "unit": "ms"
+            }
+          }
+        },
+        "usage": {
+          "logical_model_calls": 2,
+          "provider_reported_model_calls": 2,
+          "real_model_calls": 2,
+          "logical_network_calls": 2,
+          "actual_http_attempts": 2,
+          "input_tokens": 812,
+          "output_tokens": 1518,
+          "reasoning_tokens": 1420,
+          "costs_by_currency": {
+            "CNY": "0.011544"
+          },
+          "cost_accounting_source": "provider_settled_audit",
+          "latency_ms": 21235.063099997205
+        }
+      },
+      "dual": {
+        "actual": {
+          "phase": "human_review_required",
+          "task_state": "awaiting_review",
+          "task_completed": false,
+          "target_claim_abstained": true,
+          "admission_status": "blocked_no_direct_evidence",
+          "retrieved_ids": [
+            "source-001"
+          ],
+          "evidence": [
+            {
+              "source_id": "source-001",
+              "chunk_id": "source-001:abstract",
+              "content": "Title: Synthetic direct literature result\nAbstract: Checkerboard assays showed synergistic activity of quercetin and amoxicillin against Streptococcus agalactiae.",
+              "source_type": "frozen_local_document",
+              "title": "Synthetic direct literature result",
+              "locator": null,
+              "evidence_role": "untrusted_evidence",
+              "evidence_grade": "direct_interaction"
+            },
+            {
+              "source_id": "analysis-e6062dbcb4904925cb00",
+              "chunk_id": "analysis-e6062dbcb4904925cb00:summary",
+              "content": "{\"analysis_admitted\":false,\"analysis_type\":\"fici\",\"classification_counts\":{\"synergy\":1},\"conflict_detected\":false,\"errors\":[\"row 3: drug_a_mic_combo must be a finite number; got 'not-a-number'.\"],\"invalid_row_count\":1,\"valid\":false,\"valid_row_count\":1}",
+              "source_type": "frozen_experiment_summary",
+              "title": "Validated experiment summary",
+              "locator": null,
+              "evidence_role": "untrusted_evidence",
+              "evidence_grade": "out_of_scope"
+            }
+          ],
+          "citations": [],
+          "claim_ids": [],
+          "failed_batch_count": 0,
+          "replay_request_count": 0,
+          "partial_results_preserved": false,
+          "error_type": null,
+          "analysis_type": "fici",
+          "analysis_valid": false,
+          "analysis_admitted": false,
+          "valid_row_count": 1,
+          "invalid_row_count": 1,
+          "report_generated": true,
+          "model_calls": 2,
+          "real_model_calls": 2,
+          "network_calls": 2,
+          "external_actions": 0,
+          "input_tokens": 812,
+          "output_tokens": 1518,
+          "cost_amount": "0.011544",
+          "cost_currency": "CNY",
+          "latency_ms": 21235.395899999276,
+          "answer": "human_review_required"
+        },
+        "score": {
+          "id": "TOOL-03",
+          "category": "tool_resilience",
+          "passed": false,
+          "mismatches": [
+            "task_completion_rate",
+            "admission_status"
+          ],
+          "applicable_metrics": [
+            "abstention_accuracy",
+            "task_completion_rate",
+            "cost",
+            "latency"
+          ],
+          "actual": {
+            "phase": "human_review_required",
+            "task_state": "awaiting_review",
+            "task_completed": false,
+            "target_claim_abstained": true,
+            "admission_status": "blocked_no_direct_evidence",
+            "retrieved_ids": [
+              "source-001"
+            ],
+            "evidence": [
+              {
+                "source_id": "source-001",
+                "chunk_id": "source-001:abstract",
+                "content": "Title: Synthetic direct literature result\nAbstract: Checkerboard assays showed synergistic activity of quercetin and amoxicillin against Streptococcus agalactiae.",
+                "source_type": "frozen_local_document",
+                "title": "Synthetic direct literature result",
+                "locator": null,
+                "evidence_role": "untrusted_evidence",
+                "evidence_grade": "direct_interaction"
+              },
+              {
+                "source_id": "analysis-e6062dbcb4904925cb00",
+                "chunk_id": "analysis-e6062dbcb4904925cb00:summary",
+                "content": "{\"analysis_admitted\":false,\"analysis_type\":\"fici\",\"classification_counts\":{\"synergy\":1},\"conflict_detected\":false,\"errors\":[\"row 3: drug_a_mic_combo must be a finite number; got 'not-a-number'.\"],\"invalid_row_count\":1,\"valid\":false,\"valid_row_count\":1}",
+                "source_type": "frozen_experiment_summary",
+                "title": "Validated experiment summary",
+                "locator": null,
+                "evidence_role": "untrusted_evidence",
+                "evidence_grade": "out_of_scope"
+              }
+            ],
+            "citations": [],
+            "claim_ids": [],
+            "failed_batch_count": 0,
+            "replay_request_count": 0,
+            "partial_results_preserved": false,
+            "error_type": null,
+            "analysis_type": "fici",
+            "analysis_valid": false,
+            "analysis_admitted": false,
+            "valid_row_count": 1,
+            "invalid_row_count": 1,
+            "report_generated": true,
+            "model_calls": 2,
+            "real_model_calls": 2,
+            "network_calls": 2,
+            "external_actions": 0,
+            "input_tokens": 812,
+            "output_tokens": 1518,
+            "cost_amount": "0.011544",
+            "cost_currency": "CNY",
+            "latency_ms": 21235.395899999276,
+            "answer": "human_review_required"
+          },
+          "metric_observations": {
+            "abstention_accuracy": {
+              "value": 1.0,
+              "numerator": 1.0,
+              "denominator": 1.0,
+              "unit": "ratio"
+            },
+            "task_completion_rate": {
+              "value": 0.0,
+              "numerator": 0.0,
+              "denominator": 1.0,
+              "unit": "ratio"
+            },
+            "cost": {
+              "value": 0.011544,
+              "numerator": null,
+              "denominator": null,
+              "unit": "CNY"
+            },
+            "latency": {
+              "value": 21235.395899999276,
+              "numerator": null,
+              "denominator": null,
+              "unit": "ms"
+            }
+          }
+        },
+        "usage": {
+          "logical_model_calls": 2,
+          "provider_reported_model_calls": 2,
+          "real_model_calls": 2,
+          "logical_network_calls": 2,
+          "actual_http_attempts": 2,
+          "input_tokens": 812,
+          "output_tokens": 1518,
+          "reasoning_tokens": 1420,
+          "costs_by_currency": {
+            "CNY": "0.011544"
+          },
+          "cost_accounting_source": "mixed",
+          "latency_ms": 21235.395899999276
+        }
+      },
+      "review_incremental_usage": {
+        "logical_model_calls": 0,
+        "provider_reported_model_calls": 0,
+        "real_model_calls": 0,
+        "logical_network_calls": 0,
+        "actual_http_attempts": 0,
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "reasoning_tokens": 0,
+        "costs_by_currency": {
+          "CNY": "0"
+        },
+        "cost_accounting_source": "runtime_compatibility",
+        "latency_ms": 0.3328000020701438
+      },
+      "review": {
+        "run_id": "comparison-5cf08b0bdf8d1f1acd3a9bea9aa0c529d2321bbf8ff0b61d497864bb55450b39-0003:review",
+        "status": "human_review_required",
+        "safe_refusal": true,
+        "final_answer": "human_review_required",
+        "shared_research_state_sha256": "b2ae9a7e3cdb1ed1cdddb9286fa0678b122b33093f167f5a471e43d856bad9b4",
+        "shared_draft_sha256": "48e142d92a5396d365fee8ce389506d4ff85ed535e02067dd04a68946ed74b94",
+        "shared_evidence_ledger_sha256": "6674c25b056b1088a48caf2927566bb39eef19c101d828d928f48fa9ab9ed9cf",
+        "shared_tool_trace_sha256": "7c0aedbfae3dc0df02dc7c3c527a460f5f417032286759db744ad9bf62223b83",
+        "initial_draft": {
+          "refusal": true,
+          "refusal_reason": "insufficient_evidence",
+          "claims": []
+        },
+        "final_draft": {
+          "refusal": true,
+          "refusal_reason": "human_review_required",
+          "claims": []
+        },
+        "final_draft_sha256": "7798e7a6b6e1f2bd624bb12d07b420d8bdadde82466e00981518f49ad3825cf8",
+        "audit_candidate_draft": {
+          "refusal": true,
+          "refusal_reason": "insufficient_evidence",
+          "claims": []
+        },
+        "audit_candidate_draft_sha256": "48e142d92a5396d365fee8ce389506d4ff85ed535e02067dd04a68946ed74b94",
+        "verdicts": [],
+        "call_audits": [],
+        "budget": {
+          "max_review_calls": 2,
+          "max_revision_calls": 1,
+          "max_retries": 1,
+          "max_output_tokens_per_call": 2048,
+          "max_total_tokens": 32000,
+          "max_cost_amount": "5",
+          "cost_currency": "CNY",
+          "review_calls_used": 0,
+          "revision_calls_used": 0,
+          "retries_used": 0,
+          "total_tokens_used": 0,
+          "cost_amount_used": "0",
+          "costs_by_currency": {}
+        },
+        "errors": [
+          {
+            "code": "research_state_not_reviewable",
+            "message": "Only completed or evidence-insufficient research states can be reviewed."
+          }
+        ]
+      },
+      "research_call_audits": [
+        {
+          "purpose": "planning",
+          "attempt": 1,
+          "retry": false,
+          "request_id": "comparison-5cf08b0bdf8d1f1acd3a9bea9aa0c529d2321bbf8ff0b61d497864bb55450b39-0003:planning:1",
+          "prompt_sha256": "949459eeb4029ad8fa9d49b53ce62890847adae06b0d50552cc62e3fb698297e",
+          "generation_parameters_sha256": "4a4bde562d27b2d76d3860951400d0054882df7b372a097f05f1446a1a5f8393",
+          "response_text_sha256": "19e972f0dfc4475751824482b77a6d9570ff67b4309cfc08a7c6561d51b8dbf5",
+          "provider_name": "deepseek",
+          "model_name": "deepseek-v4-pro",
+          "model_version": "DeepSeek-V4-Pro",
+          "response_succeeded": true,
+          "failure_code": null,
+          "fake": false,
+          "network_used": true,
+          "latency_ms": 20824.152199998935,
+          "usage": {
+            "input_tokens": 812,
+            "output_tokens": 1518,
+            "reasoning_tokens": 1420,
+            "provider_reported_model_calls": 1,
+            "cost_amount": "0.011544",
+            "cost_currency": "CNY"
+          }
+        },
+        {
+          "purpose": "drafting",
+          "attempt": 1,
+          "retry": false,
+          "request_id": "comparison-5cf08b0bdf8d1f1acd3a9bea9aa0c529d2321bbf8ff0b61d497864bb55450b39-0003:drafting:1",
+          "prompt_sha256": "6ae5406ad9b4633e09b1931287934bd0c65e8b1662f4231f4fe10e2cf65507ef",
+          "generation_parameters_sha256": "48d6ba78fc453aa940674d665c04e67a85b2a12468498f99e56884ba5ab37240",
+          "response_text_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "provider_name": "deepseek",
+          "model_name": "deepseek-v4-pro",
+          "model_version": "DeepSeek-V4-Pro",
+          "response_succeeded": false,
+          "failure_code": "invalid_request",
+          "fake": false,
+          "network_used": true,
+          "latency_ms": 381.8667000014102,
+          "usage": {
+            "input_tokens": 0,
+            "output_tokens": 0,
+            "reasoning_tokens": 0,
+            "provider_reported_model_calls": 1,
+            "cost_amount": "0.0",
+            "cost_currency": "CNY"
+          }
+        }
+      ],
+      "review_call_audits": [],
+      "provider_audit_slices": [
+        {
+          "binding": "research",
+          "provider_name": "deepseek",
+          "model_name": "deepseek-v4-pro",
+          "model_version": "DeepSeek-V4-Pro",
+          "provider_audit_available": true,
+          "http_attempts": 2,
+          "settled_cost_cny": "0.011544",
+          "records": [
+            {
+              "request_id": "comparison-5cf08b0bdf8d1f1acd3a9bea9aa0c529d2321bbf8ff0b61d497864bb55450b39-0003:planning:1",
+              "requested_model": "deepseek-v4-pro",
+              "actual_model": "deepseek-v4-pro",
+              "request_body_sha256": "d35261eb71c4e9fa958f12200beffd82c77b087ff855c2c29fa25b39a3c7aa80",
+              "response_id": "48bae049-6447-4650-97be-6e96eea6c6b0",
+              "created": 1785655725,
+              "system_fingerprint": "fp_9954b31ca7_prod0820_fp8_kvcache_20260402",
+              "finish_reason": "stop",
+              "usage": {
+                "prompt_tokens": 812,
+                "prompt_cache_hit_tokens": 0,
+                "prompt_cache_miss_tokens": 812,
+                "completion_tokens": 1518,
+                "reasoning_tokens": 1420,
+                "total_tokens": 2330,
+                "raw_usage_json": "{\"completion_tokens\":1518,\"completion_tokens_details\":{\"reasoning_tokens\":1420},\"prompt_cache_hit_tokens\":0,\"prompt_cache_miss_tokens\":812,\"prompt_tokens\":812,\"prompt_tokens_details\":{\"cached_tokens\":0},\"total_tokens\":2330}",
+                "exact_cost_cny": "0.011544",
+                "cost_basis": "reported_cache_split",
+                "pricing_snapshot_id": "deepseek-cny-2026-08-01",
+                "pricing_snapshot_date": "2026-08-01",
+                "pricing_source_url": "https://api-docs.deepseek.com/zh-cn/quick_start/pricing/"
+              },
+              "attempts": 1,
+              "http_status": 200,
+              "estimated_max_cost_cny_per_attempt": "0.023754",
+              "timeout_seconds": 120.0,
+              "conservative_unverified_cost_cny": "0",
+              "settled_cost_cny": "0.011544",
+              "attempt_outcomes": [
+                "success"
+              ],
+              "failure_code": null
+            },
+            {
+              "request_id": "comparison-5cf08b0bdf8d1f1acd3a9bea9aa0c529d2321bbf8ff0b61d497864bb55450b39-0003:drafting:1",
+              "requested_model": "deepseek-v4-pro",
+              "actual_model": null,
+              "request_body_sha256": "e3990c8c656e4cb1a618d7bb6c3294bfaf38828f2ae71fdebddbc6cf7f55df3a",
+              "response_id": null,
+              "created": null,
+              "system_fingerprint": null,
+              "finish_reason": null,
+              "usage": null,
+              "attempts": 1,
+              "http_status": 400,
+              "estimated_max_cost_cny_per_attempt": "0.022374",
+              "timeout_seconds": 120.0,
+              "conservative_unverified_cost_cny": "0",
+              "settled_cost_cny": "0",
+              "attempt_outcomes": [
+                "http_400"
+              ],
+              "failure_code": "invalid_request"
+            }
+          ]
+        },
+        {
+          "binding": "research_revision+reviewer",
+          "provider_name": "deepseek",
+          "model_name": "deepseek-v4-pro",
+          "model_version": "DeepSeek-V4-Pro",
+          "provider_audit_available": true,
+          "http_attempts": 0,
+          "settled_cost_cny": null,
+          "records": []
+        }
+      ],
+      "retrieval_reused": true
+    }
+  ],
+  "result_sha256": "97432480e00d9df1117e390fe20a642fbff01971b3e2550b19538953572df950",
+  "hash_policy": "real_run_full_content_integrity_not_deterministic_replay",
+  "provider_budget_policy": "shared paid-run ceiling is enforced by caller-supplied providers"
+}

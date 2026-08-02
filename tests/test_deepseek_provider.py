@@ -481,6 +481,8 @@ def test_empty_truncated_and_invalid_model_output_are_structured(
 
     assert response.failure is not None
     assert response.failure.code == expected_code
+    if expected_code == "truncated_output":
+        assert response.failure.retryable is False
     assert provider.last_audit is not None
     assert provider.last_audit.failure_code == expected_code
     assert provider.last_audit.usage is not None

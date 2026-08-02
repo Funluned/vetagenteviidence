@@ -21,6 +21,7 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from vetevidence.agent_runtime import AgentPhase, AgentState
 from vetevidence.agent_tools import (
+    AgentEvidenceGrade,
     AgentToolName,
     ToolEvidence,
     ToolExecutionResult,
@@ -47,7 +48,9 @@ from vetevidence.workbench_pipeline import (
     assess_evidence,
     build_experiment_conditions,
     experiment_analysis_matches_question,
+    qualify_literature_evidence,
 )
+from vetevidence.workbench import ResearchQuestion
 
 
 _RATE_METRICS = (
@@ -307,6 +310,7 @@ def _article_evidence(
     raw: Mapping[str, Any],
     aliases: Mapping[str, str],
     *,
+    question: ResearchQuestion,
     source_type: str,
 ) -> ToolEvidence | None:
     identifier = _source_id(raw)
@@ -319,6 +323,11 @@ def _article_evidence(
     content = abstract.strip()
     if clean_title:
         content = f"Title: {clean_title}\nAbstract: {content}"
+    qualification = qualify_literature_evidence(
+        question,
+        title=clean_title or "",
+        abstract=abstract.strip(),
+    )
     return ToolEvidence(
         source_id=alias,
         chunk_id=f"{alias}:abstract",
@@ -326,6 +335,7 @@ def _article_evidence(
         source_type=source_type,
         title=clean_title,
         locator=None,
+        evidence_grade=AgentEvidenceGrade(qualification.grade.value),
     )
 
 
@@ -418,7 +428,10 @@ def build_v07_agent_fixture(case: V07EvaluationCase) -> V07AgentFixture:
                     if not isinstance(raw, Mapping):
                         continue
                     evidence = _article_evidence(
-                        raw, alias_by_original, source_type="frozen_pubmed_abstract"
+                        raw,
+                        alias_by_original,
+                        question=case.question,
+                        source_type="frozen_pubmed_abstract",
                     )
                     if evidence is not None:
                         identifier = _source_id(raw)
@@ -434,7 +447,10 @@ def build_v07_agent_fixture(case: V07EvaluationCase) -> V07AgentFixture:
     for raw in case.input.get("articles", []):
         if isinstance(raw, Mapping):
             evidence = _article_evidence(
-                raw, alias_by_original, source_type="frozen_local_document"
+                raw,
+                alias_by_original,
+                question=case.question,
+                source_type="frozen_local_document",
             )
             if evidence is not None:
                 identifier = _source_id(raw)
@@ -749,6 +765,11 @@ class V07FrozenToolExecutor:
             source_type="frozen_experiment_summary",
             title="Validated experiment summary",
             locator=None,
+            evidence_grade=(
+                AgentEvidenceGrade.VALIDATED_EXPERIMENT
+                if admitted
+                else AgentEvidenceGrade.OUT_OF_SCOPE
+            ),
         )
         return ToolExecutionResult(
             call_id=call.call_id,
@@ -896,6 +917,20 @@ def _unique(values: Sequence[str]) -> tuple[str, ...]:
     return tuple(dict.fromkeys(values))
 
 
+def _has_admitted_target_claim(state: AgentState) -> bool:
+    ledger = state.evidence_ledger
+    if not ledger.evidence_policy_enabled:
+        return bool(state.claims)
+    direct_keys = ledger.direct_support_keys
+    return any(
+        any(
+            (citation.source_id, citation.chunk_id) in direct_keys
+            for citation in claim.citations
+        )
+        for claim in state.claims
+    )
+
+
 def project_agent_state(
     case: V07EvaluationCase,
     state: AgentState,
@@ -990,12 +1025,15 @@ def project_agent_state(
         AgentPhase.COMPLETED,
         AgentPhase.INSUFFICIENT_EVIDENCE,
     }
+    admitted_target_claim = _has_admitted_target_claim(state)
     return V07AgentActual(
         phase=state.phase,
         task_state=task_state,
         task_completed=task_completed,
-        target_claim_abstained=not state.claims,
-        admission_status=("admitted" if state.claims else "blocked_no_direct_evidence"),
+        target_claim_abstained=not admitted_target_claim,
+        admission_status=(
+            "admitted" if admitted_target_claim else "blocked_no_direct_evidence"
+        ),
         retrieved_ids=retrieved,
         evidence=state.evidence_ledger.items,
         citations=tuple(citations),

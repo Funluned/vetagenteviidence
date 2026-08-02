@@ -505,9 +505,9 @@ Provider、Research Agent 和 Evidence Reviewer 已实现并完成全 27 题受�
 .\.venv\Scripts\python.exe scripts\run_v07_agent_evaluation.py --check-baseline
 ```
 
-修复后的 Fake 基线仍为规则 `20/27`、单 Agent `17/27`、双 Agent `17/27`，冲突
-场景为 `3/3`；稳定结果 SHA-256 为
-`40e1fb1a5f5f6a71a4b02bd2864ccd4b6a7ef0b74342b61d001f63b99a768a89`。它的真实
+当前 Fake 基线为规则 `20/27`、单 Agent `24/27`、双 Agent `24/27`，冲突场景
+为 `3/3`；稳定结果 SHA-256 为
+`d94a1a87a869d72b342897125c54bb1c5fa73a1e7a0874ad39a39e6738aed76c`。它的真实
 模型调用、网络、Token 和 API 费用均为 0。Fake 不是 LLM，这些分数只能检查
 工程合同，不能表示 DeepSeek 效果。
 
@@ -518,10 +518,24 @@ Provider、Research Agent 和 Evidence Reviewer 已实现并完成全 27 题受�
 `27/27`。该重算不覆盖历史 JSON，也没有重新调用模型。工程修复还包括：DeepSeek
 超时默认 `120` 秒并限制在 `30—300` 秒、CLI 显式审计该值、HTTP 隐式重试保持
 为 0；新报告的调用 ID 全局唯一；账本外引用只允许一次限定在现有账本内的重写；
-`report.build` 作为独立 trusted 工具授权。当前零费用验证为相关专项 `100 passed`、
-全量 `628 passed, 1 skipped`；3 份历史真实报告均可读取且文件未改，刷新后的
-Fake 基线也可读取并复跑匹配。本轮已完成提交前验证，修复后没有真实复测。双
-Agent 仍没有改善 Citation Precision、Unsupported
+`report.build` 作为独立 trusted 工具授权。随后经 `¥5` 单独确认，对上述 5 个
+历史失败场景进行真实定向复测：16 次 HTTP 200 请求精确记账 `¥0.1118206`，
+单／双 Agent 均为 `2/5`，通过两道冲突题；新报告原样保留，不拼成全 27 题成绩。
+
+针对其余三个失败，运行时现已保留透明规则计算的问题级证据等级，仅允许直接交互
+证据或合法实验支撑目标结论；检索 query 会确定性补齐研究对象、两种干预和结局；
+严格草稿 schema 重试包含明确契约；首次 drafting 截断可使用现有唯一 retry，并
+在硬上限内从 2048 提高到 4096 output Token。当前零费用验证为全量
+`642 passed, 1 skipped`；规则、RAG、Fake 基线均复跑匹配。随后经新的 `¥5`
+上限确认复测 `DIR-01`、`HIT-03`、`TOOL-03`：6 次 HTTP 尝试精确记账
+`¥0.0270374`，`HIT-03` 通过；另外两题在 drafting 请求阶段收到 HTTP 400。
+离线重建确认草稿提示缺少 DeepSeek JSON Output 强制要求的字面量 `json`；该词
+补回并加入回归断言后，经 `¥1` 上限确认最终复测 `DIR-01`、`TOOL-03`：7 次
+HTTP 请求全部为 200，精确费用 `¥0.0634410`，单／双 Agent 均为 `2/2`，Reviewer
+均批准。`TOOL-03` 首次草稿真实达到 2048 Token 截断，随后只使用一次 4096
+有界恢复并成功，证明截断恢复链路在真实 Provider 上有效。
+双 Agent 仍没有改善 Citation
+Precision、Unsupported
 Claim Rate 或 Abstention Accuracy，因此不作为默认有效设计。此前五题首测和
 `TOOL-02` 定向复测只作为历史缺陷证据保留，不与正式成绩拼接。真实模式可先用
 `--provider deepseek --dry-run` 查看调用上限；只有同时给出题目、

@@ -21,7 +21,12 @@ from vetevidence.agent_runtime import (
     EvidenceLedger,
     run_research_agent,
 )
-from vetevidence.agent_tools import AgentToolName, validate_tool_call
+from vetevidence.agent_tools import (
+    AgentEvidenceGrade,
+    AgentToolName,
+    validate_tool_call,
+)
+from vetevidence.v07_agent_fake import V07ContractSmokeProvider
 from vetevidence.v07_agent_evaluation import (
     V07AgentFixture,
     V07FrozenToolExecutor,
@@ -163,6 +168,52 @@ def test_all_27_cases_build_nine_balanced_leak_free_fixture_classes(
             assert alias.original_source_id not in rendered
         assert fixture.provider_question.startswith("Question: ")
         assert "RUN_CONTEXT=" in fixture.provider_question
+
+
+def test_question_specific_evidence_grades_are_derived_without_gold(
+    loaded: LoadedV07Evaluation,
+) -> None:
+    hit = build_v07_agent_fixture(_case(loaded, "HIT-03"))
+    assert [item.evidence_grade for item in hit.rag_evidence] == [
+        AgentEvidenceGrade.CONTEXTUAL
+    ]
+
+    direct = build_v07_agent_fixture(_case(loaded, "DIR-01"))
+    grades = {
+        item.evidence_grade
+        for batch in direct.pubmed_batches
+        for item in batch.evidence
+    }
+    assert AgentEvidenceGrade.DIRECT_INTERACTION in grades
+    assert AgentEvidenceGrade.CONTEXTUAL in grades
+
+
+def test_hit_03_context_only_runtime_abstains_before_drafting_and_passes(
+    loaded: LoadedV07Evaluation,
+) -> None:
+    case = _case(loaded, "HIT-03")
+    fixture = build_v07_agent_fixture(case)
+    provider = V07ContractSmokeProvider(fixture)
+    with V07FrozenToolExecutor(fixture) as executor:
+        state = run_research_agent(
+            fixture.provider_question,
+            provider=provider,
+            tool_executor=executor,
+            run_id=fixture.run_id,
+        )
+
+    assert state.phase == AgentPhase.INSUFFICIENT_EVIDENCE
+    assert state.errors[-1].code == "no_direct_interaction_evidence"
+    assert len(state.model_call_audits) == 1
+    assert state.evidence_ledger.items[0].evidence_grade == (
+        AgentEvidenceGrade.CONTEXTUAL
+    )
+    actual = project_agent_state(case, state, fixture)
+    gold = project_v07_agent_gold(case, loaded.expected[case.id], fixture)
+    score = score_v07_agent_case(case, fixture, gold, actual)
+    assert actual.target_claim_abstained is True
+    assert actual.admission_status == "blocked_no_direct_evidence"
+    assert score.passed is True
 
 
 def test_citation_support_terms_exist_only_in_scorer_gold(

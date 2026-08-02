@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 
 import pytest
+from pydantic import ValidationError
 
 from vetevidence.agent_providers import (
     GenerationRequest,
@@ -19,6 +20,7 @@ from vetevidence.agent_runtime import (
     run_research_agent,
 )
 from vetevidence.agent_tools import (
+    AgentEvidenceGrade,
     FrozenReplayToolExecutor,
     FrozenToolReplay,
     ToolEvidence,
@@ -105,6 +107,7 @@ def _evidence(
     content: str | None = None,
     *,
     source_id: str = "SYN-DIR-01",
+    evidence_grade: AgentEvidenceGrade | None = None,
 ) -> ToolEvidence:
     return ToolEvidence(
         source_id=source_id,
@@ -115,6 +118,7 @@ def _evidence(
         ),
         source_type="synthetic_fixture",
         title="Frozen direct evidence",
+        evidence_grade=evidence_grade,
     )
 
 
@@ -498,6 +502,155 @@ def test_citation_failure_gets_one_ledger_bounded_repair(
     assert len(request_ids) == len(set(request_ids))
 
 
+def test_invalid_draft_schema_gets_one_explicit_ledger_bounded_repair() -> None:
+    sentinel = "DO_NOT_REPLAY_MODEL_OUTPUT"
+    invalid_draft = json.dumps(
+        {
+            "refusal": False,
+            "refusal_reason": None,
+            "claims": [
+                {
+                    "claim_id": "invalid",
+                    "text": "Malformed draft.",
+                    "citations": [],
+                    "unexpected": sentinel,
+                }
+            ],
+        }
+    )
+    question = "Check the frozen assay without exposing scorer-only data."
+    provider = ScriptedFakeLLM([PLAN, invalid_draft, DRAFT])
+
+    state = run_research_agent(
+        question,
+        provider=provider,
+        tool_executor=_executor(),
+        run_id="draft-schema-repair",
+    )
+
+    assert state.phase == AgentPhase.COMPLETED
+    assert state.budget.normal_model_calls_used == 2
+    assert state.budget.retries_used == 1
+    assert len(provider.requests) == 3
+    repair = provider.requests[-1]
+    assert repair.prompt.startswith("DRAFT_SCHEMA_REPAIR_INPUT=")
+    payload = json.loads(
+        repair.prompt.removeprefix("DRAFT_SCHEMA_REPAIR_INPUT=")
+    )
+    assert payload["failure_code"] == "invalid_draft_json"
+    assert payload["recovery_mode"] == "strict_schema_repair"
+    assert payload["task_context"] == {
+        "question": question,
+        "role": "untrusted_user_input",
+    }
+    assert payload["allowed_evidence"] == [
+        {
+            "source_id": "SYN-DIR-01",
+            "chunk_id": "SYN-DIR-01#abstract",
+            "verbatim_content": (
+                "The checkerboard assay reported FICI 0.4 in the frozen fixture."
+            ),
+        }
+    ]
+    contract = payload["output_contract"]
+    assert contract["top_level_keys_exactly"] == [
+        "refusal",
+        "refusal_reason",
+        "claims",
+    ]
+    assert contract["additional_keys"] == "forbidden_at_every_level"
+    assert contract["refusal_shape"]["claims"] == []
+    assert sentinel not in repair.prompt
+    assert "gold" not in repair.prompt.casefold()
+    assert (
+        provider.requests[1].generation_parameters
+        == provider.requests[2].generation_parameters
+    )
+
+
+def test_question_graded_context_only_evidence_stops_before_drafting() -> None:
+    contextual = _evidence(
+        "Molecular docking predicted possible synergy; no wet-lab result was reported.",
+        evidence_grade=AgentEvidenceGrade.CONTEXTUAL,
+    )
+    provider = ScriptedFakeLLM([PLAN])
+
+    state = run_research_agent(
+        "Does the prediction establish synergy?",
+        provider=provider,
+        tool_executor=_executor(evidence=(contextual,)),
+        run_id="context-only",
+    )
+
+    assert state.phase == AgentPhase.INSUFFICIENT_EVIDENCE
+    assert state.stop_reason == AgentStopReason.INSUFFICIENT_EVIDENCE
+    assert state.errors[-1].code == "no_direct_interaction_evidence"
+    assert state.claims == ()
+    assert state.answer == "insufficient_evidence"
+    assert state.evidence_ledger.items == (contextual,)
+    assert len(provider.requests) == 1
+
+
+def test_question_graded_direct_evidence_still_completes() -> None:
+    direct = _evidence(evidence_grade=AgentEvidenceGrade.DIRECT_INTERACTION)
+    provider = ScriptedFakeLLM([PLAN, DRAFT])
+
+    state = run_research_agent(
+        "Does the frozen checkerboard result report synergy?",
+        provider=provider,
+        tool_executor=_executor(evidence=(direct,)),
+        run_id="graded-direct",
+    )
+
+    assert state.phase == AgentPhase.COMPLETED
+    assert len(provider.requests) == 2
+
+
+def test_graded_mixed_ledger_repairs_claim_to_use_direct_evidence() -> None:
+    contextual = _evidence(
+        "Molecular docking predicted possible synergy without a wet-lab result.",
+        source_id="SYN-CONTEXT-01",
+        evidence_grade=AgentEvidenceGrade.CONTEXTUAL,
+    )
+    direct = _evidence(evidence_grade=AgentEvidenceGrade.DIRECT_INTERACTION)
+    contextual_draft = json.dumps(
+        {
+            "refusal": False,
+            "refusal_reason": None,
+            "claims": [
+                {
+                    "claim_id": "context-only-claim",
+                    "text": "The docking model predicted possible synergy.",
+                    "scope": "Computational prediction only.",
+                    "citations": [
+                        {
+                            "source_id": contextual.source_id,
+                            "chunk_id": contextual.chunk_id,
+                            "support_quote": "predicted possible synergy",
+                        }
+                    ],
+                }
+            ],
+        }
+    )
+    provider = ScriptedFakeLLM([PLAN, contextual_draft, DRAFT])
+
+    state = run_research_agent(
+        "Does the evidence establish synergy?",
+        provider=provider,
+        tool_executor=_executor(evidence=(contextual, direct)),
+        run_id="mixed-grade-repair",
+    )
+
+    assert state.phase == AgentPhase.COMPLETED
+    assert state.budget.retries_used == 1
+    assert provider.requests[-1].prompt.startswith("CITATION_REPAIR_INPUT=")
+    payload = json.loads(
+        provider.requests[-1].prompt.removeprefix("CITATION_REPAIR_INPUT=")
+    )
+    assert payload["failure_code"] == "claim_without_direct_evidence"
+
+
 def test_authorized_report_context_adds_missing_report_plan_step() -> None:
     report_input_id = "report-authorized-001"
     question = (
@@ -675,6 +828,133 @@ def test_retryable_provider_failure_uses_the_single_retry() -> None:
     assert state.phase == AgentPhase.COMPLETED
     assert state.budget.retries_used == 1
     assert state.model_call_audits[0].failure_code == "temporary_unavailable"
+
+
+def test_drafting_truncation_uses_one_concise_bounded_recovery() -> None:
+    truncated = ProviderFailure(
+        code="truncated_output",
+        message="Scripted output reached max_tokens.",
+        retryable=False,
+    )
+    provider = ScriptedFakeLLM([PLAN, truncated, DRAFT])
+
+    state = run_research_agent(
+        "Check the result",
+        provider=provider,
+        tool_executor=_executor(),
+        run_id="draft-truncation-recovery",
+    )
+
+    assert state.phase == AgentPhase.COMPLETED
+    assert state.budget.normal_model_calls_used == 2
+    assert state.budget.retries_used == 1
+    assert len(provider.requests) == 3
+    assert provider.requests[1].generation_parameters["max_tokens"] == 2_048
+    assert provider.requests[2].generation_parameters["max_tokens"] == 4_096
+    assert "json" in str(
+        provider.requests[1].generation_parameters["system_prompt"]
+    ).casefold()
+    recovery = provider.requests[2]
+    assert recovery.prompt.startswith("DRAFT_SCHEMA_REPAIR_INPUT=")
+    payload = json.loads(
+        recovery.prompt.removeprefix("DRAFT_SCHEMA_REPAIR_INPUT=")
+    )
+    assert payload["failure_code"] == "truncated_output"
+    assert payload["recovery_mode"] == "concise_truncation_recovery"
+    assert "Scripted output reached" not in recovery.prompt
+
+
+def test_output_token_limit_rejects_values_above_hard_cap() -> None:
+    with pytest.raises(ValidationError):
+        AgentBudget(max_output_tokens_per_call=4_097)
+
+
+def test_second_drafting_truncation_fails_without_a_fourth_call() -> None:
+    truncated = ProviderFailure(
+        code="truncated_output",
+        message="Scripted output reached max_tokens.",
+        retryable=False,
+    )
+    provider = ScriptedFakeLLM([PLAN, truncated, truncated])
+
+    state = run_research_agent(
+        "Check the result",
+        provider=provider,
+        tool_executor=_executor(),
+        run_id="draft-truncation-exhausted",
+    )
+
+    assert state.phase == AgentPhase.FAILED
+    assert state.errors[-1].code == "truncated_output"
+    assert state.budget.retries_used == 1
+    assert len(provider.requests) == 3
+
+
+def test_consumed_retry_budget_blocks_truncation_recovery_before_network() -> None:
+    truncated = ProviderFailure(
+        code="truncated_output",
+        message="Scripted output reached max_tokens.",
+        retryable=False,
+    )
+    provider = ScriptedFakeLLM(["not-json", PLAN, truncated])
+
+    state = run_research_agent(
+        "Check the result",
+        provider=provider,
+        tool_executor=_executor(),
+        run_id="draft-truncation-no-retry-left",
+    )
+
+    assert state.phase == AgentPhase.BUDGET_EXCEEDED
+    assert state.errors[-1].code == "retry_budget_exceeded"
+    assert len(provider.requests) == 3
+
+
+def test_structured_scope_terms_are_added_to_retrieval_query() -> None:
+    plan = json.dumps(
+        {
+            "items": [
+                {
+                    "tool_name": "local_rag.search",
+                    "arguments": {"query": "procedural workflow only"},
+                }
+            ]
+        }
+    )
+    expanded_query = (
+        "procedural workflow only Streptococcus agalactiae quercetin "
+        "amoxicillin synergy | FICI"
+    )
+    evidence = _evidence()
+    executor = FrozenReplayToolExecutor(
+        (
+            FrozenToolReplay.for_call(
+                "local_rag.search",
+                {"query": expanded_query},
+                evidence=(evidence,),
+            ),
+        )
+    )
+    question = (
+        "Question: Should the workflow preserve literature?\n"
+        "Population: Streptococcus agalactiae\n"
+        "Intervention: quercetin\n"
+        "Comparator: amoxicillin\n"
+        "Outcomes: synergy | FICI"
+    )
+    provider = ScriptedFakeLLM([plan, DRAFT])
+
+    state = run_research_agent(
+        question,
+        provider=provider,
+        tool_executor=executor,
+        run_id="retrieval-scope-terms",
+    )
+
+    assert state.phase == AgentPhase.COMPLETED
+    assert state.plan is not None
+    assert state.plan.items[0].arguments["query"] == expanded_query
+    assert executor.calls[0].arguments["query"] == expanded_query
 
 
 def test_normal_call_and_tool_call_budgets_stop_before_extra_actions() -> None:

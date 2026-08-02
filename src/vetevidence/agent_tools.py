@@ -15,7 +15,14 @@ from enum import StrEnum
 from hashlib import sha256
 from typing import Any, Mapping, Protocol, Sequence, runtime_checkable
 
-from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    ValidationError,
+    model_serializer,
+    model_validator,
+)
 
 
 class AgentToolName(StrEnum):
@@ -24,6 +31,15 @@ class AgentToolName(StrEnum):
     EXPERIMENT_FICI = "experiment.fici"
     EXPERIMENT_GROWTH_CURVE = "experiment.growth_curve"
     REPORT_BUILD = "report.build"
+
+
+class AgentEvidenceGrade(StrEnum):
+    """Trusted, question-specific boundary attached before generation."""
+
+    DIRECT_INTERACTION = "direct_interaction"
+    CONTEXTUAL = "contextual"
+    OUT_OF_SCOPE = "out_of_scope"
+    VALIDATED_EXPERIMENT = "validated_experiment"
 
 
 TOOL_ALLOWLIST = frozenset(item.value for item in AgentToolName)
@@ -240,6 +256,14 @@ class ToolEvidence(_ToolModel):
     title: str | None = Field(default=None, max_length=1_000)
     locator: str | None = Field(default=None, max_length=2_000)
     evidence_role: str = Field(default="untrusted_evidence", pattern="^untrusted_evidence$")
+    evidence_grade: AgentEvidenceGrade | None = None
+
+    @model_serializer(mode="wrap")
+    def _serialize_optional_grade(self, handler: Any) -> dict[str, Any]:
+        payload = handler(self)
+        if self.evidence_grade is None:
+            payload.pop("evidence_grade", None)
+        return payload
 
 
 class ToolFailure(_ToolModel):
@@ -398,6 +422,7 @@ def tool_argument_schemas() -> dict[str, dict[str, Any]]:
 
 
 __all__ = [
+    "AgentEvidenceGrade",
     "AgentToolExecutor",
     "AgentToolName",
     "FICIArguments",

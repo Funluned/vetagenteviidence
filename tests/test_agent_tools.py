@@ -3,6 +3,7 @@ from __future__ import annotations
 import pytest
 
 from vetevidence.agent_tools import (
+    AgentEvidenceGrade,
     AgentToolName,
     FrozenReplayToolExecutor,
     FrozenToolReplay,
@@ -141,6 +142,27 @@ def test_frozen_executor_only_returns_an_exact_registered_replay() -> None:
     assert missing.failure is not None
     assert missing.failure.code == "frozen_replay_missing"
     assert executor.calls == (exact_call, missing_call)
+
+
+def test_optional_evidence_grade_preserves_ungraded_serialization_shape() -> None:
+    ungraded = ToolEvidence(
+        source_id="source-1",
+        chunk_id="chunk-1",
+        content="Ungraded compatibility evidence.",
+    )
+    graded = ungraded.model_copy(
+        update={"evidence_grade": AgentEvidenceGrade.DIRECT_INTERACTION}
+    )
+    replay = FrozenToolReplay.for_call(
+        "local_rag.search",
+        {"query": "compatibility"},
+        evidence=(ungraded,),
+    )
+
+    assert "evidence_grade" not in ungraded.model_dump(mode="json")
+    assert graded.model_dump(mode="json")["evidence_grade"] == "direct_interaction"
+    nested = replay.model_dump(mode="json")["response"]["evidence"][0]
+    assert "evidence_grade" not in nested
 
 
 def test_partial_frozen_replay_requires_evidence_and_a_failure() -> None:

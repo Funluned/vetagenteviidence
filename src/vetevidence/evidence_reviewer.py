@@ -409,6 +409,17 @@ def _validate_claim_evidence(
                     "non_verbatim_support_quote",
                     "A claim support quote is not verbatim in the shared chunk.",
                 )
+    if ledger.evidence_policy_enabled:
+        direct_keys = ledger.direct_support_keys
+        for claim in draft.claims:
+            if not any(
+                (citation.source_id, citation.chunk_id) in direct_keys
+                for citation in claim.citations
+            ):
+                raise _FailClosedReview(
+                    "claim_without_direct_evidence",
+                    "A target interaction claim lacks direct admitted evidence.",
+                )
 
 
 class _EvidenceReviewRunner:

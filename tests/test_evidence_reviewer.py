@@ -22,7 +22,12 @@ from vetevidence.agent_runtime import (
     AgentStopReason,
     EvidenceLedger,
 )
-from vetevidence.agent_tools import ToolEvidence, ToolExecutionResult, ToolFailure
+from vetevidence.agent_tools import (
+    AgentEvidenceGrade,
+    ToolEvidence,
+    ToolExecutionResult,
+    ToolFailure,
+)
 from vetevidence.evidence_reviewer import (
     EVIDENCE_REVIEWER_SYSTEM_PROMPT,
     RESEARCH_REVISION_SYSTEM_PROMPT,
@@ -235,6 +240,61 @@ def test_reviewer_approves_same_read_only_research_draft_and_ledger() -> None:
     assert result.budget.review_calls_used == 1
     assert result.budget.revision_calls_used == 0
     assert result.budget.retries_used == 0
+
+
+def test_reviewer_blocks_context_only_claim_before_model_call() -> None:
+    base = _research_state()
+    contextual = base.evidence_ledger.items[0].model_copy(
+        update={"evidence_grade": AgentEvidenceGrade.CONTEXTUAL}
+    )
+    research = base.model_copy(
+        update={
+            "evidence_ledger": EvidenceLedger(items=(contextual,)),
+            "tool_results": tuple(
+                result.model_copy(update={"evidence": (contextual,)})
+                for result in base.tool_results
+            ),
+        }
+    )
+    reviewer = ScriptedReviewerProvider([])
+
+    result = run_evidence_review(
+        research,
+        reviewer_provider=reviewer,
+        run_id="review-context-only",
+    )
+
+    assert result.status == EvidenceReviewStatus.HUMAN_REVIEW_REQUIRED
+    assert result.safe_refusal is True
+    assert result.errors[-1].code == "claim_without_direct_evidence"
+    assert reviewer.requests == []
+
+
+def test_reviewer_accepts_question_graded_direct_claim() -> None:
+    base = _research_state()
+    direct = base.evidence_ledger.items[0].model_copy(
+        update={"evidence_grade": AgentEvidenceGrade.DIRECT_INTERACTION}
+    )
+    research = base.model_copy(
+        update={
+            "evidence_ledger": EvidenceLedger(items=(direct,)),
+            "tool_results": tuple(
+                result.model_copy(update={"evidence": (direct,)})
+                for result in base.tool_results
+            ),
+        }
+    )
+    reviewer = ScriptedReviewerProvider([APPROVED])
+
+    result = run_evidence_review(
+        research,
+        reviewer_provider=reviewer,
+        run_id="review-graded-direct",
+    )
+
+    assert result.status == EvidenceReviewStatus.APPROVED
+    assert result.safe_refusal is False
+    assert len(reviewer.requests) == 1
     assert result.budget.model_calls_used == 1
     assert result.budget.total_tokens_used == 30
     assert result.budget.cost_amount_used == Decimal("0.01")

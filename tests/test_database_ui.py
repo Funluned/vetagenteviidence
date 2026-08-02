@@ -7,11 +7,23 @@ from typing import Any, Iterable
 from streamlit.testing.v1 import AppTest
 
 import vetevidence.connector_artifacts as connector_artifacts_module
+import vetevidence.database_batch_artifacts as database_batch_artifacts_module
 import vetevidence.database_connectors as database_connectors_module
+import vetevidence.docking_ui as docking_ui_module
 import vetevidence.run_store as run_store_module
+from vetevidence.openbabel_execution import OpenBabelExecutionError
+from vetevidence.vina_execution import VinaExecutionError
 
 
 APP_PATH = Path(__file__).parents[1] / "app.py"
+
+
+def _unavailable_vina(*_: Any, **__: Any) -> None:
+    raise VinaExecutionError("test fixture: Vina unavailable")
+
+
+def _unavailable_openbabel(*_: Any, **__: Any) -> None:
+    raise OpenBabelExecutionError("test fixture: Open Babel unavailable")
 
 
 def _element_with_key_prefix(
@@ -43,8 +55,12 @@ def _create_research_task(
 ) -> AppTest:
     real_run_store = run_store_module.RunStore
     real_connector_store = connector_artifacts_module.ConnectorArtifactStore
+    real_batch_store = (
+        database_batch_artifacts_module.DatabaseBatchArtifactStore
+    )
     isolated_run_root = tmp_path / "runs"
     isolated_connector_root = tmp_path / "connectors"
+    isolated_batch_root = tmp_path / "connector-batches"
     monkeypatch.setattr(
         run_store_module,
         "RunStore",
@@ -57,10 +73,31 @@ def _create_research_task(
             root or isolated_connector_root
         ),
     )
+    monkeypatch.setattr(
+        database_batch_artifacts_module,
+        "DatabaseBatchArtifactStore",
+        lambda root=None, connector_store=None: real_batch_store(
+            root or isolated_batch_root,
+            connector_store=(
+                connector_store
+                or real_connector_store(isolated_connector_root)
+            ),
+        ),
+    )
     monkeypatch.delenv("NCBI_EMAIL", raising=False)
     monkeypatch.delenv("DAVID_EMAIL", raising=False)
     monkeypatch.delenv("OMIM_API_KEY", raising=False)
     monkeypatch.delenv("DRUGBANK_API_KEY", raising=False)
+    monkeypatch.setattr(
+        docking_ui_module,
+        "discover_vina",
+        _unavailable_vina,
+    )
+    monkeypatch.setattr(
+        docking_ui_module,
+        "discover_openbabel",
+        _unavailable_openbabel,
+    )
 
     app = AppTest.from_file(str(APP_PATH)).run(timeout=40)
     assert not app.exception
@@ -82,6 +119,16 @@ def test_database_ui_is_single_source_and_switches_rcsb_modes(
     monkeypatch: Any,
 ) -> None:
     app = _create_research_task(tmp_path, monkeypatch)
+
+    assert any(
+        header.value == "本地证据检索（免费模式）"
+        for header in app.header
+    )
+    local_rag_build = _element_with_key_prefix(
+        app.button,
+        "local-rag-build-",
+    )
+    assert local_rag_build.disabled is True
 
     source = _element_with_key_prefix(
         app.selectbox,
@@ -198,6 +245,294 @@ def test_database_ui_is_single_source_and_switches_rcsb_modes(
         "database-rcsb-limit-",
     )
     assert not _has_key_prefix(app.checkbox, "database-pdb-mmcif-")
+
+
+def test_multi_database_batch_keeps_inputs_independent_and_archives_membership(
+    tmp_path: Path,
+    monkeypatch: Any,
+) -> None:
+    pubchem_calls: list[str] = []
+
+    class FakePubChemConnector:
+        def __enter__(self) -> FakePubChemConnector:
+            return self
+
+        def __exit__(self, *_: object) -> None:
+            return None
+
+        def fetch_compound(
+            self,
+            identifier: str,
+            **_: object,
+        ) -> database_connectors_module.ConnectorResult:
+            pubchem_calls.append(identifier)
+            return database_connectors_module.ConnectorResult(
+                status=database_connectors_module.ConnectorStatus.OK,
+                records=(
+                    {
+                        "record_type": "compound",
+                        "cid": identifier,
+                        "source_url": "https://pubchem.example.test/",
+                    },
+                ),
+            )
+
+    monkeypatch.setattr(
+        database_connectors_module,
+        "PubChemConnector",
+        FakePubChemConnector,
+    )
+    app = _create_research_task(tmp_path, monkeypatch)
+
+    mode = _element_with_key_prefix(
+        app.segmented_control,
+        "database-mode-",
+    )
+    assert mode.value == "单库检索"
+    app = mode.select("多库批量").run(timeout=40)
+    sources = _element_with_key_prefix(
+        app.multiselect,
+        "database-sources-",
+    )
+    app = sources.set_value(
+        ["PubChem 化合物", "OMIM 人类遗传"]
+    ).run(timeout=40)
+    assert not app.exception
+    assert not _has_key_prefix(app.selectbox, "database-source-")
+
+    pubchem_query = _element_with_key_prefix(
+        app.text_area,
+        "database-query-pubchem-",
+    )
+    omim_query = _element_with_key_prefix(
+        app.text_area,
+        "database-query-omim-",
+    )
+    pubchem_query.set_value("shared\nshared\naspirin")
+    omim_query.set_value("shared")
+    submit = _element_with_key_prefix(
+        app.button,
+        "database-submit-batch-",
+    )
+    app = submit.click().run(timeout=40)
+
+    assert not app.exception
+    assert pubchem_calls == ["shared", "aspirin"]
+    state = app.session_state["database_connector_results"]
+    batch = state["current_batch"]
+    assert batch["batch_id"] == state["latest_batch_id"]
+    assert batch["source_keys"] == ["pubchem", "omim"]
+    assert batch["planned_count"] == 3
+    assert batch["succeeded_count"] == 3
+    assert batch["failed_count"] == 0
+    assert batch["status"] == "complete"
+    assert batch["archive_valid"] is True
+    assert len(batch["query_ids"]) == 3
+    assert len(list((tmp_path / "connectors").rglob("manifest.json"))) == 3
+    batch_manifests = list(
+        (tmp_path / "connector-batches").rglob("batch-manifest.json")
+    )
+    assert len(batch_manifests) == 1
+    assert batch["batch_id"] in batch_manifests[0].parts
+
+    snapshot_path = next((tmp_path / "runs").glob("*.json"))
+    snapshot = json.loads(snapshot_path.read_text(encoding="utf-8"))
+    calls = [
+        call
+        for call in snapshot["tool_calls"]
+        if call["tool_name"] in {"database.pubchem", "database.omim"}
+    ]
+    assert [call["tool_name"] for call in calls] == [
+        "database.pubchem",
+        "database.pubchem",
+        "database.omim",
+    ]
+    assert len({call["metadata"]["batch_id"] for call in calls}) == 1
+    assert calls[-1]["metadata"]["connector_status"] == "offline_export"
+
+
+def test_multi_database_runtime_failure_does_not_stop_next_source(
+    tmp_path: Path,
+    monkeypatch: Any,
+) -> None:
+    uniprot_calls: list[tuple[str, int]] = []
+
+    class FailingPubChemConnector:
+        def __enter__(self) -> FailingPubChemConnector:
+            return self
+
+        def __exit__(self, *_: object) -> None:
+            return None
+
+        def fetch_compound(self, *_: object, **__: object) -> None:
+            raise RuntimeError("fixture PubChem failure")
+
+    class FakeUniProtConnector:
+        def __enter__(self) -> FakeUniProtConnector:
+            return self
+
+        def __exit__(self, *_: object) -> None:
+            return None
+
+        def fetch_protein(
+            self,
+            accession: str,
+            *,
+            taxon_id: int,
+        ) -> database_connectors_module.ConnectorResult:
+            uniprot_calls.append((accession, taxon_id))
+            return database_connectors_module.ConnectorResult(
+                status=database_connectors_module.ConnectorStatus.OK,
+                records=(
+                    {
+                        "record_type": "protein",
+                        "primary_accession": accession,
+                        "taxon_id": taxon_id,
+                        "source_url": "https://uniprot.example.test/",
+                    },
+                ),
+            )
+
+    monkeypatch.setattr(
+        database_connectors_module,
+        "PubChemConnector",
+        FailingPubChemConnector,
+    )
+    monkeypatch.setattr(
+        database_connectors_module,
+        "UniProtConnector",
+        FakeUniProtConnector,
+    )
+    app = _create_research_task(tmp_path, monkeypatch)
+    mode = _element_with_key_prefix(
+        app.segmented_control,
+        "database-mode-",
+    )
+    app = mode.select("多库批量").run(timeout=40)
+    sources = _element_with_key_prefix(
+        app.multiselect,
+        "database-sources-",
+    )
+    app = sources.set_value(
+        ["PubChem 化合物", "UniProt 蛋白"]
+    ).run(timeout=40)
+
+    _element_with_key_prefix(
+        app.text_area,
+        "database-query-pubchem-",
+    ).set_value("bad")
+    _element_with_key_prefix(
+        app.text_area,
+        "database-query-uniprot-",
+    ).set_value("P00533")
+    _element_with_key_prefix(
+        app.selectbox,
+        "database-species-uniprot-",
+    ).select("人（Homo sapiens）")
+    submit = _element_with_key_prefix(
+        app.button,
+        "database-submit-batch-",
+    )
+    app = submit.click().run(timeout=40)
+
+    assert not app.exception
+    assert uniprot_calls == [("P00533", 9606)]
+    batch = app.session_state["database_connector_results"]["current_batch"]
+    assert batch["planned_count"] == 2
+    assert batch["succeeded_count"] == 1
+    assert batch["failed_count"] == 1
+    assert batch["status"] == "partial"
+    assert batch["archive_valid"] is True
+    assert {row["source"] for row in batch["operations"]} == {
+        "PubChem",
+        "UniProt",
+    }
+    assert any("fixture PubChem failure" in item.value for item in app.error)
+
+
+def test_multi_database_operation_cap_blocks_all_connectors_before_execution(
+    tmp_path: Path,
+    monkeypatch: Any,
+) -> None:
+    constructor_calls: list[str] = []
+
+    class ForbiddenConnector:
+        def __init__(self, *_: object, **__: object) -> None:
+            constructor_calls.append("called")
+            raise AssertionError("connector must not be initialized")
+
+    monkeypatch.setattr(
+        database_connectors_module,
+        "PubChemConnector",
+        ForbiddenConnector,
+    )
+    monkeypatch.setattr(
+        database_connectors_module,
+        "UniProtConnector",
+        ForbiddenConnector,
+    )
+    monkeypatch.setattr(
+        database_connectors_module,
+        "NCBIConnector",
+        ForbiddenConnector,
+    )
+    app = _create_research_task(tmp_path, monkeypatch)
+    mode = _element_with_key_prefix(
+        app.segmented_control,
+        "database-mode-",
+    )
+    app = mode.select("多库批量").run(timeout=40)
+    sources = _element_with_key_prefix(
+        app.multiselect,
+        "database-sources-",
+    )
+    app = sources.set_value(
+        [
+            "PubChem 化合物",
+            "UniProt 蛋白",
+            "NCBI Gene",
+            "GenBank",
+        ]
+    ).run(timeout=40)
+
+    _element_with_key_prefix(
+        app.text_area,
+        "database-query-pubchem-",
+    ).set_value("\n".join(f"compound-{index}" for index in range(10)))
+    _element_with_key_prefix(
+        app.text_area,
+        "database-query-uniprot-",
+    ).set_value("\n".join(f"P{index:05d}" for index in range(20)))
+    _element_with_key_prefix(
+        app.text_area,
+        "database-query-ncbi-gene-",
+    ).set_value("\n".join(f"GENE{index}" for index in range(20)))
+    _element_with_key_prefix(
+        app.text_area,
+        "database-query-genbank-",
+    ).set_value("\n".join(f"NM_{index:06d}.1" for index in range(10)))
+    for source_key in ("uniprot", "ncbi-gene", "genbank"):
+        _element_with_key_prefix(
+            app.selectbox,
+            f"database-species-{source_key}-",
+        ).select("人（Homo sapiens）")
+    _element_with_key_prefix(
+        app.text_input,
+        "database-ncbi-email-",
+    ).set_value("researcher@example.test")
+    submit = _element_with_key_prefix(
+        app.button,
+        "database-submit-batch-",
+    )
+    app = submit.click().run(timeout=40)
+
+    assert not app.exception
+    assert constructor_calls == []
+    assert any(
+        "一次最多执行 50 个真实数据库操作" in item.value
+        for item in app.error
+    )
+    assert not list((tmp_path / "connectors").rglob("manifest.json"))
 
 
 def test_rcsb_uniprot_search_calls_connector_and_renders_result(

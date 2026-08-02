@@ -1,10 +1,16 @@
 .git
 .venv
+.codex-run-venv
+.workbench
 .run
 .pytest_cache
 __pycache__
 *.py[cod]
 *.egg-info
 .env
+.env.*
+.streamlit/secrets.toml
+data/cache/
+data/eval/
 tests
 docs

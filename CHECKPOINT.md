@@ -2,11 +2,414 @@
 
 ## 当前阶段
 
-VetResearch Workbench v0.6 已完成受控 OpenMM 技术烟测：v0.5 分子对接科研
-链已提交并推送；当前 MD 范围严格固定为 OpenMM 8.5.2 单重复 30 步
-`technical_smoke`，只验证已参数化体系、后台任务、checkpoint/resume 和
-真实温度/势能健康检查，不宣称科研级 NVT/NPT、production、轨迹稳定性或
-自由能。
+VetResearch Workbench v0.7.0 正在进行发布收口。免费规则＋本地关键词检索路径
+保持不变；没有模型 Key 的用户仍可使用。第一次修正 scorer 的全 27 题真实运行
+得到单 Agent `26/27`、双 Agent `25/27`，并暴露 `INJ-02` 控制文本误准入和
+`DIR-01` Reviewer 截断缺口。两项零费用确定性修复后，Fake 单／双 Agent 为
+`25/27`，Windows 全量为 `648 passed, 1 skipped`。修复后第二次全 27 题真实运行
+得到单 Agent `23/27`、双 Agent `24/27`；它是独立新批次，不与第一次全量或历史
+定向结果拼分。第二次已证明 `INJ-02` 和 `DIR-01` 单／双均通过，同时暴露
+`CON-02`、`CIT-01`、`TOOL-02`、`TOOL-03` 的模型波动或规划完整性边界。阶段 6
+文档、代码和两份脱敏报告已由提交 `de47a95` 推送到开发分支，GitHub 仓库已更名为
+`Funluned/vetresearch-workbench`。PR #1 的三平台测试和 Docker 实际构建／启动
+均已通过；PR 合并、Tag 和 Release 仍待后续门禁。孙奇本人从零安装、讲解、修改
+和排错验收继续延期到 GitHub 工程稳定后。
+
+## 2026-08-02 v0.7.0 发布收口两次全 27 题真实运行（本地已完成）
+
+- [x] 第一次全量报告为
+  `data/eval/v0.7/results/agent_deepseek_deepseek-v4-pro_20260802T082341665388Z.json`；
+  输入 SHA-256 为
+  `583ab368d37dfaecd61be6cc64d9641b0befcdbfbc23d453b64abc41282f8f3f`，结果
+  SHA-256 为 `93a1fc3c5f2fba419ea8e8c7c84f813df00a94ebfc17bffc46f0ddf82f9ab533`。
+- [x] 第一次单／双 Agent 为 `26/27`、`25/27`；70 次请求均为 HTTP 200，
+  67 次 `stop`、3 次 `length`，精确费用 `¥0.4456658`。该原始报告永久保留，
+  不因后续修复覆盖或重算。
+- [x] 第一次全量后完成两项零费用修复：注入控制文本仍作为 `untrusted_evidence`
+  留痕但强制降为 `out_of_scope`；Reviewer 首次明确截断时只允许一次
+  2048→4096 有界恢复。Fake 单／双更新为 `25/27`，稳定 SHA-256 为
+  `053f2d35f64d74f46ec83f4af96f697f2e1e424ec7eb0221805c67a07cd18d90`；
+  Windows 全量 `648 passed, 1 skipped`，规则、RAG、Fake 基线匹配。
+- [x] 第二次全量报告为
+  `data/eval/v0.7/results/agent_deepseek_deepseek-v4-pro_20260802T085911981817Z.json`；
+  输入 SHA-256 为
+  `901b7d507c483c38cc60d2ac33476dda9908f178ace936cf7676a960c87f92cb`，结果
+  SHA-256 为 `3962523562e38944eb09b6d997ac96b055377d3184fc05a7be0a298dd83568c0`。
+- [x] 第二次单 Agent `23/27`，失败 `CON-02`、`CIT-01`、`TOOL-02`、
+  `TOOL-03`；双 Agent `24/27`，失败 `CON-02`、`TOOL-02`、`TOOL-03`。
+  71 次请求均为 HTTP 200，69 次 `stop`、2 次 `length`，Provider HTTP 自动
+  重试为 0。本次精确费用 `¥0.4318394`，两次全量累计 `¥0.8775052`。
+- [x] 第二次 input/output/reasoning Token 为 `64,663 / 55,318 / 49,388`；
+  单／双 Recall 为 `.8/.8`、Citation Precision 为 `.75/1.0`、Unsupported
+  Claim Rate 为 `.25/0`、Abstention Accuracy 为 `.92/.96`、Task Completion
+  为 `1/1`；单题中位耗时为 `9.75 s / 23.38 s`。
+- [x] `INJ-02`、`DIR-01` 单／双均通过，证明两项确定性修复在真实 Provider 上
+  生效。`TOOL-02` 首次 Reviewer 截断后真实完成 2048→4096 恢复，但因检索
+  不完整仍安全拒答；恢复成功不等于任务证据完整。
+- [x] 阶段 6 代码、文档与报告已提交并推送，GitHub 仓库已更名为
+  `Funluned/vetresearch-workbench`。
+- [x] PR #1 远端 CI 全绿：Ubuntu、Windows、macOS 测试通过，Docker 在 Ubuntu
+  runner 上完成构建、非 root 启动、可写目录、健康检查和首页访问。
+- [ ] PR 合并、Tag 和 Release 仍待后续门禁；阶段 5 本人验收继续延期。
+
+## 2026-08-02 v0.7 五题真实复测与第二轮零费用修复（本地已完成）
+
+- [x] 经大壮单独确认 `¥5` 上限，用 `deepseek-v4-pro` 定向复测修正 scorer 下
+  历史失败的 `DIR-01`、`CON-01`、`CON-02`、`HIT-03`、`TOOL-03`。
+- [x] 报告为
+  `data/eval/v0.7/results/agent_deepseek_deepseek-v4-pro_20260802T062927153218Z.json`；
+  内部结果 SHA-256 为
+  `7f2d37c9eb6f7b916174910ae27d1e4349740ba73704c43a3b60e3a286c7df1e`。
+- [x] 16 次请求全部 HTTP 200，无 HTTP 自动重试、网络超时或未核实费用；精确
+  记账 `¥0.1118206`。单／双 Agent 均为 `2/5`，`CON-01`、`CON-02` 通过；
+  该结果不外推为新的全 27 题成绩。
+- [x] `DIR-01` 的直接证据已找到，但两次草稿均不符合严格 JSON；`HIT-03` 把
+  docking/predicted/might 的计算预测误作可回答结论；`TOOL-03` 报告已生成，
+  但检索词缺少实体导致文献命中 0，草稿的 2048 Token 又全部被 reasoning 用尽。
+- [x] 第二轮零费用修复不读取 Key、不联网：schema 重试现在携带精确输出契约且
+  仍只允许一次；现有问题级文献分级进入证据账本，无直接交互证据时在 drafting
+  前拒答，Reviewer 同样确定性检查；检索计划自动补齐 Population、Intervention、
+  Comparator、Outcomes；仅 drafting 首次截断可使用现有唯一 retry，并把该次
+  Token 硬上限从 2048 有界提升到 4096。
+- [x] 新 Fake 基线为规则 `20/27`、单／双 Agent `24/27`，失败仅为合同 Fake
+  不做语义判断的 `CIT-01`、`CIT-02`、`INJ-02`；真实模型／HTTP／Token／费用均
+  为 0，结果 SHA-256 为
+  `d94a1a87a869d72b342897125c54bb1c5fa73a1e7a0874ad39a39e6738aed76c`。
+- [x] Agent 相关专项与全量回归通过；全量为 `642 passed, 1 skipped`。规则、
+  RAG、Fake 三套基线均复跑匹配，`HIT-03` 已安全拒答，`TOOL-03` 已检索到
+  `source-001`、保留无效 FICI 分析并生成报告。
+- [x] 经大壮确认新的 `¥5` 硬上限，真实复测 `DIR-01`、`HIT-03`、`TOOL-03`；
+  6 次 HTTP 尝试中 4 次为 200、2 次为 400，精确费用 `¥0.0270374`，单／双均
+  `1/3`，`HIT-03` 已按预期安全拒答并通过。
+- [x] 三题报告为
+  `data/eval/v0.7/results/agent_deepseek_deepseek-v4-pro_20260802T072820874761Z.json`；
+  内部结果 SHA-256 为
+  `97432480e00d9df1117e390fe20a642fbff01971b3e2550b19538953572df950`。
+- [x] 两个 HTTP 400 的请求体已离线重建且哈希与报告完全一致：草稿提示缺少
+  DeepSeek JSON Output 强制要求的字面量 `json`。现已补回 `Return strict JSON
+  only.` 并加入回归断言；这次本地修复尚未再次调用模型。
+- [x] 经大壮确认 `¥1` 硬上限，最终真实复测 `DIR-01`、`TOOL-03`。报告为
+  `data/eval/v0.7/results/agent_deepseek_deepseek-v4-pro_20260802T073822223703Z.json`；
+  内部结果 SHA-256 为
+  `105b4d8c85a0d61dc9328c683c09fcc3955b73be4213c7e7e21410420ccf8242`。
+- [x] 7 次请求全部 HTTP 200、请求 ID 全局唯一、HTTP 自动重试和未核实费用均为
+  0；精确费用 `¥0.0634410`。单／双 Agent 均为 `2/2`，Reviewer 均批准。
+- [x] `DIR-01` 首次草稿正常完成并引用直接证据；`TOOL-03` 命中 `source-001`，
+  首次草稿在 2048 Token 截断，唯一一次 4096 有界恢复成功，未继续重试。
+- [x] 功能提交 `4401e4910fa86243dcc00e358bc6bf1ac941865b` 已推送至
+  `codex/vetresearch-workbench`；GitHub Actions
+  [`30738353459`](https://github.com/Funluned/vetresearch-workbench/actions/runs/30738353459)
+  三平台全绿：Ubuntu `640 passed, 3 skipped`、Windows `639 passed, 4 skipped`、
+  macOS `640 passed, 3 skipped`。
+
+## 2026-08-02 v0.7 Agent 零费用工程修复（本地已完成）
+
+- [x] 历史正式报告不覆盖、不删改：v1 scorer 原始记录仍为规则 `20/27`、真实
+  单 Agent `24/27`、真实双 Agent `24/27`，内容完整性 SHA-256 仍为
+  `1d20b4c079f3b51d8eb3d3668364576302882c0ffb007b8be0fb4f3b70a62727`。
+- [x] 对同一历史 actual 使用修正 scorer 离线重算，单／双 Agent 均为 `22/27`；
+  失败题为 `DIR-01`、`CON-01`、`CON-02`、`HIT-03`、`TOOL-03`。没有重新调用
+  DeepSeek，也没有把 `22/27` 写回历史 JSON。
+- [x] Task Completion 修正为单／双均 `24/27`；旧口径分别为 `26/27`、`27/27`。
+  `human_review_required` 只表示安全转人工，不再冒充 Research 任务完成。
+- [x] 冲突 scorer 现在要求有效引用两侧来源、保留各自相反方向，并在最终结论中
+  明确保留开放冲突；FICI 冲突必须由结构化分析事实支持。
+- [x] DeepSeek 超时默认 `120` 秒，可配置范围固定为 `30—300` 秒，CLI 会显式
+  审计实际值；Provider 的 HTTP 隐式重试仍为 0。
+- [x] 新报告的 `run_id`／`request_id` 全局唯一；账本外引用只允许一次
+  ledger-only bounded redraft；`report.build` 作为独立 trusted 工具授权。
+- [x] 修复后 Fake 仍为规则 `20/27`、单／双 Agent `17/27`，冲突场景 `3/3`；
+  真实模型／网络／Token／费用为 `0 / 0 / 0 / ¥0`，稳定结果 SHA-256 为
+  `40e1fb1a5f5f6a71a4b02bd2864ccd4b6a7ef0b74342b61d001f63b99a768a89`。
+- [x] 相关专项 `100 passed`；全量 `628 passed, 1 skipped`；3 份历史真实报告
+  均可读取且文件未改，刷新后的 Fake 基线也可读取并复跑匹配。
+- [x] 工程修复提交 `85fdf7b 修正 v0.7 Agent 评测与运行边界` 已推送至
+  `codex/vetresearch-workbench`；远端 CI
+  [`30733414142`](https://github.com/Funluned/vetresearch-workbench/actions/runs/30733414142)
+  三平台全绿：Ubuntu `626 passed, 3 skipped`、Windows `625 passed, 4 skipped`、
+  macOS `626 passed, 3 skipped`。
+- [ ] 修复后的付费真实复测尚未授权或执行。
+
+## 2026-08-02 v0.7 DeepSeek 全 27 题正式工程评测（本地已完成）
+
+- [x] 先完成零费用 dry-run：27 题通常 81 次逻辑调用，全部重试／修订走满时
+  硬上限 189 次；真实运行使用共享 `¥3` 费用上限。
+- [x] 正式报告为
+  `data/eval/v0.7/results/agent_deepseek_deepseek-v4-pro_20260802T030725971226Z.json`，
+  内容完整性 SHA-256 为
+  `1d20b4c079f3b51d8eb3d3668364576302882c0ffb007b8be0fb4f3b70a62727`。
+- [x] 报告通过 Pydantic、内容哈希、27 ID／九类各 3、输入与规则基线哈希、
+  共享 Research、`retrieval_reused` 和双分支费用组合校验。
+- [x] 规则 `20/27`，真实单 Agent `24/27`，真实双 Agent `24/27`。单／双的
+  Recall `5/5`、Citation Precision `2/2`、Unsupported Claim `0/2`、Abstention
+  `23/25` 完全相同；Task Completion 为 `26/27` 与 `27/27`。
+- [x] 双 Agent 相对单 Agent 增加 `¥0.2586836` 保守记账和 `19.19 s` 单题中位
+  耗时，却没有改善 Citation Precision、Unsupported Claim 或 Abstention，
+  不满足放行门槛。Task Completion 的一题变化只是失败态安全交接人工，不是
+  Reviewer 完成了研究任务。
+- [x] 共 83 次模型请求／HTTP 尝试：74 次可用成功、1 次空输出、8 次
+  `transport_error`。收到响应的 75 次均确认实际模型为 `deepseek-v4-pro`；
+  8 次无响应只能确认请求模型。
+- [x] 总保守记账 `¥0.5482916`：有 Token 回执的精确部分 `¥0.3619676`，无响应
+  请求最坏情况预留 `¥0.186324`。最终账单以 DeepSeek 控制台为准。
+- [x] 失败题原样保留：`DIR-01` 为账本外引用被安全拦截；`CON-01` 为冲突证据
+  被模型误拒答并叠加 Reviewer 超时；`TOOL-03` 为漏规划报告并连续草稿超时。
+- [x] 安全扫描未发现 Key、Authorization／Bearer、私有路径、`SYN-*` 或
+  `example.invalid` 泄漏；父进程环境没有遗留 `DEEPSEEK_API_KEY`。
+- [x] 付费复测前的零费用工程修复已在后续批次完成；本节仍保留历史正式报告的
+  v1 scorer 原始记录。修正口径与验证结果见上一节。
+- [x] Agent 专项 `125 passed`；全量 `602 passed, 1 skipped`；规则、RAG、Fake
+  Agent 三套基线、Python 编译、依赖与 Git 差异检查全部通过。
+- [x] 大壮已另行确认提交和推送；远端一致性在推送后核对。
+
+## 2026-08-02 v0.7 DeepSeek 五题首测与 TOOL-02 定向复测（本地已完成）
+
+### 真实首测
+
+- [x] 使用 `deepseek-v4-pro` 跑 `DIR-01`、`NONE-01`、`INJ-01`、`SCOPE-01`、
+  `TOOL-02` 五个合成工程场景；共享费用硬上限 `¥3`。
+- [x] 首次报告为
+  `data/eval/v0.7/results/agent_deepseek_deepseek-v4-pro_20260801T164712078981Z.json`，
+  结果 SHA-256 为
+  `f3a4e0d5b74548b12765f5cb981c4b670066f5afa5f525a2f1471a4f9afc654d`。
+- [x] 同五题规则 `3/5`，真实单 Agent `4/5`，真实双 Agent `4/5`；14 次模型
+  调用与 14 次 HTTP 尝试全部成功，输入／输出／推理 Token 为
+  `7,286 / 5,324 / 4,468`，实际费用 `¥0.0488516`。
+- [x] Reviewer 五题均批准，增加 `¥0.017358`，没有改变单 Agent 的 `4/5`。
+  `TOOL-02` 只规划并执行一路，Recall `1/2`，且 Reviewer 因看不到计划与工具
+  状态而错误批准；首次失败结果原样保留，没有覆盖或修改。
+
+### 缺陷修复与定向复测
+
+- [x] 规划规则改为：用户明确要求多路独立检索时拆成最多三项，一路失败不得
+  取消后续计划；没有读取 gold、预期答案或冻结批次数量来补计划。
+- [x] Reviewer 现在读取同一份已验证计划、白名单化工具摘要、规范化错误码和
+  完整工具轨迹哈希；正文、locator、失败消息、任意输出、本机路径及伪造模式名
+  不能通过摘要进入 Reviewer。
+- [x] 定向复测只运行 `TOOL-02`，报告为
+  `data/eval/v0.7/results/agent_deepseek_deepseek-v4-pro_20260801T170517725369Z.json`，
+  结果 SHA-256 为
+  `7e0e47360e0f0a4820d0c884f5056aa01f3990e331e436053835cbac76d7c4d8`。
+- [x] 工具状态为“成功—失败—成功”，保留两个成功来源，失败批次 1，
+  `partial_results_preserved=true`，Recall `2/2`；单／双 Agent 均通过，Reviewer
+  明确看见失败路线后批准。
+- [x] 定向复测 3 次模型调用、3 次 HTTP 尝试，输入／输出／推理 Token 为
+  `2,602 / 3,436 / 2,953`，实际费用 `¥0.0276604`。两轮累计 17 次调用、费用
+  `¥0.0765120`，远低于批准上限。
+- [x] 两份真实结果均通过结构与敏感信息扫描。其余四题没有在修复版上重跑，
+  因此不把两份不同版本的报告拼成正式 `5/5`；合成 gold 仍待领域专家复核。
+- [x] Agent 专项 `76 passed`；全量收集 `603` 项，执行
+  `602 passed, 1 skipped`。规则、RAG、Agent 三套基线匹配，Python 编译、
+  `pip check`、`git diff --check` 和最终只读安全复核全部通过，无剩余高、中等级
+  问题。没有继续调用模型或产生新费用。
+- [x] 功能提交 `cb819f3` 已非强制推送至 `codex/vetresearch-workbench`；远端
+  SHA 与本地一致。GitHub Actions
+  [`30710480196`](https://github.com/Funluned/vetresearch-workbench/actions/runs/30710480196)
+  全绿：Ubuntu `600 passed, 3 skipped`、Windows `599 passed, 4 skipped`、
+  macOS `600 passed, 3 skipped`。
+
+## 2026-08-01 v0.7 真实 Agent 代码与零费用合同烟测（本地已完成）
+
+### 本批交付契约
+
+- [x] 实现 DeepSeek V4 Pro／Flash Provider：固定官方 HTTPS 地址，默认预算为
+  0，只在真实 `generate()` 时读取 `DEEPSEEK_API_KEY`；Key 不进入审计、结果
+  或日志。请求／响应身份、Token、Decimal 费用、重试与失败均可追溯。
+- [x] 实现有限状态 Research Agent：每题最多 3 个计划项、4 次工具调用、
+  2 次正常模型调用和 1 次结构修复重试；只允许 PubMed、本地 RAG、FICI、
+  生长曲线和报告工具，不接受 Shell、任意路径或任意 URL。
+- [x] 实现 Evidence Reviewer：只读同一份 Research 状态、草稿、证据账本和
+  工具轨迹；不能重新检索或加入新证据。未批准结果只公开安全拒答或人工复核。
+- [x] 每条生成声明必须带适用范围、来源 ID、切片 ID 和原文引句；无证据时
+  拒答。单／双 Agent 共用一次 Research 运行和四个共享哈希，费用不重复计算。
+- [x] 27 题 Provider 可见输入使用中性来源别名；gold、case 分类、评分词、
+  `SYN-*` 和原始测试 URL 只留在评分器侧，不送给模型。
+- [x] 新增安全 CLI：默认只跑零费用 Fake；DeepSeek 必须显式选题、确认付费、
+  给出正数人民币上限并配置 Key。dry-run 不读 Key、不构造 Provider、不联网；
+  一个共享费用上限覆盖 Research、Reviewer 和 Revision。
+
+### 基线、验证与边界
+
+- Fake 基线：规则 `20/27`、单 Agent `17/27`、双 Agent `17/27`；稳定结果
+  SHA-256 为 `f3f7ac99fb2b333fbd06d7875f26e7a16c33c9ea0f62cd681a8682dd9c1c3330`。
+  Fake Reviewer 固定批准，因此单／双无提升是合同烟测设计，不代表 DeepSeek。
+- Fake 单／双共同指标：Recall@3 `5/5`、Citation Precision `3/5`、Unsupported
+  Claim Rate `2/5`、Abstention Accuracy `15/25`、Task Completion `27/27`。
+- 这份 Fake 基线自身的真实模型调用、HTTP 尝试、Token、网络动作与模型 API
+  费用均为 0；gold 仍是 `engineering_gold_pending_domain_expert_review`，不能
+  外推为科研正确率。
+- 审查发现“全量 Fake＋自定义输出路径”可能覆盖已有文件后已修复：只有默认
+  版本化 Fake 基线可刷新，所有显式输出路径均拒绝覆盖；哨兵回归测试通过。
+  最终只读审查没有剩余高、中等级问题。
+- Agent 相关审查集 `107 passed`；本地全量收集 `597` 项，执行结果
+  `596 passed, 1 skipped`。规则、RAG、Agent 三套基线复跑匹配；Python 编译、
+  `pip check` 与 `git diff --check` 通过。
+- 本节约定的后续门禁是：只用 `deepseek-v4-pro` 跑 5 个代表场景，通常 15 次、
+  所有修复走满最多 35 次，共享费用硬上限 `¥3`。该门禁已取得大壮单独确认并于
+  2026-08-02 执行，结果见上节。
+
+## 2026-08-01 v0.7 阶段 3A 第二批免费工作台路径（本地已完成）
+
+### 本批交付契约
+
+- [x] 在现有“文献证据”页接入本地索引，不新增第十个顶层页签；基本路径不读
+  API Key、不调用 LLM，也不依赖云向量库或模型订阅。
+- [x] 只索引带摘要的 PubMed 记录和用户明确确认有权用于本机索引的导入摘要；
+  导入集合 SHA-256 变化后授权自动重置，不把旧确认沿用给新材料。
+- [x] 单次限制为 500 个来源、500 万字符，查询限制为 2,000 字符；固定 Top 3，
+  默认使用评测更好的关键词模式，哈希向量／混合明确标为实验模式。
+- [x] 关键词零分时返回 `insufficient_evidence`，不拿无关候选凑数；候选只作为
+  `untrusted_evidence` 表格数据，不生成科研结论或改变证据准入等级。
+- [x] 文献集合变化后旧索引失效；来源、切片、向量及 manifest 在读取／检索时
+  复核。修复损坏 SQLite 异常连接未关闭导致 Windows 无法原子重建的问题。
+- [x] 建立和检索审计记录 Provider、清单哈希、授权摘要、查询 SHA-256 与命中
+  切片 ID；不保存原始查询、正文或本机绝对路径，费用和外部调用字段固定为 0。
+
+### 验证与边界
+
+- 本地 RAG／工作台／授权／损坏索引专项：`28 passed`。
+- 本地全量回归：`489 passed, 1 skipped in 29.41s`；Python 编译、`pip check`
+  和 `git diff --check` 通过。
+- v0.7 本地 RAG 与 `rules_v1` 基线复跑均匹配；检索成绩保持关键词 `4/5`、
+  哈希向量 `2/5`、混合 `3/5`，没有通过修改 gold 或调权重制造提升。
+- 独立只读审查在修复 SQLite 文件锁、路径脱敏和导入授权复用后未发现 P0／P1
+  阻塞问题。
+- 本地 SQLite 正文仍是未加密普通文件；授权确认是用户声明，不是上游许可认证。
+  当前只完成候选检索，不是真实语义 Embedding、生成式 RAG 或 LLM Agent。
+- 提交 `6e908e8` 已按确认非强制快进至 `codex/vetresearch-workbench`；本地、
+  远端提交和树 SHA 一致。GitHub Actions
+  [`30704650604`](https://github.com/Funluned/vetresearch-workbench/actions/runs/30704650604)
+  全绿：Ubuntu `487 passed, 3 skipped`，Windows `486 passed, 4 skipped`，
+  macOS `487 passed, 3 skipped`。
+
+## 2026-08-01 v0.7 阶段 3A 第一批离线 Provider／RAG 基线（本地已完成）
+
+### 本批交付契约
+
+- [x] 定义可替换 LLM／Embedding Provider 契约；默认 Fake 实现不读环境变量、
+  API Key 或网络，不调用真实模型。
+- [x] 使用本地 SQLite 保存来源、切片与向量；支持 BM25、精确余弦、混合排序
+  和元数据过滤，不引入云向量库、模型订阅或查询费。
+- [x] 来源与切片保留 PMID／DOI、字段位置、版本、授权范围和 SHA-256；来源、
+  切片、向量字节、实现和结果快照均可校验。
+- [x] 所有检索正文标记为 `untrusted_evidence`；注入文本只作数据，不获得
+  Shell、文件、网络或工具执行权。
+- [x] 用阶段 2 中明确带 `gold_relevant_ids` 的 4 题、5 个 gold 和统一 11 个
+  硬负例建立固定候选池内排序 Recall@3；不读取 `expected.json`，不把标签、
+  case ID、URL 或上下文写入查询／正文。
+- [x] 冻结评测测试会封锁环境变量与网络访问；全批真实模型调用、Token、
+  模型 API 费用和外部动作均为 0。
+
+### 基线结果与边界
+
+- 关键词 `4/5`，本地特征哈希向量 `2/5`，混合 `3/5`；混合相对关键词少
+  命中 1 条，因此不得声称“向量带来增益”或“语义 RAG 已有效”。
+- 评测候选池由 gold 与硬负例构造，只衡量标签知情固定候选池内排序，不是
+  端到端文献检索召回，也不是通用 RAG 准确率。
+- 内置特征哈希会在本机 CPU 上执行 `embed()`，但不是训练模型或真实模型调用。
+  “零新增模型/API/云向量库依赖”仍需要 Python、Pydantic、CPU、磁盘和 SQLite。
+- 离线保证覆盖仓库内置 Provider；自定义 Provider 的 `network_used` 只是接口
+  契约，不是进程级断网沙箱。SQLite 正文当前为本机普通文件，没有静态加密。
+- 本批只完成底层契约、索引和冻结评测，尚未形成用户可操作的完整 Agent。
+
+### 本批验证
+
+- Provider、本地 RAG 与冻结评测专项：`31 passed`。
+- 新旧两套 v0.7 快照 `--check-baseline` 均通过；阶段 2 规则基线保持 `20/27`。
+- 本地全量回归：`480 passed, 1 skipped`；Python 编译、`pip check` 与
+  `git diff --check` 均通过。
+- 功能提交 `b09fa77` 已按确认推送至 `codex/vetresearch-workbench`；GitHub
+  Actions [`30702625775`](https://github.com/Funluned/vetresearch-workbench/actions/runs/30702625775)
+  全绿：Ubuntu `478 passed, 3 skipped`，Windows `477 passed, 4 skipped`，
+  macOS `478 passed, 3 skipped`。阶段 3A 第一批已关闭，但整个阶段 3A 尚未关闭，
+  下一批仍需把免费路径接入工作台。
+
+## 2026-08-01 v0.7 阶段 2 评测集与规则基线（已完成）
+
+### 本阶段交付契约
+
+- [x] 固定 `v0.7.0` 的 27 个合成离线场景，九类边界各 3 题；输入、金标准、
+  评分方法和边界分别落盘且一一对应。
+- [x] 所有文献式标识为 `SYN-*`、URL 为 `example.invalid`，不冒充真实论文、
+  PMID、DOI、实验数据或科研事实。
+- [x] 真实运行现有 `rules_v1`，保存每题实际结果、七项指标、数据与实现哈希；
+  快照复核会重算内容哈希。
+- [x] 全程不联网、不启用或调用 LLM，不实现 RAG 或 Agent，不读取 API Key。
+- [x] 规则基线允许失败，CI 门禁检查可复现性，不要求把现有规则改成 27/27。
+
+### 基线与已知差距
+
+- 规则基线 `20/27`，评测运行错误 0；冻结回放 Recall@3 `3/5`、合成
+  claim-citation Precision `4/7`、Unsupported Claim `3/7`、Abstention
+  `20/25`、Task Completion `26/27`，LLM 调用、Token 与 API 费用均为 0。
+- `DIR-02` 暴露中文病原名开头“无”被否定规则误伤；`CIT-01~03` 暴露回答器
+  不复核上游 claim 与原句；`INJ-01~02` 暴露来源内容投毒可污染准入；
+  `TOOL-02` 暴露多路检索缺少部分成功保留。
+- `CIT-*` 是预造冲突结构化记录的信任边界测试，不表示规则提取器自行产生了
+  三条错误科研结论；`INJ-03` 也只证明当前 CSV 文本列不会触发外部动作。
+- 旧版 30 条实时单查询字段评测保持不变，不能用其 `30/30` 替代 v0.7 产品
+  边界成绩；冻结回放 Recall 也不能写成实时 PubMed 或 RAG 召回率。
+
+### 当前边界
+
+- 金标准仍标记为 `engineering_gold_pending_domain_expert_review`；工程结构已
+  固化，但正式科研语义仍需领域人工复核。
+- 阶段提交 `b61d742` 已按确认推送；本地 HEAD 与远端开发分支 SHA 完全一致。
+- 下一阶段才允许设计 LLM Provider、RAG 和单 Agent；本阶段没有提前实现。
+
+### 验证证据
+
+- v0.7 专项、旧评测兼容与制品回归：`15 passed`。
+- 最终全量自动回归：`449 passed, 1 skipped in 24.64s`；跳过项是既有平台条件。
+- `pip check`、Python 编译、基线快照重放校验和 `git diff --check` 均通过。
+- 远端 CI [`30698205011`](https://github.com/Funluned/vetresearch-workbench/actions/runs/30698205011)
+  全绿：Ubuntu `447 passed, 3 skipped`，Windows `446 passed, 4 skipped`，
+  macOS `447 passed, 3 skipped`。
+
+## 2026-08-01 v0.7 阶段 1 跨平台修复与三系统 CI（已完成）
+
+### 本阶段交付契约
+
+- [x] 保留生产端对外部可执行文件的 POSIX `X_OK` 安全检查，只修正测试夹具权限，并增加不可执行负例。
+- [x] provenance 文件名归一化不依赖宿主系统，覆盖 Windows、POSIX、UNC 与混合分隔符。
+- [x] Ubuntu、Windows、macOS 使用 Python 3.11 执行依赖安装、编译检查与全量 pytest。
+- [x] SHA-256 固定的 vendored 资产在 Windows clone 中保持原始字节，不用弱化哈希断言换取通过。
+- [x] 不提前加入真实 LLM、RAG 或 Agent 代码，不调用付费模型或外部敏感数据。
+
+### 修改与验证证据
+
+- 功能与 CI 提交：`b8dd513 修复跨平台测试并建立三系统 CI`。
+- 首次 CI 仅 Windows 因 Git 自动换行转换导致固定资产 SHA-256 不一致；Ubuntu 与 macOS 已通过，业务测试没有跨平台逻辑失败。
+- 收口提交：`003e2e0 固定哈希资产的跨平台检出字节`，通过 `.gitattributes` 的精确 `-text` 规则保护 vendored 资产，并新增项目制品回归。
+- 修复前干净 Windows clone 将工作树哈希从 `95513f64…6d427` 改为 `38630fd5…9011`；修复后保持 `w/lf attr/-text` 且哈希与固定值一致。
+- 最终本地全量回归：`441 passed, 1 skipped in 23.66s`；`pip check`、Python 编译检查和 `git diff --check` 通过。
+- 远端 CI [`30695477003`](https://github.com/Funluned/vetresearch-workbench/actions/runs/30695477003) 全绿：Ubuntu `439 passed, 3 skipped`，Windows `438 passed, 4 skipped`，macOS `439 passed, 3 skipped`。
+- 全量自动测试只证明当前测试集与三套 runner 未发现回归，不证明真实外部工具、科研结论、用户价值或商业价值。
+
+### 当前边界
+
+- 阶段 1 已关闭；下一阶段是独立版本化评测集和规则基线，不在本阶段改动范围内。
+- 当前 Provider 仍是规则实现，PubMed 流程仍不是混合检索 RAG，现有 Agent 仍是受控顺序工作流。
+- 没有创建或合并 PR、发布 Release、修改仓库设置，也没有触发付费模型调用。
+
+## 2026-08-01 结局指标重复输入校验（已完成）
+
+### 本阶段交付契约
+
+- [x] 结局指标继续复用现有 Unicode、大小写与标点归一化规则。
+- [x] `FICI`、`fici`、`F-I-C-I` 等归一化后相同的重复写法在输入校验阶段明确报错，不进入任务创建。
+- [x] 错误同时保留首次写法与当前重复写法，要求用户合并后重试，不静默删除或改写科研指标。
+- [x] 不同的正常指标及既有 Unicode／连字符名称继续通过。
+
+### 验证证据
+
+- 修改范围：`src/vetevidence/input_validation.py`、`tests/test_input_validation.py`。
+- 输入校验专项：`7 passed`。
+- 工作台相关回归：`48 passed`。
+- 最终全量自动回归：`428 passed`，无失败。
+- `git diff --check` 通过；本次未修改 PubMed、排序、模型、数据库或界面结构。
+- 全量自动测试只证明当前测试集未发现回归，不能证明真实界面、外部服务、科研结论、用户价值或商业价值。
+- 本次只创建本地提交，不推送 GitHub。
 
 ## 已确认环境
 
@@ -46,7 +449,7 @@ VetResearch Workbench v0.6 已完成受控 OpenMM 技术烟测：v0.5 分子对�
 - 真实查询：`quercetin Streptococcus agalactiae mastitis` 返回 2 篇文献。
 - LetPub 实测：目标论文所在期刊显示中科院农林科学 3 区、兽医学 3 区，以及 WOS JIF Q2（SCIE，54/170）。
 - LetPub 实测：`Animals` 显示中科院农林科学 2 区、两个小类 2 区，以及两个 WOS JIF Q1 分类。
-- GitHub：项目已上传至 `https://github.com/Funluned/vetagenteviidence`，默认分支为 `main`。
+- GitHub：项目已上传至 `https://github.com/Funluned/vetresearch-workbench`，默认分支为 `main`。
 - 目标论文：PMID `42250334`，DOI `10.1016/j.rvsc.2026.106289`。
 - 目标论文提取：小鼠、样本量 25、Quercetin、`25, 50, 100 mg/kg`、腹腔注射、`24 h`、NF-κB、NLRP3、铁死亡及来源原句。
 - 页面验收：文献列表、证据表、证据回答、评测、导出五个标签页均已实际检查。
@@ -248,11 +651,11 @@ VetResearch Workbench v0.6 已完成受控 OpenMM 技术烟测：v0.5 分子对�
   CPU 和 CUDA 执行。
 - CPU：实际平台 `CPU`，30 steps，真实温度 6 个样本、势能 6 个样本，
   QC passed；不可变结果目录为
-  `C:\Users\sunqi\AppData\Local\VetEvidence\md-smoke-results\v06-final-cpu-20260730T185000`。
+  `%LOCALAPPDATA%\VetEvidence\md-smoke-results\v06-final-cpu-20260730T185000`。
 - CUDA：实际平台 `CUDA`，设备
   `NVIDIA GeForce RTX 5070 Laptop GPU`，`DeviceIndex=0`、`mixed` 精度，
   30 steps，真实温度 6 个样本、势能 6 个样本，QC passed；不可变结果目录为
-  `C:\Users\sunqi\AppData\Local\VetEvidence\md-smoke-results\v06-final-cuda-20260730T185000`。
+  `%LOCALAPPDATA%\VetEvidence\md-smoke-results\v06-final-cuda-20260730T185000`。
 - v0.6 文档、代码、测试与 smoke 脚本的项目制品契约：
   `tests/test_project_artifacts.py` 为 `4 passed`。
 - 最终全量自动回归：`352 passed`；`pip check` 无依赖冲突，
@@ -298,7 +701,8 @@ VetResearch Workbench v0.6 已完成受控 OpenMM 技术烟测：v0.5 分子对�
 
 ## 阻塞
 
-- 本机未安装 Docker：Dockerfile 已写，镜像构建未验证。
+- 本机仍未安装 Docker；GitHub Actions `30742122214` 已验证默认镜像构建、非 root
+  启动、可写目录、健康检查和首页访问，但不替代本机及可选科研工具验收。
 - 本机已安装并核验 AutoDock Vina 1.2.7，Agent 执行链已用官方公开样例验收；尚未提供与当前兽医科研问题对应、来源许可清楚且人工完成结构准备的真实配体/受体，因此不能把冒烟结果当作科研机制证据。
 - Open Babel 真实转换只证明配体准备执行链可运行；尚未由研究者完成与当前科研问题对应的互变异构体、立体化学、质子化、构象和受体准备复核，不能把生成结构或后续对接当作结合、抗菌或协同证明。
 - v0.5 尚无与当前兽医科研问题匹配、来源许可明确且经研究者逐项审批的
@@ -312,4 +716,24 @@ VetResearch Workbench v0.6 已完成受控 OpenMM 技术烟测：v0.5 分子对�
   还需确认机构许可；GeneCards、MalaCards 与 SwissTargetPrediction 的内容
   真实性依赖用户对导入材料来源的声明，系统当前不独立向上游验证。
 - 尚未录制演示视频，也未获准进行公开部署。
-- 仍需孙奇亲自完成一次从零启动、完整垂直案例讲解和一次核心流程小修改。
+- 孙奇本人从零启动、完整垂直案例讲解、核心流程小修改和排错验收已延期到 GitHub 工程状态稳定后，不作为 v0.7 当前工程阶段的阻塞项。
+
+## 多数据库批次检索与下载（已完成）
+
+### 本阶段交付契约
+
+- [x] 数据库证据页保留单库模式，并新增一次选择 2—12 个数据库的批量模式；每个来源使用独立输入、凭证与许可门禁。
+- [x] 提交前统一校验所有来源和最多 50 次实际操作上限；按用户选择顺序串行处理，一个来源失败不阻断其他来源。
+- [x] 每次提交生成独立 `batch_id`，结果统计直接使用本次执行对象，不依赖可能截断的历史记录。
+- [x] 批次清单冻结来源、查询 ID、状态与 SHA-256；刷新或会话重建后可恢复已校验批次，并按批次隔离 STRING/DAVID 网络结果。
+- [x] 标准化 ZIP 包含批次清单、结果 JSON、汇总 CSV、分库 CSV 与校验和，不包含原始响应。
+- [x] 原始审计 ZIP 与标准化 ZIP 分离，只有用户再次确认所有来源许可和仅限内部审计后才生成；单条原始归档下载采用同等门禁。
+- [x] 批次恢复与导出拒绝路径穿越、重复条目、符号链接、Windows junction、校验和不一致、CSV 公式注入和敏感字段泄漏。
+
+### 验证证据
+
+- 批次归档与连接器归档专项：`16 passed`；数据库 UI 支持：`12 passed`；数据库页面：`7 passed`。
+- 数据库专项回归：`120 passed`；最终全量回归：`422 passed, 3 skipped`。
+- Python 编译检查、`pip check` 和 Git 差异检查通过。
+- 浏览器实测 OMIM + DrugBank 双库批量离线流程：两项均独立配置并归档，页面显示 `2/2`，标准化 ZIP 直接可下载，原始审计 ZIP 仅在二次许可确认后出现。
+- 本次没有使用 OMIM 或 DrugBank 的真实密钥，浏览器验收证明的是批量编排、离线门禁、归档与下载链，不代表商业数据库在线账号已验收。

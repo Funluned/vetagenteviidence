@@ -1,4 +1,5 @@
 .venv/
+.codex-run-venv/
 __pycache__/
 *.py[cod]
 *.egg-info/

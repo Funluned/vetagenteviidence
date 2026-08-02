@@ -1,4 +1,4 @@
-# VetResearch Workbench v0.6 架构说明
+# VetResearch Workbench v0.7.0 架构说明
 
 ## 版本关系
 
@@ -8,7 +8,9 @@ VetResearch Workbench v0.6 复用 VetEvidence AI v0.1 的 PubMed、期刊分区�
 Vina 预测层和带原始材料归档的数据库证据层；v0.5 再增加受体人工门禁、
 类型化结构身份、批量多 seed 对接、强绑定产物和本地三维可视化层。v0.6
 增加与主界面解耦的 OpenMM 后台任务层，但严格限制为单重复 30 步
-`technical_smoke`。
+`technical_smoke`。v0.7.0 再增加不需要模型 Key 的本地关键词检索，以及与
+Streamlit 免费路径隔离的 DeepSeek Research Agent／Evidence Reviewer 工程
+评测链；后者只运行版本化合成题和冻结工具夹具。
 
 包名继续使用 `vetevidence`，以避免为产品升级进行无收益的代码重命名。
 
@@ -28,6 +30,11 @@ flowchart TD
 
     D --> G["直接 / 间接 / 主题不匹配文献分级后截断"]
     ID --> G
+    D --> LR["授权摘要的本地 SQLite 索引"]
+    ID --> LR
+    LR --> BM["默认 BM25 / 实验性特征哈希与混合检索"]
+    BM --> LC["Top 3 untrusted_evidence 候选"]
+    LC --> LH["人工审查，不自动进入科研结论"]
     G --> L["统一 LiteratureItem"]
     L --> C["ExperimentCondition 矩阵"]
     C --> A["一致性 / 显式冲突 / 证据空白"]
@@ -60,7 +67,7 @@ flowchart TD
     LP --> DM["类型化配体 × 多 seed"]
     RA --> DM
     DM --> VM["逐尝试无分数任务清单"]
-    VM --> LV["用户确认后 Agent 受控执行已核验的本机 Vina"]
+    VM --> LV["用户确认后由确定性受控执行器运行本机 Vina"]
     LV --> VA["强绑定 manifest / run.log / poses.pdbqt / metadata"]
     UI --> VO["用户导入外部 Vina 文本输出"]
     VM --> VO
@@ -100,6 +107,34 @@ flowchart TD
     S --> FS[".workbench/runs/run_id.json"]
     FS --> UI
 ```
+
+## v0.7.0 隔离 Agent 评测数据流
+
+```mermaid
+flowchart LR
+    DS["DeepSeek V4 Provider"] --> RA["有限状态 Research Agent"]
+    FQ["27 道冻结合成工程题"] --> RA
+    RA --> PL["最多 3 项可见计划"]
+    PL --> FT["冻结工具执行器"]
+    FT --> PM["冻结 PubMed 批次"]
+    FT --> RG["临时本地关键词索引"]
+    FT --> EX["内存 FICI / 生长曲线夹具"]
+    FT --> RP["报告状态工具"]
+    PM --> EL["问题级证据账本"]
+    RG --> EL
+    EX --> EL
+    EL --> DR["带来源、切片和引句的草稿或拒答"]
+    DR --> SA["单 Agent 结果"]
+    DR --> ER["只读 Evidence Reviewer"]
+    DS --> ER
+    ER --> DA["双 Agent 实验结果"]
+    SA --> EV["同一 scorer / 成本 / 延迟 / 失败报告"]
+    DA --> EV
+```
+
+真实 DeepSeek 调用、Prompt、Token、费用和失败审计都在这条评测链内发生；工具
+数据仍是合成冻结夹具。当前没有从 Streamlit、任意用户问题或实时 PubMed 进入
+该链的产品适配器，也没有 MCP／Codex Skill 接口。
 
 ## v0.1 继承子流程
 
@@ -153,7 +188,15 @@ v0.2 的多轮检索保留每个查询内部的 PubMed 相关性顺序，以轮�
 | `md_ui_support.py` | v0.6 | MD 表单输入规范化、原子映射证据、任务进度和下载前哈希复核 |
 | `md_ui.py` | v0.6 | 只提交/轮询独立 worker 的 Streamlit MD 入口，不在页面请求内执行 OpenMM |
 | `run_store.py` | v0.3 | 每个运行一个 JSON 快照的原子保存、schema v6 迁移与按 ID 恢复 |
-| `app.py` | v0.6 | 九个顶层 Streamlit 入口、数据库查询、科研级对接门禁、MD 任务入口与会话状态 |
+| `agent_providers.py` | v0.7.0 | LLM／Embedding Provider 契约、Fake Provider 与确定性特征哈希向量 |
+| `local_rag.py` | v0.7.0 | SQLite 来源／切片／向量清单、BM25、余弦检索、过滤与完整性校验 |
+| `workbench_rag.py`、`local_rag_ui.py` | v0.7.0 | 免费工作台授权摘要索引、默认关键词 Top 3 与实验模式入口 |
+| `deepseek_provider.py` | v0.7.0 | DeepSeek V4 请求、模型身份、Token／费用、超时和共享预算审计 |
+| `agent_tools.py` | v0.7.0 | 五类严格工具 schema、证据等级和冻结回放执行边界 |
+| `agent_runtime.py` | v0.7.0 | 有限状态 Research Agent、证据账本、引用／拒答门禁与有界恢复 |
+| `evidence_reviewer.py` | v0.7.0 | 只读 Reviewer、有限定向修订和安全人工复核状态 |
+| `v07_*evaluation.py`、`v07_agent_comparison.py` | v0.7.0 | 规则／RAG／单 Agent／双 Agent 的版本化合成评测与报告 |
+| `app.py` | v0.7.0 | 九个顶层 Streamlit 入口、免费本地检索、数据库／对接门禁、MD 任务与会话状态 |
 
 ## 关键数据契约
 
@@ -394,12 +437,27 @@ P 值和上游报告的 BH 校正后 P 值；上游缺失时标记为未报告�
 
 ## 关键取舍
 
+### 免费产品主流程与隔离 LLM Agent
+
+Streamlit 主流程继续使用透明规则、显式用户操作和人工复核；默认本地检索只
+返回候选，不调用 LLM。v0.7.0 的 Research Agent 是真实 DeepSeek 驱动的有限
+状态流程，但只在开发者评测中读取冻结合成数据。Evidence Reviewer 复核同一次
+Research 的草稿、证据账本和工具摘要，不能重新检索或添加来源；它是第二个受限
+角色，不是独立研究团队或开放式自治多 Agent 系统。
+
+当前 v0.7.0 的修复后 27 题全量中，单／双 Agent 为 `23/27`、`24/27`。Reviewer
+本批改善 Citation Precision、Unsupported Claim Rate 和 Abstention Accuracy，但 Recall 与
+Task Completion 不变，三道规划／工具失败仍共享，并增加 `¥0.2480774` 与中位
+`13.6231 s` 延迟。历史全量对照又曾出现无改善或反向波动，因此双 Agent 仅保留
+实验模式，不是默认路径。受控
+本机 Vina 的“Agent 执行”是更早版本对显式工具动作的称呼，与本节 LLM Research
+Agent 不应混为一谈。
+
 ### 顺序主工作流与专用 MD worker
 
-当前所谓 Agent 能力体现在可见检索计划、显式工具调用、受控本机 Vina 执行、
-任务状态、失败、重试和人工复核，而不是并发角色数量。证据主流程保持顺序
-编排；只有 OpenMM 因运行时间、取消和 checkpoint 需求进入专用子进程，并用
-文件锁、CAS 与内容寻址工件隔离。它不是通用多 Agent 调度框架。
+免费证据主流程保持顺序编排；只有 OpenMM 因运行时间、取消和 checkpoint 需求
+进入专用子进程，并用文件锁、CAS 与内容寻址工件隔离。LLM Agent 评测也不调度
+该 worker，更不是通用多 Agent 调度框架。
 
 ### 单体 Streamlit 而非 FastAPI
 
@@ -407,9 +465,35 @@ P 值和上游报告的 BH 校正后 P 值；上游缺失时标记为未报告�
 后台任务已满足当前九个入口。增加独立 API 服务会扩大部署和权限边界，但不会
 提高当前证据质量。
 
-### 不使用向量数据库
+### 本地 SQLite 检索，而非云向量数据库
 
-首个场景只处理少量题录、摘要和结构化 CSV，没有跨项目语义知识库需求。向量数据库不是完成当前闭环的必要条件。
+当前仍只处理少量题录、摘要和结构化 CSV，没有跨项目、多租户或高并发知识库
+需求。v0.7.0 因此使用标准库 SQLite 保存来源、切片和向量，在本机执行
+BM25、精确余弦和元数据过滤；来源、切片和向量字节分别绑定 SHA-256。用户
+材料不需要为了检索上传云向量数据库，也没有查询费或月租。
+
+工作台把该路径放在现有“文献证据”页末尾，不增加新的顶层页签。输入只包含
+当前任务中带摘要的 PubMed 记录，以及用户逐次确认有权用于本机索引的导入
+摘要；缺摘要记录被排除。每次最多 500 个来源、500 万字符，固定切片参数和
+Top 3，查询最多 2,000 字符。当前默认 `keyword_only`，只有正关键词分数才
+返回候选；零分时明确返回 `insufficient_evidence`。`hash_vector_only` 与
+`hybrid` 只作为实验模式。
+
+索引放在 `.workbench/local-rag/<run_id>.sqlite3`。每次页面重跑都核对当前授权
+来源集合与持久化来源及 manifest；来源变化后旧索引失效。来源、切片或向量
+遭篡改时读取或检索安全失败，用户可原子重建。检索结果只作为
+`untrusted_evidence` 候选表展示，不进入 Markdown／HTML 指令解释，也不直接
+改变证据准入或报告结论。审计只保存查询 SHA-256、命中切片 ID、Provider 身份、
+索引清单哈希和固定零费用字段，不复制原始查询或正文。
+
+首个向量 Provider 是确定性的中英文字符／词特征哈希，只用于不新增模型、API
+订阅或云向量库依赖的管线和 CI
+基线，不是训练得到的语义 Embedding。固定硬负例评测中关键词、特征哈希向量、
+混合的候选池内排序 Recall@3 分别为 `4/5`、`2/5`、`3/5`，因此当前不能声称
+向量带来收益。这条离线路径仍依赖 Python、Pydantic、本机 CPU、磁盘和 SQLite；
+当前产品不规划自带本地语义模型；如果用户自行替换 Provider，现有接口的
+`network_used` 字段只是契约检查，不是进程级断网沙箱。现阶段没有引入独立
+向量数据库，也不能把特征哈希或混合模式宣传为有效语义 RAG。
 
 ### 规则优先
 
@@ -422,6 +506,19 @@ P 值和上游报告的 BH 校正后 P 值；上游缺失时标记为未报告�
 - 间接或主题不匹配文献可展示和审计，但不能进入协同文献结论；直接文献证据为 0 时报告固定声明文献证据不足；
 - LetPub 失败时依次使用过期缓存和本地 CSV，不阻断 PubMed 主流程；
 - 导入记录按 DOI 优先、标题与年份兜底去重；
+- 本地检索只接受带摘要且在 `public` 或当次 `user_authorized` 范围内的来源；
+  文献集合变化会使旧索引过期，零关键词分数不返回候选；损坏 SQLite 的连接在
+  失败时关闭，避免 Windows 文件锁阻止原子重建；
+- Research Agent 每题最多 3 个计划项、4 次工具调用、2 次正常模型调用和 1 次
+  有界恢复；只有首次 drafting 明确截断时才可把输出上限从 2048 提高到 4096；
+- Agent 只接受 PubMed、本地 RAG、FICI、生长曲线和报告五类结构化工具调用，
+  不接受 Shell、任意本机路径、任意 URL 或可执行代码；仅有 contextual 或
+  out-of-scope 证据时在生成前拒答；
+- DeepSeek Provider 默认费用上限为 0；真实运行必须显式选题、确认付费并给出
+  正数人民币硬上限。Provider 不做隐式 HTTP 重试，Key 不进入审计或结果；
+- Reviewer 最多两次审查和一次定向修订，使用与单 Agent 相同的 Research 状态；
+  初次审查明确截断时只允许一次 2048→4096 有界恢复，未批准时只公开安全拒答或
+  人工复核状态；`TOOL-02` 真实全量已验证恢复成功后仍会拒绝不完整检索；
 - CSV 校验保留每一行的原始值和错误；
 - 网络 CSV/XLSX/DOCX 使用同一严格列契约并限制文件大小、表格结构、行列数和 OOXML 解压规模；
 - 数据库请求由表单提交触发，限制单次标识数量；外部响应按查询隔离且下载前
@@ -463,6 +560,13 @@ P 值和上游报告的 BH 校正后 P 值；上游缺失时标记为未报告�
 - 不抓取 GeneCards、MalaCards 或 SwissTargetPrediction 网页，不模拟 Swiss
   表单；受限导出只在本机处理，导入者负责许可和数据再利用范围；
 - RIS、EndNote、RefWorks 与实验 CSV 由用户主动上传并在本机处理；
+- 本地文献索引是未加密的普通 SQLite，只面向可信单用户本机；导入授权勾选
+  表示用户声明当前本机使用权，不代表系统已向原平台完成许可认证；
+- LLM Agent 报告中的题目和工具材料是公开合成夹具；内部来源在 Provider 可见
+  内容中使用中性别名，gold、评分词、`SYN-*` 标识和原始测试 URL 留在 scorer
+  一侧。真实 Key 只从环境变量读取；
+- 当前 Agent CLI 只支持 Fake 和 DeepSeek V4，并只选择冻结评测题；Provider
+  Protocol 的存在不代表已经支持 Codex、OpenAI、Claude 或本地模型即插即用；
 - 不自动抓取知网，不读取未授权全文，不支持扫描 PDF/OCR；
 - `.env`、API Key、用户数据和 `.workbench` 运行记录不进入仓库；
 - 不自动下载 Vina、Open Babel、Open-Source PyMOL、PLIP 或 OpenMM，也不执行
@@ -477,5 +581,7 @@ P 值和上游报告的 BH 校正后 P 值；上游缺失时标记为未报告�
 - 页面和报告持续显示非诊断声明；
 - 用户导入来源不伪造 PMID，未报告字段不补造；
 - 合成演示数据不能成为科研事实；
+- 27 道 Agent 题同样是合成工程夹具，工程 gold 仍待领域专家复核；历史真实
+  模型分数、当前 Fake 分数和定向回归不能外推为临床或科研正确率；
 - 当前恢复机制把不可猜测的完整运行 ID 作为本机访问凭证，仅适用于可信单用户环境；共享部署必须增加账号与对象级授权；
 - 报告必须经过人工复核，且不能替代全文、原始数据和验证性实验。

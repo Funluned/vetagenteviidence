@@ -4,9 +4,10 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "vetevidence-ai"
-version = "0.6.0"
+version = "0.7.0"
 description = "Traceable veterinary research evidence retrieval"
 readme = "README.md"
+license = { file = "LICENSE" }
 requires-python = ">=3.11"
 dependencies = [
     "defusedxml>=0.7,<1",

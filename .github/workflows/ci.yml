@@ -1,0 +1,94 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: ${{ matrix.os }} / Python ${{ matrix.python-version }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-latest
+          - windows-latest
+          - macos-latest
+        python-version:
+          - "3.11"
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+          cache-dependency-path: |
+            requirements.txt
+            pyproject.toml
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt
+
+      - name: Compile Python sources
+        run: python -m compileall -q app.py scripts src tests
+
+      - name: Run test suite
+        run: python -m pytest
+
+  docker:
+    name: Docker / Ubuntu
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Build image
+        run: docker build --tag vetevidence-ai:ci .
+
+      - name: Start container
+        run: |
+          docker run --detach \
+            --name vetevidence-ai-ci \
+            --publish 127.0.0.1:8501:8501 \
+            --health-interval=2s \
+            --health-timeout=5s \
+            --health-retries=20 \
+            --health-start-period=5s \
+            vetevidence-ai:ci
+
+      - name: Verify container health and homepage
+        run: |
+          for attempt in $(seq 1 45); do
+            status="$(docker inspect --format='{{.State.Health.Status}}' vetevidence-ai-ci)"
+            if [ "$status" = "healthy" ]; then
+              break
+            fi
+            sleep 2
+          done
+
+          test "$(docker inspect --format='{{.State.Health.Status}}' vetevidence-ai-ci)" = "healthy"
+          test "$(docker inspect --format='{{.Config.User}}' vetevidence-ai:ci)" = "appuser"
+          docker exec vetevidence-ai-ci test -w /app/.workbench
+          test "$(curl --fail --silent --show-error http://127.0.0.1:8501/_stcore/health)" = "ok"
+          curl --fail --silent --show-error http://127.0.0.1:8501/ --output /tmp/vetevidence-homepage.html
+          test -s /tmp/vetevidence-homepage.html
+
+      - name: Show container logs on failure
+        if: failure()
+        run: docker logs vetevidence-ai-ci || true
+
+      - name: Stop container
+        if: always()
+        run: docker rm --force vetevidence-ai-ci || true

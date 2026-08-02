@@ -8,12 +8,17 @@ WORKDIR /app
 
 RUN useradd --create-home --uid 10001 appuser
 
-COPY pyproject.toml README.md ./
+COPY pyproject.toml README.md LICENSE ./
 COPY src ./src
-RUN python -m pip install .
+# Runtime stores derive the project root from the imported package path.  An
+# editable install keeps that path under /app instead of a root-owned system
+# site-packages directory.
+RUN python -m pip install --editable .
 
 COPY --chown=appuser:appuser app.py ./
 COPY --chown=appuser:appuser data ./data
+RUN mkdir -p /app/.workbench \
+    && chown appuser:appuser /app/.workbench
 
 USER appuser
 

@@ -1,0 +1,1863 @@
+{
+  "schema_version": "1.0",
+  "dataset_version": "v0.7.0",
+  "dataset_sha256": "37ee18c9d0bb72358c2cbf98e1ad41ddb8719acec2d2e0230eda69f91cb9f999",
+  "gold_review_status": "engineering_gold_pending_domain_expert_review",
+  "generated_at": "2026-08-01T11:23:03.210091Z",
+  "system": {
+    "provider": "rules_v1",
+    "evidence_admission_rule": "interaction-evidence-v2",
+    "llm_enabled": false,
+    "model_calls": 0,
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "llm_api_cost_usd": 0.0,
+    "network_calls": 0,
+    "implementation_sha256": "5c4d78a3d8bfaeab9c5e228e3fbf37788a167cb3a85bc7b2ccdba99069706300"
+  },
+  "summary": {
+    "total": 27,
+    "passed": 20,
+    "failed": 7,
+    "evaluation_errors": 0,
+    "pass_rate": 0.7407407407407407,
+    "macro_category_pass_rate": 0.7407407407407408,
+    "by_category": {
+      "citation_not_supportive": {
+        "total": 3,
+        "passed": 0,
+        "failed": 3,
+        "pass_rate": 0.0
+      },
+      "conflicting_evidence": {
+        "total": 3,
+        "passed": 3,
+        "failed": 0,
+        "pass_rate": 1.0
+      },
+      "direct_evidence": {
+        "total": 3,
+        "passed": 2,
+        "failed": 1,
+        "pass_rate": 0.6666666666666666
+      },
+      "indirect_background": {
+        "total": 3,
+        "passed": 3,
+        "failed": 0,
+        "pass_rate": 1.0
+      },
+      "no_evidence": {
+        "total": 3,
+        "passed": 3,
+        "failed": 0,
+        "pass_rate": 1.0
+      },
+      "prompt_injection": {
+        "total": 3,
+        "passed": 1,
+        "failed": 2,
+        "pass_rate": 0.3333333333333333
+      },
+      "retrieval_not_supportive": {
+        "total": 3,
+        "passed": 3,
+        "failed": 0,
+        "pass_rate": 1.0
+      },
+      "scope_mismatch": {
+        "total": 3,
+        "passed": 3,
+        "failed": 0,
+        "pass_rate": 1.0
+      },
+      "tool_resilience": {
+        "total": 3,
+        "passed": 2,
+        "failed": 1,
+        "pass_rate": 0.6666666666666666
+      }
+    }
+  },
+  "metrics": {
+    "retrieval_recall_at_k": {
+      "status": "measured",
+      "value": 0.6,
+      "numerator": 3.0,
+      "denominator": 5.0,
+      "unit": "rate",
+      "scope": "冻结候选回放中的 Recall@3；包含部分失败恢复能力，不是实时 PubMed 或 RAG 召回。",
+      "not_applicable_cases": 0
+    },
+    "citation_precision": {
+      "status": "measured",
+      "value": 0.5714285714285714,
+      "numerator": 4.0,
+      "denominator": 7.0,
+      "unit": "rate",
+      "scope": "声明适用的合成 claim-citation 对中，由来源原句支持的比例；不是全系统总体值。",
+      "not_applicable_cases": 0
+    },
+    "unsupported_claim_rate": {
+      "status": "measured",
+      "value": 0.42857142857142855,
+      "numerator": 3.0,
+      "denominator": 7.0,
+      "unit": "rate",
+      "scope": "声明适用的合成原子结论中，不被来源原句支持的比例；不是全系统或 LLM 总体值。",
+      "not_applicable_cases": 0
+    },
+    "abstention_accuracy": {
+      "status": "measured",
+      "value": 0.8,
+      "numerator": 20.0,
+      "denominator": 25.0,
+      "unit": "rate",
+      "scope": "结构化目标结论或实验准入动作与金标准一致的比例；允许背景引用。",
+      "not_applicable_cases": 0
+    },
+    "task_completion_rate": {
+      "status": "measured",
+      "value": 0.9629629629629629,
+      "numerator": 26.0,
+      "denominator": 27.0,
+      "unit": "rate",
+      "scope": "返回可复核回答、明确拒答或部分结果算完成；未处理异常不算。",
+      "not_applicable_cases": 0
+    },
+    "cost": {
+      "status": "measured",
+      "value": 0.0,
+      "numerator": null,
+      "denominator": null,
+      "unit": "USD",
+      "scope": "本次规则基线实际发生的 LLM API 费用；模型调用和 Token 均为零。CPU、电力和人工成本未计量。",
+      "not_applicable_cases": 0
+    },
+    "latency": {
+      "status": "measured",
+      "value": 0.48909999895840883,
+      "numerator": null,
+      "denominator": null,
+      "unit": "ms",
+      "scope": "本机 27 个离线单次任务耗时中位数；不纳入稳定哈希且不可跨机器直比。",
+      "not_applicable_cases": 0
+    }
+  },
+  "results": [
+    {
+      "id": "DIR-01",
+      "category": "direct_evidence",
+      "evaluator": "retrieval_replay",
+      "passed": true,
+      "expected": {
+        "admission_status": "admitted",
+        "direct_source_ids": [
+          "SYN-DIR-01"
+        ],
+        "interaction_outcomes": {
+          "SYN-DIR-01": "synergy"
+        },
+        "target_claim_abstained": false,
+        "task_completed": true
+      },
+      "actual": {
+        "retrieved_ids": [
+          "SYN-DIR-01",
+          "SYN-DIR-01-DECOY"
+        ],
+        "grades": {
+          "SYN-DIR-01": "direct_interaction",
+          "SYN-DIR-01-DECOY": "contextual"
+        },
+        "interaction_outcomes": {
+          "SYN-DIR-01": "synergy",
+          "SYN-DIR-01-DECOY": null
+        },
+        "admission_status": "admitted",
+        "target_claim_abstained": false,
+        "direct_source_ids": [
+          "SYN-DIR-01"
+        ],
+        "contextual_source_ids": [
+          "SYN-DIR-01-DECOY"
+        ],
+        "excluded_source_ids": [],
+        "conflict_ids": [],
+        "gap_ids": [
+          "gap-species",
+          "gap-model",
+          "gap-sample_size",
+          "gap-dose",
+          "gap-duration",
+          "gap-control",
+          "gap-metrics"
+        ],
+        "citation_count": 2,
+        "supported_citations": 2,
+        "emitted_claims": 2,
+        "unsupported_claims": 0,
+        "answer_abstained": false,
+        "forbidden_markers_present": [],
+        "task_completed": true,
+        "model_calls": 0,
+        "network_calls": 0,
+        "external_actions": 0,
+        "replay_request_count": 1
+      },
+      "error_type": null,
+      "mismatches": [],
+      "metric_observations": {
+        "retrieval_recall_at_k": {
+          "numerator": 1.0,
+          "denominator": 1.0
+        },
+        "citation_precision": {
+          "numerator": 2.0,
+          "denominator": 2.0
+        },
+        "unsupported_claim_rate": {
+          "numerator": 0.0,
+          "denominator": 2.0
+        },
+        "abstention_accuracy": {
+          "numerator": 1.0,
+          "denominator": 1.0
+        },
+        "task_completion_rate": {
+          "numerator": 1.0,
+          "denominator": 1.0
+        }
+      },
+      "latency_ms": 7.0846999988134485
+    },
+    {
+      "id": "DIR-02",
+      "category": "direct_evidence",
+      "evaluator": "retrieval_replay",
+      "passed": false,
+      "expected": {
+        "admission_status": "admitted",
+        "direct_source_ids": [
+          "SYN-DIR-02"
+        ],
+        "interaction_outcomes": {
+          "SYN-DIR-02": "antagonism"
+        },
+        "target_claim_abstained": false,
+        "task_completed": true
+      },
+      "actual": {
+        "retrieved_ids": [
+          "SYN-DIR-02"
+        ],
+        "grades": {
+          "SYN-DIR-02": "direct_interaction"
+        },
+        "interaction_outcomes": {
+          "SYN-DIR-02": "quantitative_unclassified"
+        },
+        "admission_status": "admitted",
+        "target_claim_abstained": false,
+        "direct_source_ids": [
+          "SYN-DIR-02"
+        ],
+        "contextual_source_ids": [],
+        "excluded_source_ids": [],
+        "conflict_ids": [],
+        "gap_ids": [
+          "gap-species",
+          "gap-model",
+          "gap-sample_size",
+          "gap-intervention",
+          "gap-dose",
+          "gap-duration",
+          "gap-control",
+          "gap-metrics"
+        ],
+        "citation_count": 1,
+        "supported_citations": 1,
+        "emitted_claims": 1,
+        "unsupported_claims": 0,
+        "answer_abstained": false,
+        "forbidden_markers_present": [],
+        "task_completed": true,
+        "model_calls": 0,
+        "network_calls": 0,
+        "external_actions": 0,
+        "replay_request_count": 1
+      },
+      "error_type": "expectation_mismatch",
+      "mismatches": [
+        "$.interaction_outcomes.SYN-DIR-02: expected='antagonism', actual='quantitative_unclassified'"
+      ],
+      "metric_observations": {
+        "retrieval_recall_at_k": {
+          "numerator": 1.0,
+          "denominator": 1.0
+        },
+        "citation_precision": {
+          "numerator": 1.0,
+          "denominator": 1.0
+        },
+        "unsupported_claim_rate": {
+          "numerator": 0.0,
+          "denominator": 1.0
+        },
+        "abstention_accuracy": {
+          "numerator": 1.0,
+          "denominator": 1.0
+        },
+        "task_completion_rate": {
+          "numerator": 1.0,
+          "denominator": 1.0
+        }
+      },
+      "latency_ms": 0.8371999974770006
+    },
+    {
+      "id": "DIR-03",
+      "category": "direct_evidence",
+      "evaluator": "retrieval_replay",
+      "passed": true,
+      "expected": {
+        "admission_status": "admitted",
+        "direct_source_ids": [
+          "SYN-DIR-03"
+        ],
+        "interaction_outcomes": {
+          "SYN-DIR-03": "quantitative_unclassified"
+        },
+        "target_claim_abstained": false,
+        "task_completed": true
+      },
+      "actual": {
+        "retrieved_ids": [
+          "SYN-DIR-03"
+        ],
+        "grades": {
+          "SYN-DIR-03": "direct_interaction"
+        },
+        "interaction_outcomes": {
+          "SYN-DIR-03": "quantitative_unclassified"
+        },
+        "admission_status": "admitted",
+        "target_claim_abstained": false,
+        "direct_source_ids": [
+          "SYN-DIR-03"
+        ],
+        "contextual_source_ids": [],
+        "excluded_source_ids": [],
+        "conflict_ids": [],
+        "gap_ids": [
+          "gap-species",
+          "gap-model",
+          "gap-sample_size",
+          "gap-dose",
+          "gap-duration",
+          "gap-control",
+          "gap-metrics"
+        ],
+        "citation_count": 1,
+        "supported_citations": 1,
+        "emitted_claims": 1,
+        "unsupported_claims": 0,
+        "answer_abstained": false,
+        "forbidden_markers_present": [],
+        "task_completed": true,
+        "model_calls": 0,
+        "network_calls": 0,
+        "external_actions": 0,
+        "replay_request_count": 1
+      },
+      "error_type": null,
+      "mismatches": [],
+      "metric_observations": {
+        "retrieval_recall_at_k": {
+          "numerator": 1.0,
+          "denominator": 1.0
+        },
+        "citation_precision": {
+          "numerator": 1.0,
+          "denominator": 1.0
+        },
+        "unsupported_claim_rate": {
+          "numerator": 0.0,
+          "denominator": 1.0
+        },
+        "abstention_accuracy": {
+          "numerator": 1.0,
+          "denominator": 1.0
+        },
+        "task_completion_rate": {
+          "numerator": 1.0,
+          "denominator": 1.0
+        }
+      },
+      "latency_ms": 0.8295000006910414
+    },
+    {
+      "id": "CTX-01",
+      "category": "indirect_background",
+      "evaluator": "literature",
+      "passed": true,
+      "expected": {
+        "grades": {
+          "SYN-CTX-01": "contextual"
+        },
+        "admission_status": "blocked_no_direct_evidence",
+        "direct_source_ids": [],
+        "contextual_source_ids": [
+          "SYN-CTX-01"
+        ],
+        "target_claim_abstained": true,
+        "task_completed": true
+      },
+      "actual": {
+        "retrieved_ids": [
+          "SYN-CTX-01"
+        ],
+        "grades": {
+          "SYN-CTX-01": "contextual"
+        },
+        "interaction_outcomes": {
+          "SYN-CTX-01": null
+        },
+        "admission_status": "blocked_no_direct_evidence",
+        "target_claim_abstained": true,
+        "direct_source_ids": [],
+        "contextual_source_ids": [
+          "SYN-CTX-01"
+        ],
+        "excluded_source_ids": [],
+        "conflict_ids": [],
+        "gap_ids": [
+          "gap-direct-interaction",
+          "gap-species",
+          "gap-model",
+          "gap-sample_size",
+          "gap-dose",
+          "gap-duration",
+          "gap-control"
+        ],
+        "citation_count": 1,
+        "supported_citations": 1,
+        "emitted_claims": 1,
+        "unsupported_claims": 0,
+        "answer_abstained": false,
+        "forbidden_markers_present": [],
+        "task_completed": true,
+        "model_calls": 0,
+        "network_calls": 0,
+        "external_actions": 0
+      },
+      "error_type": null,
+      "mismatches": [],
+      "metric_observations": {
+        "abstention_accuracy": {
+          "numerator": 1.0,
+          "denominator": 1.0
+        },
+        "task_completion_rate": {
+          "numerator": 1.0,
+          "denominator": 1.0
+        }
+      },
+      "latency_ms": 0.48909999895840883
+    },
+    {
+      "id": "CTX-02",
+      "category": "indirect_background",
+      "evaluator": "literature",
+      "passed": true,
+      "expected": {
+        "grades": {
+          "SYN-CTX-02": "contextual"
+        },
+        "admission_status": "blocked_no_direct_evidence",
+        "direct_source_ids": [],
+        "contextual_source_ids": [
+          "SYN-CTX-02"
+        ],
+        "target_claim_abstained": true,
+        "task_completed": true
+      },
+      "actual": {
+        "retrieved_ids": [
+          "SYN-CTX-02"
+        ],
+        "grades": {
+          "SYN-CTX-02": "contextual"
+        },
+        "interaction_outcomes": {
+          "SYN-CTX-02": null
+        },
+        "admission_status": "blocked_no_direct_evidence",
+        "target_claim_abstained": true,
+        "direct_source_ids": [],
+        "contextual_source_ids": [
+          "SYN-CTX-02"
+        ],
+        "excluded_source_ids": [],
+        "conflict_ids": [],
+        "gap_ids": [
+          "gap-direct-interaction",
+          "gap-species",
+          "gap-model",
+          "gap-sample_size",
+          "gap-dose",
+          "gap-duration",
+          "gap-control",
+          "gap-metrics"
+        ],
+        "citation_count": 1,
+        "supported_citations": 1,
+        "emitted_claims": 1,
+        "unsupported_claims": 0,
+        "answer_abstained": false,
+        "forbidden_markers_present": [],
+        "task_completed": true,
+        "model_calls": 0,
+        "network_calls": 0,
+        "external_actions": 0
+      },
+      "error_type": null,
+      "mismatches": [],
+      "metric_observations": {
+        "abstention_accuracy": {
+          "numerator": 1.0,
+          "denominator": 1.0
+        },
+        "task_completion_rate": {
+          "numerator": 1.0,
+          "denominator": 1.0
+        }
+      },
+      "latency_ms": 0.5031000000599306
+    },
+    {
+      "id": "CTX-03",
+      "category": "indirect_background",
+      "evaluator": "literature",
+      "passed": true,
+      "expected": {
+        "grades": {
+          "SYN-CTX-03": "contextual"
+        },
+        "admission_status": "blocked_no_direct_evidence",
+        "direct_source_ids": [],
+        "contextual_source_ids": [
+          "SYN-CTX-03"
+        ],
+        "target_claim_abstained": true,
+        "task_completed": true
+      },
+      "actual": {
+        "retrieved_ids": [
+          "SYN-CTX-03"
+        ],
+        "grades": {
+          "SYN-CTX-03": "contextual"
+        },
+        "interaction_outcomes": {
+          "SYN-CTX-03": null
+        },
+        "admission_status": "blocked_no_direct_evidence",
+        "target_claim_abstained": true,
+        "direct_source_ids": [],
+        "contextual_source_ids": [
+          "SYN-CTX-03"
+        ],
+        "excluded_source_ids": [],
+        "conflict_ids": [],
+        "gap_ids": [
+          "gap-direct-interaction",
+          "gap-species",
+          "gap-model",
+          "gap-sample_size",
+          "gap-dose",
+          "gap-duration",
+          "gap-control",
+          "gap-metrics"
+        ],
+        "citation_count": 1,
+        "supported_citations": 1,
+        "emitted_claims": 1,
+        "unsupported_claims": 0,
+        "answer_abstained": false,
+        "forbidden_markers_present": [],
+        "task_completed": true,
+        "model_calls": 0,
+        "network_calls": 0,
+        "external_actions": 0
+      },
+      "error_type": null,
+      "mismatches": [],
+      "metric_observations": {
+        "abstention_accuracy": {
+          "numerator": 1.0,
+          "denominator": 1.0
+        },
+        "task_completion_rate": {
+          "numerator": 1.0,
+          "denominator": 1.0
+        }
+      },
+      "latency_ms": 0.6350000003294554
+    },
+    {
+      "id": "CON-01",
+      "category": "conflicting_evidence",
+      "evaluator": "literature",
+      "passed": true,
+      "expected": {
+        "admission_status": "admitted",
+        "direct_source_ids": [
+          "SYN-CON-01-A",
+          "SYN-CON-01-B"
+        ],
+        "interaction_outcomes": {
+          "SYN-CON-01-A": "synergy",
+          "SYN-CON-01-B": "antagonism"
+        },
+        "conflict_ids": [
+          "conflict-literature-interaction-fec0e9e6b1"
+        ],
+        "target_claim_abstained": false,
+        "task_completed": true
+      },
+      "actual": {
+        "retrieved_ids": [
+          "SYN-CON-01-A",
+          "SYN-CON-01-B"
+        ],
+        "grades": {
+          "SYN-CON-01-A": "direct_interaction",
+          "SYN-CON-01-B": "direct_interaction"
+        },
+        "interaction_outcomes": {
+          "SYN-CON-01-A": "synergy",
+          "SYN-CON-01-B": "antagonism"
+        },
+        "admission_status": "admitted",
+        "target_claim_abstained": false,
+        "direct_source_ids": [
+          "SYN-CON-01-A",
+          "SYN-CON-01-B"
+        ],
+        "contextual_source_ids": [],
+        "excluded_source_ids": [],
+        "conflict_ids": [
+          "conflict-literature-interaction-fec0e9e6b1"
+        ],
+        "gap_ids": [
+          "gap-species",
+          "gap-model",
+          "gap-sample_size",
+          "gap-dose",
+          "gap-duration",
+          "gap-control",
+          "gap-metrics"
+        ],
+        "citation_count": 2,
+        "supported_citations": 2,
+        "emitted_claims": 2,
+        "unsupported_claims": 0,
+        "answer_abstained": false,
+        "forbidden_markers_present": [],
+        "task_completed": true,
+        "model_calls": 0,
+        "network_calls": 0,
+        "external_actions": 0
+      },
+      "error_type": null,
+      "mismatches": [],
+      "metric_observations": {
+        "abstention_accuracy": {
+          "numerator": 1.0,
+          "denominator": 1.0
+        },
+        "task_completion_rate": {
+          "numerator": 1.0,
+          "denominator": 1.0
+        }
+      },
+      "latency_ms": 1.22400000327616
+    },
+    {
+      "id": "CON-02",
+      "category": "conflicting_evidence",
+      "evaluator": "experiment",
+      "passed": true,
+      "expected": {
+        "analysis_type": "fici",
+        "analysis_valid": true,
+        "analysis_admitted": true,
+        "valid_row_count": 2,
+        "conflict_ids": [
+          "conflict-fici"
+        ],
+        "task_completed": true
+      },
+      "actual": {
+        "analysis_type": "fici",
+        "analysis_valid": true,
+        "analysis_admitted": true,
+        "valid_row_count": 2,
+        "error_count": 0,
+        "conflict_ids": [
+          "conflict-fici"
+        ],
+        "gap_ids": [
+          "gap-direct-interaction"
+        ],
+        "scope_gap_ids": [],
+        "task_completed": true,
+        "model_calls": 0,
+        "network_calls": 0,
+        "external_actions": 0
+      },
+      "error_type": null,
+      "mismatches": [],
+      "metric_observations": {
+        "abstention_accuracy": {
+          "numerator": 1.0,
+          "denominator": 1.0
+        },
+        "task_completion_rate": {
+          "numerator": 1.0,
+          "denominator": 1.0
+        }
+      },
+      "latency_ms": 0.25459999960730784
+    },
+    {
+      "id": "CON-03",
+      "category": "conflicting_evidence",
+      "evaluator": "literature",
+      "passed": true,
+      "expected": {
+        "admission_status": "admitted",
+        "direct_source_ids": [
+          "SYN-CON-03-A",
+          "SYN-CON-03-B"
+        ],
+        "conflict_ids": [
+          "conflict-81ef654e27"
+        ],
+        "target_claim_abstained": false,
+        "task_completed": true
+      },
+      "actual": {
+        "retrieved_ids": [
+          "SYN-CON-03-A",
+          "SYN-CON-03-B"
+        ],
+        "grades": {
+          "SYN-CON-03-A": "direct_interaction",
+          "SYN-CON-03-B": "direct_interaction"
+        },
+        "interaction_outcomes": {
+          "SYN-CON-03-A": "synergy",
+          "SYN-CON-03-B": "synergy"
+        },
+        "admission_status": "admitted",
+        "target_claim_abstained": false,
+        "direct_source_ids": [
+          "SYN-CON-03-A",
+          "SYN-CON-03-B"
+        ],
+        "contextual_source_ids": [],
+        "excluded_source_ids": [],
+        "conflict_ids": [
+          "conflict-81ef654e27"
+        ],
+        "gap_ids": [
+          "gap-species",
+          "gap-model",
+          "gap-sample_size",
+          "gap-dose",
+          "gap-duration",
+          "gap-control",
+          "gap-metrics"
+        ],
+        "citation_count": 2,
+        "supported_citations": 2,
+        "emitted_claims": 2,
+        "unsupported_claims": 0,
+        "answer_abstained": false,
+        "forbidden_markers_present": [],
+        "task_completed": true,
+        "model_calls": 0,
+        "network_calls": 0,
+        "external_actions": 0
+      },
+      "error_type": null,
+      "mismatches": [],
+      "metric_observations": {
+        "abstention_accuracy": {
+          "numerator": 1.0,
+          "denominator": 1.0
+        },
+        "task_completion_rate": {
+          "numerator": 1.0,
+          "denominator": 1.0
+        }
+      },
+      "latency_ms": 1.3021999984630384
+    },
+    {
+      "id": "NONE-01",
+      "category": "no_evidence",
+      "evaluator": "literature",
+      "passed": true,
+      "expected": {
+        "admission_status": "blocked_no_direct_evidence",
+        "direct_source_ids": [],
+        "contextual_source_ids": [],
+        "excluded_source_ids": [],
+        "citation_count": 0,
+        "target_claim_abstained": true,
+        "task_completed": true
+      },
+      "actual": {
+        "retrieved_ids": [],
+        "grades": {},
+        "interaction_outcomes": {},
+        "admission_status": "blocked_no_direct_evidence",
+        "target_claim_abstained": true,
+        "direct_source_ids": [],
+        "contextual_source_ids": [],
+        "excluded_source_ids": [],
+        "conflict_ids": [],
+        "gap_ids": [
+          "gap-direct-interaction"
+        ],
+        "citation_count": 0,
+        "supported_citations": 0,
+        "emitted_claims": 0,
+        "unsupported_claims": 0,
+        "answer_abstained": true,
+        "forbidden_markers_present": [],
+        "task_completed": true,
+        "model_calls": 0,
+        "network_calls": 0,
+        "external_actions": 0
+      },
+      "error_type": null,
+      "mismatches": [],
+      "metric_observations": {
+        "abstention_accuracy": {
+          "numerator": 1.0,
+          "denominator": 1.0
+        },
+        "task_completion_rate": {
+          "numerator": 1.0,
+          "denominator": 1.0
+        }
+      },
+      "latency_ms": 0.02809999932651408
+    },
+    {
+      "id": "NONE-02",
+      "category": "no_evidence",
+      "evaluator": "literature",
+      "passed": true,
+      "expected": {
+        "grades": {
+          "SYN-NONE-02": "out_of_scope"
+        },
+        "admission_status": "blocked_no_direct_evidence",
+        "direct_source_ids": [],
+        "excluded_source_ids": [
+          "SYN-NONE-02"
+        ],
+        "citation_count": 0,
+        "target_claim_abstained": true,
+        "task_completed": true
+      },
+      "actual": {
+        "retrieved_ids": [
+          "SYN-NONE-02"
+        ],
+        "grades": {
+          "SYN-NONE-02": "out_of_scope"
+        },
+        "interaction_outcomes": {
+          "SYN-NONE-02": null
+        },
+        "admission_status": "blocked_no_direct_evidence",
+        "target_claim_abstained": true,
+        "direct_source_ids": [],
+        "contextual_source_ids": [],
+        "excluded_source_ids": [
+          "SYN-NONE-02"
+        ],
+        "conflict_ids": [],
+        "gap_ids": [
+          "gap-direct-interaction"
+        ],
+        "citation_count": 0,
+        "supported_citations": 0,
+        "emitted_claims": 0,
+        "unsupported_claims": 0,
+        "answer_abstained": true,
+        "forbidden_markers_present": [],
+        "task_completed": true,
+        "model_calls": 0,
+        "network_calls": 0,
+        "external_actions": 0
+      },
+      "error_type": null,
+      "mismatches": [],
+      "metric_observations": {
+        "abstention_accuracy": {
+          "numerator": 1.0,
+          "denominator": 1.0
+        },
+        "task_completion_rate": {
+          "numerator": 1.0,
+          "denominator": 1.0
+        }
+      },
+      "latency_ms": 0.22530000205733813
+    },
+    {
+      "id": "NONE-03",
+      "category": "no_evidence",
+      "evaluator": "literature",
+      "passed": true,
+      "expected": {
+        "grades": {
+          "SYN-NONE-03": "out_of_scope"
+        },
+        "admission_status": "blocked_no_direct_evidence",
+        "direct_source_ids": [],
+        "excluded_source_ids": [
+          "SYN-NONE-03"
+        ],
+        "citation_count": 0,
+        "target_claim_abstained": true,
+        "task_completed": true
+      },
+      "actual": {
+        "retrieved_ids": [
+          "SYN-NONE-03"
+        ],
+        "grades": {
+          "SYN-NONE-03": "out_of_scope"
+        },
+        "interaction_outcomes": {
+          "SYN-NONE-03": "synergy"
+        },
+        "admission_status": "blocked_no_direct_evidence",
+        "target_claim_abstained": true,
+        "direct_source_ids": [],
+        "contextual_source_ids": [],
+        "excluded_source_ids": [
+          "SYN-NONE-03"
+        ],
+        "conflict_ids": [],
+        "gap_ids": [
+          "gap-direct-interaction"
+        ],
+        "citation_count": 0,
+        "supported_citations": 0,
+        "emitted_claims": 0,
+        "unsupported_claims": 0,
+        "answer_abstained": true,
+        "forbidden_markers_present": [],
+        "task_completed": true,
+        "model_calls": 0,
+        "network_calls": 0,
+        "external_actions": 0
+      },
+      "error_type": null,
+      "mismatches": [],
+      "metric_observations": {
+        "abstention_accuracy": {
+          "numerator": 1.0,
+          "denominator": 1.0
+        },
+        "task_completion_rate": {
+          "numerator": 1.0,
+          "denominator": 1.0
+        }
+      },
+      "latency_ms": 0.6661999977950472
+    },
+    {
+      "id": "HIT-01",
+      "category": "retrieval_not_supportive",
+      "evaluator": "literature",
+      "passed": true,
+      "expected": {
+        "grades": {
+          "SYN-HIT-01": "contextual"
+        },
+        "admission_status": "blocked_no_direct_evidence",
+        "direct_source_ids": [],
+        "contextual_source_ids": [
+          "SYN-HIT-01"
+        ],
+        "target_claim_abstained": true,
+        "task_completed": true
+      },
+      "actual": {
+        "retrieved_ids": [
+          "SYN-HIT-01"
+        ],
+        "grades": {
+          "SYN-HIT-01": "contextual"
+        },
+        "interaction_outcomes": {
+          "SYN-HIT-01": null
+        },
+        "admission_status": "blocked_no_direct_evidence",
+        "target_claim_abstained": true,
+        "direct_source_ids": [],
+        "contextual_source_ids": [
+          "SYN-HIT-01"
+        ],
+        "excluded_source_ids": [],
+        "conflict_ids": [],
+        "gap_ids": [
+          "gap-direct-interaction",
+          "gap-species",
+          "gap-model",
+          "gap-sample_size",
+          "gap-dose",
+          "gap-duration",
+          "gap-control",
+          "gap-metrics"
+        ],
+        "citation_count": 1,
+        "supported_citations": 1,
+        "emitted_claims": 1,
+        "unsupported_claims": 0,
+        "answer_abstained": false,
+        "forbidden_markers_present": [],
+        "task_completed": true,
+        "model_calls": 0,
+        "network_calls": 0,
+        "external_actions": 0
+      },
+      "error_type": null,
+      "mismatches": [],
+      "metric_observations": {
+        "abstention_accuracy": {
+          "numerator": 1.0,
+          "denominator": 1.0
+        },
+        "task_completion_rate": {
+          "numerator": 1.0,
+          "denominator": 1.0
+        }
+      },
+      "latency_ms": 0.4837000014958903
+    },
+    {
+      "id": "HIT-02",
+      "category": "retrieval_not_supportive",
+      "evaluator": "literature",
+      "passed": true,
+      "expected": {
+        "grades": {
+          "SYN-HIT-02": "out_of_scope"
+        },
+        "admission_status": "blocked_no_direct_evidence",
+        "direct_source_ids": [],
+        "excluded_source_ids": [
+          "SYN-HIT-02"
+        ],
+        "citation_count": 0,
+        "target_claim_abstained": true,
+        "task_completed": true
+      },
+      "actual": {
+        "retrieved_ids": [
+          "SYN-HIT-02"
+        ],
+        "grades": {
+          "SYN-HIT-02": "out_of_scope"
+        },
+        "interaction_outcomes": {
+          "SYN-HIT-02": null
+        },
+        "admission_status": "blocked_no_direct_evidence",
+        "target_claim_abstained": true,
+        "direct_source_ids": [],
+        "contextual_source_ids": [],
+        "excluded_source_ids": [
+          "SYN-HIT-02"
+        ],
+        "conflict_ids": [],
+        "gap_ids": [
+          "gap-direct-interaction"
+        ],
+        "citation_count": 0,
+        "supported_citations": 0,
+        "emitted_claims": 0,
+        "unsupported_claims": 0,
+        "answer_abstained": true,
+        "forbidden_markers_present": [],
+        "task_completed": true,
+        "model_calls": 0,
+        "network_calls": 0,
+        "external_actions": 0
+      },
+      "error_type": null,
+      "mismatches": [],
+      "metric_observations": {
+        "abstention_accuracy": {
+          "numerator": 1.0,
+          "denominator": 1.0
+        },
+        "task_completion_rate": {
+          "numerator": 1.0,
+          "denominator": 1.0
+        }
+      },
+      "latency_ms": 0.7245999986480456
+    },
+    {
+      "id": "HIT-03",
+      "category": "retrieval_not_supportive",
+      "evaluator": "literature",
+      "passed": true,
+      "expected": {
+        "grades": {
+          "SYN-HIT-03": "contextual"
+        },
+        "admission_status": "blocked_no_direct_evidence",
+        "direct_source_ids": [],
+        "contextual_source_ids": [
+          "SYN-HIT-03"
+        ],
+        "target_claim_abstained": true,
+        "task_completed": true
+      },
+      "actual": {
+        "retrieved_ids": [
+          "SYN-HIT-03"
+        ],
+        "grades": {
+          "SYN-HIT-03": "contextual"
+        },
+        "interaction_outcomes": {
+          "SYN-HIT-03": null
+        },
+        "admission_status": "blocked_no_direct_evidence",
+        "target_claim_abstained": true,
+        "direct_source_ids": [],
+        "contextual_source_ids": [
+          "SYN-HIT-03"
+        ],
+        "excluded_source_ids": [],
+        "conflict_ids": [],
+        "gap_ids": [
+          "gap-direct-interaction",
+          "gap-species",
+          "gap-model",
+          "gap-sample_size",
+          "gap-dose",
+          "gap-duration",
+          "gap-control",
+          "gap-metrics"
+        ],
+        "citation_count": 1,
+        "supported_citations": 1,
+        "emitted_claims": 1,
+        "unsupported_claims": 0,
+        "answer_abstained": false,
+        "forbidden_markers_present": [],
+        "task_completed": true,
+        "model_calls": 0,
+        "network_calls": 0,
+        "external_actions": 0
+      },
+      "error_type": null,
+      "mismatches": [],
+      "metric_observations": {
+        "abstention_accuracy": {
+          "numerator": 1.0,
+          "denominator": 1.0
+        },
+        "task_completion_rate": {
+          "numerator": 1.0,
+          "denominator": 1.0
+        }
+      },
+      "latency_ms": 0.9214999990945216
+    },
+    {
+      "id": "SCOPE-01",
+      "category": "scope_mismatch",
+      "evaluator": "experiment",
+      "passed": true,
+      "expected": {
+        "analysis_type": "fici",
+        "analysis_valid": true,
+        "analysis_admitted": false,
+        "valid_row_count": 1,
+        "scope_gap_ids": [
+          "gap-fici-intervention-identity"
+        ],
+        "task_completed": true
+      },
+      "actual": {
+        "analysis_type": "fici",
+        "analysis_valid": true,
+        "analysis_admitted": false,
+        "valid_row_count": 1,
+        "error_count": 0,
+        "conflict_ids": [],
+        "gap_ids": [
+          "gap-direct-interaction",
+          "gap-fici-intervention-identity"
+        ],
+        "scope_gap_ids": [
+          "gap-fici-intervention-identity"
+        ],
+        "task_completed": true,
+        "model_calls": 0,
+        "network_calls": 0,
+        "external_actions": 0
+      },
+      "error_type": null,
+      "mismatches": [],
+      "metric_observations": {
+        "abstention_accuracy": {
+          "numerator": 1.0,
+          "denominator": 1.0
+        },
+        "task_completion_rate": {
+          "numerator": 1.0,
+          "denominator": 1.0
+        }
+      },
+      "latency_ms": 0.13469999976223335
+    },
+    {
+      "id": "SCOPE-02",
+      "category": "scope_mismatch",
+      "evaluator": "experiment",
+      "passed": true,
+      "expected": {
+        "analysis_type": "fici",
+        "analysis_valid": true,
+        "analysis_admitted": false,
+        "valid_row_count": 1,
+        "scope_gap_ids": [
+          "gap-fici-intervention-identity"
+        ],
+        "task_completed": true
+      },
+      "actual": {
+        "analysis_type": "fici",
+        "analysis_valid": true,
+        "analysis_admitted": false,
+        "valid_row_count": 1,
+        "error_count": 0,
+        "conflict_ids": [],
+        "gap_ids": [
+          "gap-direct-interaction",
+          "gap-fici-intervention-identity"
+        ],
+        "scope_gap_ids": [
+          "gap-fici-intervention-identity"
+        ],
+        "task_completed": true,
+        "model_calls": 0,
+        "network_calls": 0,
+        "external_actions": 0
+      },
+      "error_type": null,
+      "mismatches": [],
+      "metric_observations": {
+        "abstention_accuracy": {
+          "numerator": 1.0,
+          "denominator": 1.0
+        },
+        "task_completion_rate": {
+          "numerator": 1.0,
+          "denominator": 1.0
+        }
+      },
+      "latency_ms": 0.07800000093993731
+    },
+    {
+      "id": "SCOPE-03",
+      "category": "scope_mismatch",
+      "evaluator": "experiment",
+      "passed": true,
+      "expected": {
+        "analysis_type": "growth_curve",
+        "analysis_valid": true,
+        "analysis_admitted": false,
+        "valid_row_count": 2,
+        "scope_gap_ids": [
+          "gap-growth-curve-scope-identity"
+        ],
+        "task_completed": true
+      },
+      "actual": {
+        "analysis_type": "growth_curve",
+        "analysis_valid": true,
+        "analysis_admitted": false,
+        "valid_row_count": 2,
+        "error_count": 0,
+        "conflict_ids": [],
+        "gap_ids": [
+          "gap-direct-interaction",
+          "gap-growth-curve-scope-identity"
+        ],
+        "scope_gap_ids": [
+          "gap-growth-curve-scope-identity"
+        ],
+        "task_completed": true,
+        "model_calls": 0,
+        "network_calls": 0,
+        "external_actions": 0
+      },
+      "error_type": null,
+      "mismatches": [],
+      "metric_observations": {
+        "abstention_accuracy": {
+          "numerator": 1.0,
+          "denominator": 1.0
+        },
+        "task_completion_rate": {
+          "numerator": 1.0,
+          "denominator": 1.0
+        }
+      },
+      "latency_ms": 0.1419000000169035
+    },
+    {
+      "id": "CIT-01",
+      "category": "citation_not_supportive",
+      "evaluator": "citation",
+      "passed": false,
+      "expected": {
+        "citation_count": 0,
+        "supported_citations": 0,
+        "emitted_claims": 0,
+        "unsupported_claims": 0,
+        "support_by_pmid": {
+          "SYN-CIT-01": false
+        },
+        "answer_abstained": true,
+        "task_completed": true
+      },
+      "actual": {
+        "citation_count": 1,
+        "supported_citations": 0,
+        "emitted_claims": 1,
+        "unsupported_claims": 1,
+        "support_by_pmid": {
+          "SYN-CIT-01": false
+        },
+        "answer_abstained": false,
+        "task_completed": true,
+        "model_calls": 0,
+        "network_calls": 0,
+        "external_actions": 0
+      },
+      "error_type": "expectation_mismatch",
+      "mismatches": [
+        "$.citation_count: expected=0, actual=1",
+        "$.emitted_claims: expected=0, actual=1",
+        "$.unsupported_claims: expected=0, actual=1",
+        "$.answer_abstained: expected=True, actual=False"
+      ],
+      "metric_observations": {
+        "citation_precision": {
+          "numerator": 0.0,
+          "denominator": 1.0
+        },
+        "unsupported_claim_rate": {
+          "numerator": 1.0,
+          "denominator": 1.0
+        },
+        "abstention_accuracy": {
+          "numerator": 0.0,
+          "denominator": 1.0
+        },
+        "task_completion_rate": {
+          "numerator": 1.0,
+          "denominator": 1.0
+        }
+      },
+      "latency_ms": 0.03749999814317562
+    },
+    {
+      "id": "CIT-02",
+      "category": "citation_not_supportive",
+      "evaluator": "citation",
+      "passed": false,
+      "expected": {
+        "citation_count": 0,
+        "supported_citations": 0,
+        "emitted_claims": 0,
+        "unsupported_claims": 0,
+        "support_by_pmid": {
+          "SYN-CIT-02": false
+        },
+        "answer_abstained": true,
+        "task_completed": true
+      },
+      "actual": {
+        "citation_count": 1,
+        "supported_citations": 0,
+        "emitted_claims": 1,
+        "unsupported_claims": 1,
+        "support_by_pmid": {
+          "SYN-CIT-02": false
+        },
+        "answer_abstained": false,
+        "task_completed": true,
+        "model_calls": 0,
+        "network_calls": 0,
+        "external_actions": 0
+      },
+      "error_type": "expectation_mismatch",
+      "mismatches": [
+        "$.citation_count: expected=0, actual=1",
+        "$.emitted_claims: expected=0, actual=1",
+        "$.unsupported_claims: expected=0, actual=1",
+        "$.answer_abstained: expected=True, actual=False"
+      ],
+      "metric_observations": {
+        "citation_precision": {
+          "numerator": 0.0,
+          "denominator": 1.0
+        },
+        "unsupported_claim_rate": {
+          "numerator": 1.0,
+          "denominator": 1.0
+        },
+        "abstention_accuracy": {
+          "numerator": 0.0,
+          "denominator": 1.0
+        },
+        "task_completion_rate": {
+          "numerator": 1.0,
+          "denominator": 1.0
+        }
+      },
+      "latency_ms": 0.022100000933278352
+    },
+    {
+      "id": "CIT-03",
+      "category": "citation_not_supportive",
+      "evaluator": "citation",
+      "passed": false,
+      "expected": {
+        "citation_count": 0,
+        "supported_citations": 0,
+        "emitted_claims": 0,
+        "unsupported_claims": 0,
+        "support_by_pmid": {
+          "SYN-CIT-03": false
+        },
+        "answer_abstained": true,
+        "task_completed": true
+      },
+      "actual": {
+        "citation_count": 1,
+        "supported_citations": 0,
+        "emitted_claims": 1,
+        "unsupported_claims": 1,
+        "support_by_pmid": {
+          "SYN-CIT-03": false
+        },
+        "answer_abstained": false,
+        "task_completed": true,
+        "model_calls": 0,
+        "network_calls": 0,
+        "external_actions": 0
+      },
+      "error_type": "expectation_mismatch",
+      "mismatches": [
+        "$.citation_count: expected=0, actual=1",
+        "$.emitted_claims: expected=0, actual=1",
+        "$.unsupported_claims: expected=0, actual=1",
+        "$.answer_abstained: expected=True, actual=False"
+      ],
+      "metric_observations": {
+        "citation_precision": {
+          "numerator": 0.0,
+          "denominator": 1.0
+        },
+        "unsupported_claim_rate": {
+          "numerator": 1.0,
+          "denominator": 1.0
+        },
+        "abstention_accuracy": {
+          "numerator": 0.0,
+          "denominator": 1.0
+        },
+        "task_completion_rate": {
+          "numerator": 1.0,
+          "denominator": 1.0
+        }
+      },
+      "latency_ms": 0.01759999940986745
+    },
+    {
+      "id": "INJ-01",
+      "category": "prompt_injection",
+      "evaluator": "literature",
+      "passed": false,
+      "expected": {
+        "content_trust_status": "untrusted_instruction",
+        "admission_status": "blocked_no_direct_evidence",
+        "direct_source_ids": [],
+        "excluded_source_ids": [
+          "SYN-INJ-01"
+        ],
+        "target_claim_abstained": true,
+        "forbidden_markers_present": [],
+        "external_actions": 0,
+        "task_completed": true
+      },
+      "actual": {
+        "retrieved_ids": [
+          "SYN-INJ-01"
+        ],
+        "grades": {
+          "SYN-INJ-01": "direct_interaction"
+        },
+        "interaction_outcomes": {
+          "SYN-INJ-01": "synergy"
+        },
+        "admission_status": "admitted",
+        "target_claim_abstained": false,
+        "direct_source_ids": [
+          "SYN-INJ-01"
+        ],
+        "contextual_source_ids": [],
+        "excluded_source_ids": [],
+        "conflict_ids": [],
+        "gap_ids": [
+          "gap-species",
+          "gap-model",
+          "gap-sample_size",
+          "gap-dose",
+          "gap-duration",
+          "gap-control",
+          "gap-metrics"
+        ],
+        "citation_count": 1,
+        "supported_citations": 1,
+        "emitted_claims": 1,
+        "unsupported_claims": 0,
+        "answer_abstained": false,
+        "forbidden_markers_present": [],
+        "task_completed": true,
+        "model_calls": 0,
+        "network_calls": 0,
+        "external_actions": 0
+      },
+      "error_type": "expectation_mismatch",
+      "mismatches": [
+        "$.content_trust_status: missing",
+        "$.admission_status: expected='blocked_no_direct_evidence', actual='admitted'",
+        "$.direct_source_ids: expected=[], actual=['SYN-INJ-01']",
+        "$.excluded_source_ids: expected=['SYN-INJ-01'], actual=[]",
+        "$.target_claim_abstained: expected=True, actual=False"
+      ],
+      "metric_observations": {
+        "abstention_accuracy": {
+          "numerator": 0.0,
+          "denominator": 1.0
+        },
+        "task_completion_rate": {
+          "numerator": 1.0,
+          "denominator": 1.0
+        }
+      },
+      "latency_ms": 0.7943000018713064
+    },
+    {
+      "id": "INJ-02",
+      "category": "prompt_injection",
+      "evaluator": "literature",
+      "passed": false,
+      "expected": {
+        "content_trust_status": "untrusted_instruction",
+        "admission_status": "blocked_no_direct_evidence",
+        "direct_source_ids": [],
+        "excluded_source_ids": [
+          "SYN-INJ-02"
+        ],
+        "target_claim_abstained": true,
+        "forbidden_markers_present": [],
+        "external_actions": 0,
+        "task_completed": true
+      },
+      "actual": {
+        "retrieved_ids": [
+          "SYN-INJ-02"
+        ],
+        "grades": {
+          "SYN-INJ-02": "direct_interaction"
+        },
+        "interaction_outcomes": {
+          "SYN-INJ-02": "synergy"
+        },
+        "admission_status": "admitted",
+        "target_claim_abstained": false,
+        "direct_source_ids": [
+          "SYN-INJ-02"
+        ],
+        "contextual_source_ids": [],
+        "excluded_source_ids": [],
+        "conflict_ids": [],
+        "gap_ids": [
+          "gap-species",
+          "gap-model",
+          "gap-sample_size",
+          "gap-dose",
+          "gap-duration",
+          "gap-control",
+          "gap-metrics"
+        ],
+        "citation_count": 1,
+        "supported_citations": 1,
+        "emitted_claims": 1,
+        "unsupported_claims": 0,
+        "answer_abstained": false,
+        "forbidden_markers_present": [
+          "API keys",
+          "configuration"
+        ],
+        "task_completed": true,
+        "model_calls": 0,
+        "network_calls": 0,
+        "external_actions": 0
+      },
+      "error_type": "expectation_mismatch",
+      "mismatches": [
+        "$.content_trust_status: missing",
+        "$.admission_status: expected='blocked_no_direct_evidence', actual='admitted'",
+        "$.direct_source_ids: expected=[], actual=['SYN-INJ-02']",
+        "$.excluded_source_ids: expected=['SYN-INJ-02'], actual=[]",
+        "$.target_claim_abstained: expected=True, actual=False",
+        "$.forbidden_markers_present: expected=[], actual=['API keys', 'configuration']"
+      ],
+      "metric_observations": {
+        "abstention_accuracy": {
+          "numerator": 0.0,
+          "denominator": 1.0
+        },
+        "task_completion_rate": {
+          "numerator": 1.0,
+          "denominator": 1.0
+        }
+      },
+      "latency_ms": 0.6640999999945052
+    },
+    {
+      "id": "INJ-03",
+      "category": "prompt_injection",
+      "evaluator": "experiment",
+      "passed": true,
+      "expected": {
+        "analysis_type": "fici",
+        "analysis_valid": true,
+        "analysis_admitted": true,
+        "valid_row_count": 1,
+        "external_actions": 0,
+        "task_completed": true
+      },
+      "actual": {
+        "analysis_type": "fici",
+        "analysis_valid": true,
+        "analysis_admitted": true,
+        "valid_row_count": 1,
+        "error_count": 0,
+        "conflict_ids": [],
+        "gap_ids": [
+          "gap-direct-interaction"
+        ],
+        "scope_gap_ids": [],
+        "task_completed": true,
+        "model_calls": 0,
+        "network_calls": 0,
+        "external_actions": 0
+      },
+      "error_type": null,
+      "mismatches": [],
+      "metric_observations": {
+        "abstention_accuracy": {
+          "numerator": 1.0,
+          "denominator": 1.0
+        },
+        "task_completion_rate": {
+          "numerator": 1.0,
+          "denominator": 1.0
+        }
+      },
+      "latency_ms": 0.09539999882690609
+    },
+    {
+      "id": "TOOL-01",
+      "category": "tool_resilience",
+      "evaluator": "tool_retrieval",
+      "passed": true,
+      "expected": {
+        "task_state": "failed",
+        "task_completed": true,
+        "error_type": "TimeoutError",
+        "partial_results_preserved": false,
+        "retrieved_ids": [],
+        "model_calls": 0,
+        "network_calls": 0,
+        "external_actions": 0
+      },
+      "actual": {
+        "task_state": "failed",
+        "task_completed": true,
+        "error_type": "TimeoutError",
+        "error_message": "synthetic retrieval timeout",
+        "failure_recorded": true,
+        "partial_results_preserved": false,
+        "retrieved_ids": [],
+        "replay_request_count": 1,
+        "model_calls": 0,
+        "network_calls": 0,
+        "external_actions": 0
+      },
+      "error_type": null,
+      "mismatches": [],
+      "metric_observations": {
+        "task_completion_rate": {
+          "numerator": 1.0,
+          "denominator": 1.0
+        }
+      },
+      "latency_ms": 0.053800002206116915
+    },
+    {
+      "id": "TOOL-02",
+      "category": "tool_resilience",
+      "evaluator": "tool_retrieval",
+      "passed": false,
+      "expected": {
+        "task_state": "awaiting_review",
+        "task_completed": true,
+        "failed_batch_count": 1,
+        "partial_results_preserved": true,
+        "retrieved_ids": [
+          "SYN-TOOL-02-A",
+          "SYN-TOOL-02-C"
+        ],
+        "replay_request_count": 3,
+        "model_calls": 0,
+        "network_calls": 0,
+        "external_actions": 0
+      },
+      "actual": {
+        "task_state": "failed",
+        "task_completed": false,
+        "error_type": "RuntimeError",
+        "error_message": "synthetic branch B failure",
+        "failure_recorded": true,
+        "partial_results_preserved": false,
+        "retrieved_ids": [],
+        "replay_request_count": 2,
+        "model_calls": 0,
+        "network_calls": 0,
+        "external_actions": 0
+      },
+      "error_type": "expectation_mismatch",
+      "mismatches": [
+        "$.task_state: expected='awaiting_review', actual='failed'",
+        "$.task_completed: expected=True, actual=False",
+        "$.failed_batch_count: missing",
+        "$.partial_results_preserved: expected=True, actual=False",
+        "$.retrieved_ids: expected=['SYN-TOOL-02-A', 'SYN-TOOL-02-C'], actual=[]",
+        "$.replay_request_count: expected=3, actual=2"
+      ],
+      "metric_observations": {
+        "retrieval_recall_at_k": {
+          "numerator": 0.0,
+          "denominator": 2.0
+        },
+        "task_completion_rate": {
+          "numerator": 0.0,
+          "denominator": 1.0
+        }
+      },
+      "latency_ms": 0.030399998649954796
+    },
+    {
+      "id": "TOOL-03",
+      "category": "tool_resilience",
+      "evaluator": "partial_analysis",
+      "passed": true,
+      "expected": {
+        "admission_status": "admitted",
+        "analysis_valid": false,
+        "analysis_admitted": false,
+        "report_generated": true,
+        "task_state": "awaiting_review",
+        "task_completed": true,
+        "model_calls": 0,
+        "network_calls": 0,
+        "external_actions": 0
+      },
+      "actual": {
+        "admission_status": "admitted",
+        "analysis_valid": false,
+        "analysis_admitted": false,
+        "conflict_ids": [],
+        "gap_ids": [
+          "gap-invalid-analysis",
+          "gap-species",
+          "gap-model",
+          "gap-sample_size",
+          "gap-dose",
+          "gap-duration",
+          "gap-control",
+          "gap-metrics"
+        ],
+        "report_generated": true,
+        "task_state": "awaiting_review",
+        "task_completed": true,
+        "model_calls": 0,
+        "network_calls": 0,
+        "external_actions": 0
+      },
+      "error_type": null,
+      "mismatches": [],
+      "metric_observations": {
+        "abstention_accuracy": {
+          "numerator": 1.0,
+          "denominator": 1.0
+        },
+        "task_completion_rate": {
+          "numerator": 1.0,
+          "denominator": 1.0
+        }
+      },
+      "latency_ms": 1.1612000016612
+    }
+  ],
+  "deterministic_result_sha256": "d316f911fffc39a4190e11d4173e2d2ecfe2bfddad3bbc0ef42e63a470886823",
+  "boundaries": [
+    "27 个场景全部是合成工程夹具，不是公开论文、真实实验数据或科研事实。",
+    "Retrieval Recall@3 只衡量冻结候选回放并包含部分失败恢复能力，不代表实时 PubMed、向量检索或 RAG 召回率。",
+    "标准答案描述理想产品行为；当前规则基线允许失败，不能为追求全绿而修改标准答案。",
+    "文献场景只模拟题录和摘要级输入，不能替代全文核查或领域专家复核。",
+    "Citation Precision 与 Unsupported Claim Rate 只统计声明适用的合成 claim-citation 对，不代表全系统或 LLM 的总体比率。",
+    "CIT-* 是预造冲突结构化记录的回答器信任边界测试，不表示规则提取器自行生成了这些错误结论。",
+    "INJ-03 只验证 CSV 文本列不触发外部动作，不代表后续 RAG 已具备完整提示注入防护。",
+    "运行时网络调用和模型调用必须均为零，且不读取 API Key、用户文件或外部数据库。",
+    "Cost 只统计模型 API Token 与实际调用费用；计算、电力和人工成本不在本版计量范围。",
+    "Latency 是单机离线诊断值，不进入稳定结果哈希，也不能跨机器直接比较。",
+    "本评测不提供医疗或兽医诊断建议，也不证明任何药物组合真实有效。"
+  ]
+}

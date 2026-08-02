@@ -21,6 +21,8 @@ from vetevidence.database_ui_support import (
     DAVID_SUPPORTED_TAXON_IDS,
     SWISS_TARGET_SUPPORTED_TAXON_IDS,
     VETERINARY_SPECIES_TAX_IDS,
+    DatabaseQueryExecution,
+    DatabaseQueryGroupExecution,
     DatabaseSourceConfig,
     parse_taxon_selection,
     restore_connector_entries,
@@ -233,6 +235,48 @@ def test_connector_summary_is_complete_and_immutable() -> None:
     }
     with pytest.raises(ValidationError):
         summary.total = 10
+
+
+def test_query_group_exposes_frozen_membership_without_history_slicing() -> None:
+    first = DatabaseQueryExecution(
+        source="PubChem",
+        input_summary="input_sha256=one",
+        query_id="pubchem-one",
+        result=_result(),
+    )
+    failed = DatabaseQueryExecution(
+        source="PubChem",
+        input_summary="input_sha256=two",
+        error="timeout",
+    )
+    other_source = DatabaseQueryExecution(
+        source="OMIM",
+        input_summary="input_sha256=one",
+        query_id="omim-one",
+        result=_result(
+            status=ConnectorStatus.OFFLINE_EXPORT,
+            source_name="OMIM",
+            with_artifact=False,
+        ),
+    )
+
+    pubchem = DatabaseQueryGroupExecution(
+        source="PubChem",
+        operations=(first, failed),
+    )
+    omim = DatabaseQueryGroupExecution(
+        source="OMIM",
+        operations=(other_source,),
+    )
+
+    assert pubchem.planned_count == 2
+    assert pubchem.archived_count == 1
+    assert pubchem.failed_count == 1
+    assert pubchem.query_ids == ("pubchem-one",)
+    assert pubchem.results == (first.result,)
+    assert omim.query_ids == ("omim-one",)
+    assert first.archived is True
+    assert failed.archived is False
 
 
 def test_restore_verifies_archives_hydrates_raw_responses_and_sorts(tmp_path) -> None:

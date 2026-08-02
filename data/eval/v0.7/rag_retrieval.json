@@ -1,0 +1,45 @@
+{
+  "schema_version": "1.0",
+  "manifest_version": "local_hash_rag_v1",
+  "dataset_version": "v0.7.0",
+  "cases_sha256_algorithm": "sha256-canonical-json-v1",
+  "cases_sha256": "119ff99d18be270d1306d5cb1ea77defd53430ad98823dcf3dc451435081ae6c",
+  "retrieval_k": 3,
+  "query_builder": "question_scope_v1",
+  "document_builder": "title_abstract_v1",
+  "chunk_size": 10000,
+  "overlap_chars": 0,
+  "keyword_weight": 0.5,
+  "vector_weight": 0.5,
+  "hard_negative_source_ids": [
+    "SYN-DIR-01-DECOY",
+    "SYN-CTX-01",
+    "SYN-CTX-02",
+    "SYN-CTX-03",
+    "SYN-NONE-02",
+    "SYN-NONE-03",
+    "SYN-HIT-01",
+    "SYN-HIT-02",
+    "SYN-HIT-03",
+    "SYN-INJ-01",
+    "SYN-INJ-02"
+  ],
+  "cases": [
+    {
+      "case_id": "DIR-01",
+      "slice": "semantic_direct"
+    },
+    {
+      "case_id": "DIR-02",
+      "slice": "semantic_direct"
+    },
+    {
+      "case_id": "DIR-03",
+      "slice": "semantic_direct"
+    },
+    {
+      "case_id": "TOOL-02",
+      "slice": "resilience_partial"
+    }
+  ]
+}

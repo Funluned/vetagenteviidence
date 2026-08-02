@@ -1,0 +1,2 @@
+# This vendored asset is SHA-256 pinned and must be checked out byte-for-byte.
+src/vetevidence/assets/vendor/3dmol/3Dmol.es6-min.js -text

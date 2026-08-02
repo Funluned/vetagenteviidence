@@ -3,6 +3,8 @@ from __future__ import annotations
 import hashlib
 import inspect
 import json
+import os
+import stat
 import subprocess
 import zipfile
 from datetime import datetime, timezone
@@ -257,6 +259,8 @@ def _verified_tool(
 ) -> VerifiedExternalTool:
     executable = tmp_path / f"{name}.exe"
     executable.write_bytes(f"fake-{name}".encode())
+    if os.name != "nt":
+        executable.chmod(executable.stat().st_mode | stat.S_IXUSR)
     runtime_environment = None
     if name == "PLIP":
         libdir = tmp_path / "openbabel-runtime" / "Library" / "bin"
@@ -300,6 +304,28 @@ def _verified_tool(
     )
     assert status.available
     return status
+
+
+@pytest.mark.skipif(os.name == "nt", reason="POSIX executable bits are not used")
+def test_external_tool_verification_rejects_non_executable_on_posix(
+    tmp_path: Path,
+) -> None:
+    executable = tmp_path / "pymol.exe"
+    executable.write_bytes(b"fake-pymol")
+    executable.chmod(executable.stat().st_mode & ~0o111)
+
+    def version_runner(arguments: list[str], **kwargs: object):
+        pytest.fail("version runner must not be called for a non-executable file")
+
+    status = verify_pymol_executable(
+        executable,
+        user_confirmed=True,
+        runner=version_runner,
+    )
+
+    assert status.available is False
+    assert status.executable_path is None
+    assert "文件不可执行" in (status.reason or "")
 
 
 def test_extract_pose_and_complex_use_only_approved_receptor_selection() -> None:

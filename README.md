@@ -617,7 +617,10 @@ docker build -t vetevidence-ai .
 docker run --rm -p 8501:8501 vetevidence-ai
 ```
 
-本机当前未安装 Docker，因此 Dockerfile 尚未完成实际镜像构建验证。
+本机当前未安装 Docker；GitHub Actions
+[`30742122214`](https://github.com/Funluned/vetresearch-workbench/actions/runs/30742122214)
+已在干净 Ubuntu runner 上完成镜像构建、非 root 容器启动、可写工作目录、健康检查
+和首页访问。该结果验证默认镜像契约，不代表本机 Docker 或下列可选科研工具已验收。
 默认 Docker 镜像不包含 AutoDock Vina、Open Babel、Open-Source PyMOL、
 PLIP 或 OpenMM 可选环境；如需使用这些程序，必须另行合法安装或挂载并显式
 配置。仓库只捆绑固定版本的 3Dmol.js 前端资产及其许可证/上游元数据。未提供

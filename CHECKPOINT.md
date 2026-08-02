@@ -11,8 +11,9 @@ VetResearch Workbench v0.7.0 正在进行发布收口。免费规则＋本地关
 定向结果拼分。第二次已证明 `INJ-02` 和 `DIR-01` 单／双均通过，同时暴露
 `CON-02`、`CIT-01`、`TOOL-02`、`TOOL-03` 的模型波动或规划完整性边界。阶段 6
 文档、代码和两份脱敏报告已由提交 `de47a95` 推送到开发分支，GitHub 仓库已更名为
-`Funluned/vetresearch-workbench`。Docker 远端 CI、PR 合并、Tag 和 Release 仍待
-后续门禁；孙奇本人从零安装、讲解、修改和排错验收继续延期到 GitHub 工程稳定后。
+`Funluned/vetresearch-workbench`。PR #1 的三平台测试和 Docker 实际构建／启动
+均已通过；PR 合并、Tag 和 Release 仍待后续门禁。孙奇本人从零安装、讲解、修改
+和排错验收继续延期到 GitHub 工程稳定后。
 
 ## 2026-08-02 v0.7.0 发布收口两次全 27 题真实运行（本地已完成）
 
@@ -47,8 +48,9 @@ VetResearch Workbench v0.7.0 正在进行发布收口。免费规则＋本地关
   不完整仍安全拒答；恢复成功不等于任务证据完整。
 - [x] 阶段 6 代码、文档与报告已提交并推送，GitHub 仓库已更名为
   `Funluned/vetresearch-workbench`。
-- [ ] Docker 实际验证、远端 CI、PR 合并、Tag 和 Release 仍待后续门禁；阶段 5
-  本人验收继续延期。
+- [x] PR #1 远端 CI 全绿：Ubuntu、Windows、macOS 测试通过，Docker 在 Ubuntu
+  runner 上完成构建、非 root 启动、可写目录、健康检查和首页访问。
+- [ ] PR 合并、Tag 和 Release 仍待后续门禁；阶段 5 本人验收继续延期。
 
 ## 2026-08-02 v0.7 五题真实复测与第二轮零费用修复（本地已完成）
 
@@ -699,7 +701,8 @@ VetResearch Workbench v0.7.0 正在进行发布收口。免费规则＋本地关
 
 ## 阻塞
 
-- 本机未安装 Docker：Dockerfile 已写，镜像构建未验证。
+- 本机仍未安装 Docker；GitHub Actions `30742122214` 已验证默认镜像构建、非 root
+  启动、可写目录、健康检查和首页访问，但不替代本机及可选科研工具验收。
 - 本机已安装并核验 AutoDock Vina 1.2.7，Agent 执行链已用官方公开样例验收；尚未提供与当前兽医科研问题对应、来源许可清楚且人工完成结构准备的真实配体/受体，因此不能把冒烟结果当作科研机制证据。
 - Open Babel 真实转换只证明配体准备执行链可运行；尚未由研究者完成与当前科研问题对应的互变异构体、立体化学、质子化、构象和受体准备复核，不能把生成结构或后续对接当作结合、抗菌或协同证明。
 - v0.5 尚无与当前兽医科研问题匹配、来源许可明确且经研究者逐项审批的

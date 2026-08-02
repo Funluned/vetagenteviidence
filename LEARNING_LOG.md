@@ -915,7 +915,13 @@ python -m venv .venv
 ### 阶段 6 与阶段 5
 
 - 项目版本、MIT 许可证、Changelog、PRD、架构、演示、面试、简历、AI 协作和
-  真实失败案例正在本地收口。Docker、远端 CI、提交、推送、合并、Tag 和 Release
-  未因文件存在而自动视为完成。
+  真实失败案例已由 `de47a95` 提交并推送；仓库已更名为
+  `Funluned/vetresearch-workbench`，链接迁移提交为 `e5dae89`。
+- PR #1 的 GitHub Actions `30742122214` 全绿：Ubuntu、Windows、macOS 完成
+  安装、编译和全量测试；Docker job 在干净 Ubuntu runner 实际完成镜像构建、
+  非 root 启动、可写工作目录、健康检查和首页访问。它验证默认镜像契约，不替代
+  本机 Docker 或可选科研工具验收。
+- PR 合并、Tag 和 Release 仍须在最新文档提交再次通过 CI 后完成，不能因第一次
+  PR 检查全绿而提前写成发布完成。
 - 孙奇本人从零安装、讲解、修改和排错验收继续延期到 GitHub 工程稳定后；延期
   不是取消，也不允许提前把候选简历文案当成本人已掌握证据。

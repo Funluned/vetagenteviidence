@@ -23,7 +23,7 @@
 - 增加 7 天 JSON 缓存、同批期刊去重、最多 4 路并发、过期缓存及本地 CSV 回退。
 - JIF 结果保留 WOS 分类、SCIE 收录集和名次；界面、证据表及导出继续同时展示两套标准。
 - 新增 LetPub 搜索页、分区页、缓存与 503 回退测试，自动测试增加到 21 条；定向评测仍为 30/30。
-- 配置 GitHub 身份与远端，将完整项目上传至 `Funluned/vetagenteviidence` 的 `main` 分支。
+- 配置 GitHub 身份与远端；仓库后续更名为 `Funluned/vetresearch-workbench`，默认分支仍为 `main`。
 
 ### 已运行命令
 
@@ -466,7 +466,7 @@ python -m venv .venv
 ### 验证结果与边界
 
 - 最终本地全量：`441 passed, 1 skipped in 23.66s`；依赖、编译和 Git 差异检查通过。
-- 远端 CI [`30695477003`](https://github.com/Funluned/vetagenteviidence/actions/runs/30695477003) 全绿：Ubuntu `439 passed, 3 skipped`，Windows `438 passed, 4 skipped`，macOS `439 passed, 3 skipped`。
+- 远端 CI [`30695477003`](https://github.com/Funluned/vetresearch-workbench/actions/runs/30695477003) 全绿：Ubuntu `439 passed, 3 skipped`，Windows `438 passed, 4 skipped`，macOS `439 passed, 3 skipped`。
 - 原生 HTTPS push 连续遇到连接重置后，使用 GitHub Git Data API 上传与本地对象 SHA 完全一致的非强制提交并推进同一分支；更新前再次核对远端 tip，没有改写历史。
 - 三系统全绿证明当前依赖安装、编译和自动测试集在三套 runner 上通过，不证明真实外部工具、科研结论或用户验收。
 - 阶段 1 已关闭；下一步应先建立独立版本化评测集并保存规则基线，未经新一阶段确认不开始实现或调用模型。
@@ -521,7 +521,7 @@ python -m venv .venv
   完全一致的 Git 对象，并以 `force=false` 更新分支；未改写既有历史。
 - 排错期间生成的两个诊断提交对象未挂到任何分支或标签，也未触发 CI；正确分支
   历史只包含 `b61d742`。
-- GitHub Actions [`30698205011`](https://github.com/Funluned/vetagenteviidence/actions/runs/30698205011)
+- GitHub Actions [`30698205011`](https://github.com/Funluned/vetresearch-workbench/actions/runs/30698205011)
   全绿：Ubuntu `447 passed, 3 skipped`，Windows `446 passed, 4 skipped`，
   macOS `447 passed, 3 skipped`。阶段 2 至此关闭，阶段 3 仍须另行确认。
 
@@ -696,7 +696,7 @@ python -m venv .venv
   `pip check`、`git diff --check`、结果结构校验、通用敏感标记扫描和 Key 精确
   扫描全部通过；最终只读复核没有剩余高、中等级问题。
 - GitHub Actions
-  [`30710480196`](https://github.com/Funluned/vetagenteviidence/actions/runs/30710480196)
+  [`30710480196`](https://github.com/Funluned/vetresearch-workbench/actions/runs/30710480196)
   三平台全绿：Ubuntu `600 passed, 3 skipped`、Windows `599 passed, 4 skipped`、
   macOS `600 passed, 3 skipped`。这证明干净检出后的基础依赖、编译和自动测试
   可复现，仍不扩大为科研正确性或真实用户验收。
@@ -788,7 +788,7 @@ python -m venv .venv
 - 相关专项 `100 passed`；全量 `628 passed, 1 skipped`；3 份历史真实报告均能读取
   且文件未改，刷新后的 Fake 基线也可读取并复跑匹配。
 - 功能提交 `85fdf7b` 已推送；远端 CI
-  [`30733414142`](https://github.com/Funluned/vetagenteviidence/actions/runs/30733414142)
+  [`30733414142`](https://github.com/Funluned/vetresearch-workbench/actions/runs/30733414142)
   三平台全绿：Ubuntu `626 passed, 3 skipped`、Windows `625 passed, 4 skipped`、
   macOS `626 passed, 3 skipped`。
 - 本轮没有读取 Key、调用模型或产生费用，已完成提交前验证；修复后没有真实复测。

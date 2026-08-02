@@ -9,10 +9,10 @@ VetResearch Workbench v0.7.0 正在进行发布收口。免费规则＋本地关
 `25/27`，Windows 全量为 `648 passed, 1 skipped`。修复后第二次全 27 题真实运行
 得到单 Agent `23/27`、双 Agent `24/27`；它是独立新批次，不与第一次全量或历史
 定向结果拼分。第二次已证明 `INJ-02` 和 `DIR-01` 单／双均通过，同时暴露
-`CON-02`、`TOOL-02`、`TOOL-03` 的模型波动或检索完整性边界。阶段 6 文档、版本
-和发布材料仍在本地收口；Docker、远端 CI、提交、推送、合并、Tag 和 Release
-均未在本轮写成已完成。孙奇本人从零安装、讲解、修改和排错验收继续延期到
-GitHub 工程稳定后。
+`CON-02`、`CIT-01`、`TOOL-02`、`TOOL-03` 的模型波动或规划完整性边界。阶段 6
+文档、代码和两份脱敏报告已由提交 `de47a95` 推送到开发分支，GitHub 仓库已更名为
+`Funluned/vetresearch-workbench`。Docker 远端 CI、PR 合并、Tag 和 Release 仍待
+后续门禁；孙奇本人从零安装、讲解、修改和排错验收继续延期到 GitHub 工程稳定后。
 
 ## 2026-08-02 v0.7.0 发布收口两次全 27 题真实运行（本地已完成）
 
@@ -45,8 +45,10 @@ GitHub 工程稳定后。
 - [x] `INJ-02`、`DIR-01` 单／双均通过，证明两项确定性修复在真实 Provider 上
   生效。`TOOL-02` 首次 Reviewer 截断后真实完成 2048→4096 恢复，但因检索
   不完整仍安全拒答；恢复成功不等于任务证据完整。
-- [ ] 阶段 6 的 Docker 实际验证、远端 CI、提交、推送、合并、Tag 和 Release
-  仍待后续门禁；阶段 5 本人验收继续延期。
+- [x] 阶段 6 代码、文档与报告已提交并推送，GitHub 仓库已更名为
+  `Funluned/vetresearch-workbench`。
+- [ ] Docker 实际验证、远端 CI、PR 合并、Tag 和 Release 仍待后续门禁；阶段 5
+  本人验收继续延期。
 
 ## 2026-08-02 v0.7 五题真实复测与第二轮零费用修复（本地已完成）
 
@@ -94,7 +96,7 @@ GitHub 工程稳定后。
   首次草稿在 2048 Token 截断，唯一一次 4096 有界恢复成功，未继续重试。
 - [x] 功能提交 `4401e4910fa86243dcc00e358bc6bf1ac941865b` 已推送至
   `codex/vetresearch-workbench`；GitHub Actions
-  [`30738353459`](https://github.com/Funluned/vetagenteviidence/actions/runs/30738353459)
+  [`30738353459`](https://github.com/Funluned/vetresearch-workbench/actions/runs/30738353459)
   三平台全绿：Ubuntu `640 passed, 3 skipped`、Windows `639 passed, 4 skipped`、
   macOS `640 passed, 3 skipped`。
 
@@ -121,7 +123,7 @@ GitHub 工程稳定后。
   均可读取且文件未改，刷新后的 Fake 基线也可读取并复跑匹配。
 - [x] 工程修复提交 `85fdf7b 修正 v0.7 Agent 评测与运行边界` 已推送至
   `codex/vetresearch-workbench`；远端 CI
-  [`30733414142`](https://github.com/Funluned/vetagenteviidence/actions/runs/30733414142)
+  [`30733414142`](https://github.com/Funluned/vetresearch-workbench/actions/runs/30733414142)
   三平台全绿：Ubuntu `626 passed, 3 skipped`、Windows `625 passed, 4 skipped`、
   macOS `626 passed, 3 skipped`。
 - [ ] 修复后的付费真实复测尚未授权或执行。
@@ -200,7 +202,7 @@ GitHub 工程稳定后。
   问题。没有继续调用模型或产生新费用。
 - [x] 功能提交 `cb819f3` 已非强制推送至 `codex/vetresearch-workbench`；远端
   SHA 与本地一致。GitHub Actions
-  [`30710480196`](https://github.com/Funluned/vetagenteviidence/actions/runs/30710480196)
+  [`30710480196`](https://github.com/Funluned/vetresearch-workbench/actions/runs/30710480196)
   全绿：Ubuntu `600 passed, 3 skipped`、Windows `599 passed, 4 skipped`、
   macOS `600 passed, 3 skipped`。
 
@@ -274,7 +276,7 @@ GitHub 工程稳定后。
   当前只完成候选检索，不是真实语义 Embedding、生成式 RAG 或 LLM Agent。
 - 提交 `6e908e8` 已按确认非强制快进至 `codex/vetresearch-workbench`；本地、
   远端提交和树 SHA 一致。GitHub Actions
-  [`30704650604`](https://github.com/Funluned/vetagenteviidence/actions/runs/30704650604)
+  [`30704650604`](https://github.com/Funluned/vetresearch-workbench/actions/runs/30704650604)
   全绿：Ubuntu `487 passed, 3 skipped`，Windows `486 passed, 4 skipped`，
   macOS `487 passed, 3 skipped`。
 
@@ -315,7 +317,7 @@ GitHub 工程稳定后。
 - 本地全量回归：`480 passed, 1 skipped`；Python 编译、`pip check` 与
   `git diff --check` 均通过。
 - 功能提交 `b09fa77` 已按确认推送至 `codex/vetresearch-workbench`；GitHub
-  Actions [`30702625775`](https://github.com/Funluned/vetagenteviidence/actions/runs/30702625775)
+  Actions [`30702625775`](https://github.com/Funluned/vetresearch-workbench/actions/runs/30702625775)
   全绿：Ubuntu `478 passed, 3 skipped`，Windows `477 passed, 4 skipped`，
   macOS `478 passed, 3 skipped`。阶段 3A 第一批已关闭，但整个阶段 3A 尚未关闭，
   下一批仍需把免费路径接入工作台。
@@ -358,7 +360,7 @@ GitHub 工程稳定后。
 - v0.7 专项、旧评测兼容与制品回归：`15 passed`。
 - 最终全量自动回归：`449 passed, 1 skipped in 24.64s`；跳过项是既有平台条件。
 - `pip check`、Python 编译、基线快照重放校验和 `git diff --check` 均通过。
-- 远端 CI [`30698205011`](https://github.com/Funluned/vetagenteviidence/actions/runs/30698205011)
+- 远端 CI [`30698205011`](https://github.com/Funluned/vetresearch-workbench/actions/runs/30698205011)
   全绿：Ubuntu `447 passed, 3 skipped`，Windows `446 passed, 4 skipped`，
   macOS `447 passed, 3 skipped`。
 
@@ -379,7 +381,7 @@ GitHub 工程稳定后。
 - 收口提交：`003e2e0 固定哈希资产的跨平台检出字节`，通过 `.gitattributes` 的精确 `-text` 规则保护 vendored 资产，并新增项目制品回归。
 - 修复前干净 Windows clone 将工作树哈希从 `95513f64…6d427` 改为 `38630fd5…9011`；修复后保持 `w/lf attr/-text` 且哈希与固定值一致。
 - 最终本地全量回归：`441 passed, 1 skipped in 23.66s`；`pip check`、Python 编译检查和 `git diff --check` 通过。
-- 远端 CI [`30695477003`](https://github.com/Funluned/vetagenteviidence/actions/runs/30695477003) 全绿：Ubuntu `439 passed, 3 skipped`，Windows `438 passed, 4 skipped`，macOS `439 passed, 3 skipped`。
+- 远端 CI [`30695477003`](https://github.com/Funluned/vetresearch-workbench/actions/runs/30695477003) 全绿：Ubuntu `439 passed, 3 skipped`，Windows `438 passed, 4 skipped`，macOS `439 passed, 3 skipped`。
 - 全量自动测试只证明当前测试集与三套 runner 未发现回归，不证明真实外部工具、科研结论、用户价值或商业价值。
 
 ### 当前边界
@@ -445,7 +447,7 @@ GitHub 工程稳定后。
 - 真实查询：`quercetin Streptococcus agalactiae mastitis` 返回 2 篇文献。
 - LetPub 实测：目标论文所在期刊显示中科院农林科学 3 区、兽医学 3 区，以及 WOS JIF Q2（SCIE，54/170）。
 - LetPub 实测：`Animals` 显示中科院农林科学 2 区、两个小类 2 区，以及两个 WOS JIF Q1 分类。
-- GitHub：项目已上传至 `https://github.com/Funluned/vetagenteviidence`，默认分支为 `main`。
+- GitHub：项目已上传至 `https://github.com/Funluned/vetresearch-workbench`，默认分支为 `main`。
 - 目标论文：PMID `42250334`，DOI `10.1016/j.rvsc.2026.106289`。
 - 目标论文提取：小鼠、样本量 25、Quercetin、`25, 50, 100 mg/kg`、腹腔注射、`24 h`、NF-κB、NLRP3、铁死亡及来源原句。
 - 页面验收：文献列表、证据表、证据回答、评测、导出五个标签页均已实际检查。

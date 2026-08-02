@@ -32,7 +32,11 @@ Key 的用户仍可使用。隔离的 DeepSeek V4 Provider、有限状态 Resear
   `40e1fb1a5f5f6a71a4b02bd2864ccd4b6a7ef0b74342b61d001f63b99a768a89`。
 - [x] 相关专项 `100 passed`；全量 `628 passed, 1 skipped`；3 份历史真实报告
   均可读取且文件未改，刷新后的 Fake 基线也可读取并复跑匹配。
-- [x] 本轮工程修复已完成提交前验证，提交推送已获大壮确认。
+- [x] 工程修复提交 `85fdf7b 修正 v0.7 Agent 评测与运行边界` 已推送至
+  `codex/vetresearch-workbench`；远端 CI
+  [`30733414142`](https://github.com/Funluned/vetagenteviidence/actions/runs/30733414142)
+  三平台全绿：Ubuntu `626 passed, 3 skipped`、Windows `625 passed, 4 skipped`、
+  macOS `626 passed, 3 skipped`。
 - [ ] 修复后的付费真实复测尚未授权或执行。
 
 ## 2026-08-02 v0.7 DeepSeek 全 27 题正式工程评测（本地已完成）

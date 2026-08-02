@@ -787,5 +787,9 @@ python -m venv .venv
   `40e1fb1a5f5f6a71a4b02bd2864ccd4b6a7ef0b74342b61d001f63b99a768a89`。
 - 相关专项 `100 passed`；全量 `628 passed, 1 skipped`；3 份历史真实报告均能读取
   且文件未改，刷新后的 Fake 基线也可读取并复跑匹配。
+- 功能提交 `85fdf7b` 已推送；远端 CI
+  [`30733414142`](https://github.com/Funluned/vetagenteviidence/actions/runs/30733414142)
+  三平台全绿：Ubuntu `626 passed, 3 skipped`、Windows `625 passed, 4 skipped`、
+  macOS `626 passed, 3 skipped`。
 - 本轮没有读取 Key、调用模型或产生费用，已完成提交前验证；修复后没有真实复测。
   是否真实定向复测必须再次取得费用授权。

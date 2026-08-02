@@ -921,7 +921,12 @@ python -m venv .venv
   安装、编译和全量测试；Docker job 在干净 Ubuntu runner 实际完成镜像构建、
   非 root 启动、可写工作目录、健康检查和首页访问。它验证默认镜像契约，不替代
   本机 Docker 或可选科研工具验收。
-- PR 合并、Tag 和 Release 仍须在最新文档提交再次通过 CI 后完成，不能因第一次
-  PR 检查全绿而提前写成发布完成。
+- PR #1 已合并为 `8fa0836`；注释标签 `v0.7.0` 精确指向该提交，正式
+  [GitHub Release](https://github.com/Funluned/vetresearch-workbench/releases/tag/v0.7.0)
+  已发布。`main` 运行 `30742349366` 与标签运行 `30742374134` 的 Ubuntu、Windows、
+  macOS 与 Docker job 均通过；GitHub 正确识别 MIT License，仓库简介和 Topics
+  已完成。
+- 阶段 6 至此关闭。真实评测失败、成本和边界继续原样保留；发布完成不改变
+  `23/27`、`24/27` 的当前批次结果，也不把双 Agent 升级为默认设计。
 - 孙奇本人从零安装、讲解、修改和排错验收继续延期到 GitHub 工程稳定后；延期
   不是取消，也不允许提前把候选简历文案当成本人已掌握证据。

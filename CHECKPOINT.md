@@ -2,7 +2,7 @@
 
 ## 当前阶段
 
-VetResearch Workbench v0.7.0 正在进行发布收口。免费规则＋本地关键词检索路径
+VetResearch Workbench v0.7.0 的 GitHub 工程收口已经完成。免费规则＋本地关键词检索路径
 保持不变；没有模型 Key 的用户仍可使用。第一次修正 scorer 的全 27 题真实运行
 得到单 Agent `26/27`、双 Agent `25/27`，并暴露 `INJ-02` 控制文本误准入和
 `DIR-01` Reviewer 截断缺口。两项零费用确定性修复后，Fake 单／双 Agent 为
@@ -11,9 +11,10 @@ VetResearch Workbench v0.7.0 正在进行发布收口。免费规则＋本地关
 定向结果拼分。第二次已证明 `INJ-02` 和 `DIR-01` 单／双均通过，同时暴露
 `CON-02`、`CIT-01`、`TOOL-02`、`TOOL-03` 的模型波动或规划完整性边界。阶段 6
 文档、代码和两份脱敏报告已由提交 `de47a95` 推送到开发分支，GitHub 仓库已更名为
-`Funluned/vetresearch-workbench`。PR #1 的三平台测试和 Docker 实际构建／启动
-均已通过；PR 合并、Tag 和 Release 仍待后续门禁。孙奇本人从零安装、讲解、修改
-和排错验收继续延期到 GitHub 工程稳定后。
+`Funluned/vetresearch-workbench`。PR #1 已合并为 `8fa0836`；注释标签 `v0.7.0`
+精确指向该提交，[GitHub Release](https://github.com/Funluned/vetresearch-workbench/releases/tag/v0.7.0)
+已发布，`main` 与标签的三平台测试和 Docker job 均全绿。阶段 5 本人从零安装、
+讲解、修改和排错验收现在成为下一步，仍未写成已完成。
 
 ## 2026-08-02 v0.7.0 发布收口两次全 27 题真实运行（本地已完成）
 
@@ -50,7 +51,10 @@ VetResearch Workbench v0.7.0 正在进行发布收口。免费规则＋本地关
   `Funluned/vetresearch-workbench`。
 - [x] PR #1 远端 CI 全绿：Ubuntu、Windows、macOS 测试通过，Docker 在 Ubuntu
   runner 上完成构建、非 root 启动、可写目录、健康检查和首页访问。
-- [ ] PR 合并、Tag 和 Release 仍待后续门禁；阶段 5 本人验收继续延期。
+- [x] PR #1 已合并为 `8fa0836`，注释标签 `v0.7.0` 指向该提交，正式 GitHub
+  Release 已发布；`main` 运行 `30742349366` 与标签运行 `30742374134` 的四个 job
+  均通过。
+- [ ] 阶段 5 本人从零安装、讲解、修改和排错验收仍待大壮后续单独完成。
 
 ## 2026-08-02 v0.7 五题真实复测与第二轮零费用修复（本地已完成）
 
